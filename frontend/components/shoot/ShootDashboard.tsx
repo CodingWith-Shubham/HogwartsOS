@@ -53,11 +53,11 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function isTrue(value: string | undefined) {
+function isTrue(value: unknown) {
   return String(value ?? '').trim().toLowerCase() === 'true';
 }
 
-function isYes(value: string | undefined) {
+function isYes(value: unknown) {
   return String(value ?? '').trim().toLowerCase() === 'yes';
 }
 

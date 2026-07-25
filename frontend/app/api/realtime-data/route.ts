@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET() {
   try {
@@ -12,7 +12,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const res = await fetch(`${BACKEND_URL}/realtime-data`, { cache: 'no-store' });
+    const token = getAccessToken();
+    const res = await fetch(`${BACKEND_URL}/realtime-data`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      cache: 'no-store',
+    });
+
     const data = await res.json();
     if (res.ok && data.success) {
       return NextResponse.json(data.data);

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
-import { fetchLeadsWithPayments, clearSheetsCache } from '@/lib/google/sheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,23 +30,6 @@ export async function POST(request: Request) {
 
     if (!(invoiceFile instanceof File) || invoiceFile.size === 0) {
       return NextResponse.json({ error: 'An invoice or supporting document is required' }, { status: 400 });
-    }
-
-    // Enforce data isolation: check if user is allowed to access this lead
-    if (user.role === 'sales') {
-      const leads = await fetchLeadsWithPayments();
-      const isAssigned = leads.some(
-        (l) =>
-          l.leadId === lead_id &&
-          (l.assignedTo.trim().toLowerCase() === user.name.trim().toLowerCase() ||
-            l.assignedTo.trim().toLowerCase() === user.email.trim().toLowerCase() ||
-            l.assignedTo.trim().toLowerCase() === user.username.trim().toLowerCase())
-      );
-      if (!isAssigned) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    } else if (user.role !== 'manager' && user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const payload = new FormData();
@@ -89,8 +71,6 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
-
-    clearSheetsCache();
 
     const data = await response.json().catch(() => ({}));
     return NextResponse.json({ success: true, data });

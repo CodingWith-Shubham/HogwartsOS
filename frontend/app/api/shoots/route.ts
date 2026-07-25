@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET() {
   try {
@@ -12,7 +12,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const res = await fetch(`${BACKEND_URL}/shoots`, { cache: 'no-store' });
+    const token = getAccessToken();
+    const res = await fetch(`${BACKEND_URL}/shoots`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      cache: 'no-store',
+    });
+
     const data = await res.json();
     if (res.ok && data.success) {
       return NextResponse.json({ shoots: data.data.shoots || [] });
@@ -31,10 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/shoots`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
 
@@ -56,12 +67,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const shootId = String(body.shootId ?? '').trim();
 
     const res = await fetch(`${BACKEND_URL}/shoots/${shootId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
 

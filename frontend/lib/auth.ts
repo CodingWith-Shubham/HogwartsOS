@@ -23,3 +23,4 @@ export interface AuthContextValue {
 }
 
 export const SESSION_KEY = 'howgarts_session';
+export const TOKEN_KEY = 'howgarts_token';

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET() {
   const currentUser = getAuthenticatedUser();
@@ -13,7 +13,14 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/users`, { cache: 'no-store' });
+    const token = getAccessToken();
+    const res = await fetch(`${BACKEND_URL}/users`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      cache: 'no-store',
+    });
+
     const data = await res.json();
     if (res.ok && data.success) {
       return NextResponse.json({ success: true, users: data.data.users });
@@ -36,10 +43,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
 
@@ -65,12 +76,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const id = String(body.id ?? body._id ?? '').trim();
 
     const res = await fetch(`${BACKEND_URL}/users/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
 

@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import type { AuthContextValue, User } from './types';
-import { SESSION_KEY } from './auth';
+import { SESSION_KEY, TOKEN_KEY } from './auth';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -68,6 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const authed: User = data.user;
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(SESSION_KEY, JSON.stringify(authed));
+        if (data.token) {
+          window.localStorage.setItem(TOKEN_KEY, data.token);
+        }
       }
       setUser(authed);
       
@@ -104,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(SESSION_KEY);
+      window.localStorage.removeItem(TOKEN_KEY);
     }
     setUser(null);
     setUsers([]);

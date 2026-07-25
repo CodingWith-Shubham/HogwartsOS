@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET() {
   try {
@@ -12,9 +12,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = getAccessToken();
     const res = await fetch(`${BACKEND_URL}/clients`, {
       headers: {
-        'Authorization': `Bearer ${user.id}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       cache: 'no-store'
     });
@@ -41,12 +42,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/clients`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.id}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -74,6 +76,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
     const leadId = String(body.leadId ?? '').trim();
 
@@ -85,7 +88,7 @@ export async function PUT(request: Request) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.id}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });

@@ -130,6 +130,10 @@ function workloadForEditor(workloads: EditorWorkload[], editorName: string) {
   );
 }
 
+function isTrue(value: unknown) {
+  return String(value ?? '').trim().toLowerCase() === 'true';
+}
+
 function editorDropdownLabel(workloads: EditorWorkload[], editorName: string) {
   const workload = workloadForEditor(workloads, editorName);
   if (!workload) return editorName;
@@ -466,7 +470,7 @@ export default function ManagerPage() {
       const assignedShootIds = new Set(editing.map((edit) => edit.shootId).filter(Boolean));
       return shoots.filter(
         (shoot) =>
-          shoot.driveLinkUploaded.trim().toLowerCase() === 'true' &&
+          isTrue(shoot.driveLinkUploaded) &&
           !assignedShootIds.has(shoot.shootId)
       );
     },
@@ -509,7 +513,7 @@ export default function ManagerPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium">{shoot.clientName || 'Untitled shoot'}</p>
-                    {shoot.editedByShootTeam.trim().toLowerCase() === 'true' && (
+                    {isTrue(shoot.editedByShootTeam) && (
                       <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">
                         Changes Made
                       </Badge>
@@ -518,7 +522,7 @@ export default function ManagerPage() {
                   <p className="text-xs text-muted-foreground">
                     {formatDate(shoot.shootDate)} · {shoot.shootMemberName || 'No shoot member'}
                   </p>
-                  {shoot.editedByShootTeam.trim().toLowerCase() === 'true' && (
+                  {isTrue(shoot.editedByShootTeam) && (
                     <p className="text-xs text-orange-600">
                       Additional cost: {formatINR(Number(shoot.additionalCost || 0))}
                     </p>

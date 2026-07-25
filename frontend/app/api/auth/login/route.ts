@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function POST(request: Request) {
   try {
@@ -34,14 +34,24 @@ export async function POST(request: Request) {
     }
 
     const user = resData.data.user;
+    const accessToken = resData.data.accessToken;
 
+    // Store user session info in a non-httpOnly cookie (readable by client JS)
     cookies().set('howgarts_session', JSON.stringify(user), {
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: false,
     });
 
-    return NextResponse.json({ success: true, user, token: resData.data.accessToken });
+    // Store the JWT access token in an httpOnly cookie (used by server-side API routes)
+    cookies().set('howgarts_token', accessToken, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+
+    return NextResponse.json({ success: true, user, token: accessToken });
   } catch (error) {
     console.error('Login API error:', error);
     return NextResponse.json(

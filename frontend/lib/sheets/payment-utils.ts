@@ -37,7 +37,7 @@ export function getScreenshotUrl(lead: Lead): string {
 export function isPaymentLinkSent(lead: Lead): boolean {
   if (!lead.payment && !lead.payment_status) return false;
 
-  const linkSent = lead.payment?.paymentLinkSent.trim().toLowerCase() === 'true';
+  const linkSent = String(lead.payment?.paymentLinkSent ?? '').trim().toLowerCase() === 'true';
   const status = getPaymentStatus(lead);
 
   return (

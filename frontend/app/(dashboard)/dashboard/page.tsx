@@ -17,6 +17,10 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
+function isTrue(value: unknown) {
+  return String(value ?? '').trim().toLowerCase() === 'true';
+}
+
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [realtimeData, setRealtimeData] = useState<any>(null);
@@ -103,7 +107,7 @@ export default function DashboardPage() {
 
   // 4. Upcoming Shoots
   const upcomingShoots = shoots
-    .filter((s) => s.shootDate && s.shootDate >= todayStr && s.driveLinkUploaded.toLowerCase() !== 'true')
+    .filter((s) => s.shootDate && s.shootDate >= todayStr && !isTrue(s.driveLinkUploaded))
     .sort((a, b) => a.shootDate.localeCompare(b.shootDate))
     .slice(0, 4);
 

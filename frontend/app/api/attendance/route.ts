@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000/api/v1';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = getAccessToken();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
 
@@ -20,7 +21,9 @@ export async function GET(request: Request) {
       : `${BACKEND_URL}/attendance/my-attendance`;
 
     const res = await fetch(endpoint, {
-      headers: { 'Authorization': `Bearer ${user.id}` },
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       cache: 'no-store'
     });
 
@@ -42,8 +45,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const token = getAccessToken();
     const body = await request.json();
-    const action = body.action || 'check-in'; // check-in or check-out
+    const action = body.action || 'check-in';
 
     const endpoint = action === 'check-out'
       ? `${BACKEND_URL}/attendance/check-out`
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user.id}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });

@@ -3,7 +3,7 @@ export interface Payment {
   leadId: string;
   clientName: string;
   amount: string;
-  paymentLinkSent: string;
+  paymentLinkSent: string | boolean;
   paymentLinkSentAt: string;
   screenshotUrl: string;
   utrNumber: string;
@@ -107,7 +107,7 @@ export interface Shoot {
   shootMemberName: string;
   shootMemberEmail: string;
   dataLink: string;
-  driveLinkUploaded: string;
+  driveLinkUploaded: string | boolean;
   createdAt: string;
   testimonials: string;
   recordTime: string;
@@ -117,7 +117,7 @@ export interface Shoot {
   extraDurationHours: string;
   additionalCost: string;
   shootNotes: string;
-  editedByShootTeam: string;
+  editedByShootTeam: string | boolean;
   searchText: string;
 }
 

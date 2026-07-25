@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-server';
-import { fetchLeadsWithPayments, clearSheetsCache } from '@/lib/google/sheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,23 +33,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Verifier name is required' }, { status: 400 });
     }
 
-    // Enforce data isolation: check if user is allowed to access this lead
-    if (user.role === 'sales') {
-      const leads = await fetchLeadsWithPayments();
-      const isAssigned = leads.some(
-        (l) =>
-          l.leadId === lead_id &&
-          (l.assignedTo.trim().toLowerCase() === user.name.trim().toLowerCase() ||
-            l.assignedTo.trim().toLowerCase() === user.email.trim().toLowerCase() ||
-            l.assignedTo.trim().toLowerCase() === user.username.trim().toLowerCase())
-      );
-      if (!isAssigned) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    } else if (user.role !== 'manager' && user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const url = new URL(CONFIRM_PAYMENT_WEBHOOK_URL);
     url.searchParams.set('lead_id', lead_id);
     url.searchParams.set('payment_id', payment_id);
@@ -70,8 +52,6 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
-
-    clearSheetsCache();
 
     let data: unknown = {};
     if (text) {

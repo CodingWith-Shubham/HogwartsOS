@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAuthenticatedUser } from '@/lib/auth-server';
-import { fetchBackendUsersFromSheet, updateBackendUserInSheet } from '@/lib/google/sheets';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only managers and admins can edit profile details directly
     if (!['manager', 'admin'].includes(authenticatedUser.role)) {
       return NextResponse.json({ success: false, error: 'Forbidden. Please contact a manager to update your account details.' }, { status: 403 });
     }
@@ -22,49 +22,29 @@ export async function POST(request: Request) {
     const username = String(body.username ?? '').trim().toLowerCase();
     const password = String(body.password ?? '').trim();
 
-    if (!email) {
-      return NextResponse.json({ success: false, error: 'Email cannot be empty' }, { status: 400 });
+    if (!email || !username) {
+      return NextResponse.json({ success: false, error: 'Email and username are required' }, { status: 400 });
     }
 
-    if (!username) {
-      return NextResponse.json({ success: false, error: 'Username cannot be empty' }, { status: 400 });
-    }
+    const updatePayload: any = { email, username };
+    if (password) updatePayload.password = password;
 
-    const users = await fetchBackendUsersFromSheet();
-
-    // Check if email or username is already taken by another user
-    const emailExists = users.some(
-      (u) => u.id !== authenticatedUser.id && u.email.toLowerCase() === email.toLowerCase()
-    );
-    if (emailExists) {
-      return NextResponse.json({ success: false, error: 'Email address is already in use' }, { status: 400 });
-    }
-
-    const usernameExists = users.some(
-      (u) => u.id !== authenticatedUser.id && u.username.toLowerCase() === username.toLowerCase()
-    );
-    if (usernameExists) {
-      return NextResponse.json({ success: false, error: 'Username is already in use' }, { status: 400 });
-    }
-
-    const success = await updateBackendUserInSheet(authenticatedUser.id, {
-      email,
-      username,
-      password: password || undefined,
+    const token = getAccessToken();
+    const res = await fetch(`${BACKEND_URL}/users/${authenticatedUser.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(updatePayload),
     });
 
-    if (!success) {
-      return NextResponse.json({ success: false, error: 'Failed to update profile or user not found' }, { status: 500 });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return NextResponse.json({ success: false, error: data.message || 'Failed to update profile' }, { status: res.status });
     }
 
-    // Retrieve updated user to synchronize the session cookie
-    const updatedUsers = await fetchBackendUsersFromSheet();
-    const updatedUser = updatedUsers.find((u) => u.id === authenticatedUser.id);
-    if (!updatedUser) {
-      return NextResponse.json({ success: false, error: 'Error retrieving updated user details' }, { status: 500 });
-    }
-
-    const { password: _, ...sanitizedUser } = updatedUser;
+    const sanitizedUser = data.data.user;
 
     cookies().set('howgarts_session', JSON.stringify(sanitizedUser), {
       path: '/',

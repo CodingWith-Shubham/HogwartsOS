@@ -1,0 +1,30 @@
+{
+  "name": "completebackendproject",
+  "version": "1.0.0",
+  "description": "**Product Name:** Project Camp Backend  \r **Version:** 1.0.0  \r **Product Type:** Backend API for Project Management System",
+  "license": "ISC",
+  "author": "utkarsh bhandari",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mailgen": "^2.0.34",
+    "mongodb-memory-server": "^11.2.0",
+    "mongoose": "^9.7.0",
+    "nodemailer": "^8.0.11",
+    "nodemon": "^3.1.14",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "prettier": "3.8.4"
+  }
+}

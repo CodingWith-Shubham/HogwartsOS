@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth-fetch';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
@@ -162,7 +164,7 @@ export default function EditorPage() {
   const refreshEditing = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const response = await fetch('/api/editing', { cache: 'no-store' });
+      const response = await authFetch('/api/editing', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to refresh editing rows');

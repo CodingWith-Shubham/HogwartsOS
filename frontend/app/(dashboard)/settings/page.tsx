@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth-fetch';
+
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -52,7 +54,7 @@ export default function SettingsPage() {
     if (!isManager) return;
     setEmployeesLoading(true);
     try {
-      const res = await fetch('/api/users', { cache: 'no-store' });
+      const res = await authFetch('/api/users', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setEmployees(data.users ?? []);

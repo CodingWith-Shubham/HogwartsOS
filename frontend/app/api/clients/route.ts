@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
-
-export async function GET() {
+export async function GET(request: Request) {
+  const h = request.headers;
+  let BACKEND_URL = '';
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = getAccessToken();
+    BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken(h);
     const res = await fetch(`${BACKEND_URL}/clients`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -24,16 +26,23 @@ export async function GET() {
     if (res.ok && data.success) {
       return NextResponse.json({ leads: data.data.leads || [] });
     }
+    if (res.status === 401 || res.status === 403) {
+      return NextResponse.json({ error: data.message || 'Unauthorized' }, { status: res.status });
+    }
     return NextResponse.json({ leads: [] });
   } catch (error) {
     console.error('Failed to fetch clients from Express:', error);
-    return NextResponse.json({ error: 'Failed to fetch clients', leads: [] }, { status: 500 });
+    const msg = error instanceof Error && error.message.includes('ECONNREFUSED')
+      ? 'Backend server is not running at ' + BACKEND_URL
+      : 'Failed to fetch clients';
+    return NextResponse.json({ error: msg, leads: [] }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const h = request.headers;
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -42,7 +51,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const token = getAccessToken();
+    const BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken(h);
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/clients`, {
       method: 'POST',
@@ -61,13 +71,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: data.message || 'Failed to create lead' }, { status: res.status });
   } catch (error) {
     console.error('Failed to create client in Express:', error);
-    return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 });
+    const msg = error instanceof Error && error.message.includes('ECONNREFUSED')
+      ? 'Backend server is not running. Please start it with: npm run dev (in /backend)'
+      : 'Failed to create lead';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
+  const h = request.headers;
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -76,7 +90,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const token = getAccessToken();
+    const BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken(h);
     const body = await request.json();
     const leadId = String(body.leadId ?? '').trim();
 
@@ -101,6 +116,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: data.message || 'Update failed' }, { status: res.status });
   } catch (error) {
     console.error('Failed to update client in Express:', error);
-    return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
+    const msg = error instanceof Error && error.message.includes('ECONNREFUSED')
+      ? 'Backend server is not running. Please start it with: npm run dev (in /backend)'
+      : 'Failed to update lead';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -3,14 +3,13 @@ import { getAuthenticatedUser } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const PAYMENT_LINK_WEBHOOK_URL = (
+const PAYMENT_LINK_WEBHOOK_URL = 
   process.env.N8N_SEND_PAYMENT_LINK_WEBHOOK_URL ??
-  'https://hogwartsautomation.app.n8n.cloud/webhook/send-payment-link'
-).replace('n8n.hogwartsstudios.com', 'hogwartsautomation.app.n8n.cloud');
+  'https://n8n.hogwartsstudios.com/webhook/send-payment-link';
 
 export async function POST(request: Request) {
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(request.headers);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

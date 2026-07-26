@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
-
 export async function GET(request: Request) {
+  const h = request.headers;
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = getAccessToken();
+    const BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken(h);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
 
@@ -39,13 +40,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const h = request.headers;
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = getAccessToken();
+    const BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken(h);
     const body = await request.json();
     const action = body.action || 'check-in';
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth-fetch';
+
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
@@ -328,7 +330,7 @@ export default function ManagerPage() {
   }, [editing]);
 
   const refreshEditing = async () => {
-    const response = await fetch('/api/editing', { cache: 'no-store' });
+    const response = await authFetch('/api/editing', { cache: 'no-store' });
     const data = await response.json();
     if (response.ok) setEditing(data.editing ?? []);
   };

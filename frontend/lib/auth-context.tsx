@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { toast } from 'sonner';
 import type { AuthContextValue, User } from './types';
 import { SESSION_KEY, TOKEN_KEY } from './auth';
+import { authFetch } from './auth-fetch';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -14,7 +15,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch('/api/users');
+      const res = await authFetch('/api/users');
       const data = await res.json();
       if (res.ok && data.success) {
         setUsers(data.users || []);
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password?: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await authFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Fetch users list right after login
       try {
-        const usersRes = await fetch('/api/users');
+        const usersRes = await authFetch('/api/users');
         const usersData = await usersRes.json();
         if (usersRes.ok && usersData.success) {
           setUsers(usersData.users || []);
@@ -101,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await authFetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {
       console.warn('Failed to perform server logout:', e);
     }
@@ -116,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = useCallback(async (data: { email: string; username: string; password?: string }) => {
     try {
-      const res = await fetch('/api/auth/update-profile', {
+      const res = await authFetch('/api/auth/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

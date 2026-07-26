@@ -32,7 +32,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
+import { authFetch } from '@/lib/auth-fetch';
 import type { EditingProject, Lead, LeadFilterTab, Shoot } from '@/lib/sheets/types';
+
 import type { InstallmentLabel, PaymentInstallment, PaymentMode } from '@/lib/types';
 import {
   filterSalesLeads,
@@ -520,7 +522,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const refreshLeads = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const response = await fetch('/api/clients', { cache: 'no-store' });
+      const response = await authFetch('/api/clients', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to refresh leads');
@@ -540,7 +542,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshShoots = useCallback(async (silent = false) => {
     try {
-      const response = await fetch('/api/shoots', { cache: 'no-store' });
+      const response = await authFetch('/api/shoots', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to refresh shoots');
@@ -557,7 +559,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshEditing = useCallback(async (silent = false) => {
     try {
-      const response = await fetch('/api/editing', { cache: 'no-store' });
+      const response = await authFetch('/api/editing', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to refresh editing rows');
@@ -574,7 +576,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshPaymentHistory = useCallback(async (silent = false) => {
     try {
-      const response = await fetch('/api/payments', { cache: 'no-store' });
+      const response = await authFetch('/api/payments', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
 
@@ -796,7 +798,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
     setSubmittingProposal(true);
     try {
-      const response = await fetch('/api/send-proposal', {
+      const response = await authFetch('/api/send-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -850,7 +852,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
     setCreatingLead(true);
     try {
-      const response = await fetch('/api/clients', {
+      const response = await authFetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -943,7 +945,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         formData.append('invoice_file', invoiceFile);
       }
 
-      const response = await fetch('/api/send-payment-link', {
+      const response = await authFetch('/api/send-payment-link', {
         method: 'POST',
         body: formData,
       });
@@ -980,7 +982,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
     setVerifyingLeadId(lead.leadId);
     try {
-      const response = await fetch('/api/confirm-payment', {
+      const response = await authFetch('/api/confirm-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1326,7 +1328,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           Reason: {lead.proposalRevokeReason || 'No reason provided'}
         </span>
       )}
-      {(lead.status === 'Proposal Sent' || lead.proposalSent.toLowerCase() === 'true') &&
+      {(lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true') &&
         salesDeliverableSummary(lead).length > 0 && (
           <span className="text-xs text-muted-foreground">
             {salesDeliverableSummary(lead).join(' ')}
@@ -1400,7 +1402,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const totalLeads = salesLeads.length;
   const proposalsSent = salesLeads.filter(
-    (lead) => lead.status === 'Proposal Sent' || lead.proposalSent.toLowerCase() === 'true'
+    (lead) => lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true'
   ).length;
   const totalPipeline = salesLeads.reduce((sum, lead) => sum + parseCost(lead.cost), 0);
   const acceptedValue = salesLeads

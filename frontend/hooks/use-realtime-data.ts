@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { authFetch } from '@/lib/auth-fetch';
 import type { Invoice } from '@/lib/types';
 
 export interface RealtimeAnalytics {
@@ -34,7 +35,7 @@ export function useRealtimeData() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/realtime-data');
+      const response = await authFetch('/api/realtime-data');
       const resData = await response.json();
       if (!response.ok || !resData.success) {
         throw new Error(resData.error || 'Failed to fetch realtime data');

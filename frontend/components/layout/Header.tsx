@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { authFetch } from '@/lib/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,7 +50,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     }
 
     try {
-      const response = await fetch('/api/clients', { cache: 'no-store' });
+      const response = await authFetch('/api/clients', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) return;
 

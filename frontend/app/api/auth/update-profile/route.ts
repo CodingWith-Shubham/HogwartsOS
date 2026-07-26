@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function POST(request: Request) {
   try {
@@ -29,6 +28,7 @@ export async function POST(request: Request) {
     const updatePayload: any = { email, username };
     if (password) updatePayload.password = password;
 
+    const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken();
     const res = await fetch(`${BACKEND_URL}/users/${authenticatedUser.id}`, {
       method: 'PUT',

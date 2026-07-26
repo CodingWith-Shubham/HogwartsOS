@@ -3,14 +3,13 @@ import { getAuthenticatedUser } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-const PROPOSAL_WEBHOOK_URL = (
+const PROPOSAL_WEBHOOK_URL = 
   process.env.N8N_SEND_PROPOSAL_WEBHOOK_URL ??
-  'https://hogwartsautomation.app.n8n.cloud/webhook/send-proposal'
-).replace('n8n.hogwartsstudios.com', 'hogwartsautomation.app.n8n.cloud');
+  'https://n8n.hogwartsstudios.com/webhook/send-proposal';
 
 export async function POST(request: Request) {
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(request.headers);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -60,7 +59,7 @@ export async function POST(request: Request) {
       const text = await response.text().catch(() => '');
       console.error('n8n send-proposal webhook failed:', response.status, text);
       return NextResponse.json(
-        { error: 'Failed to send proposal via automation' },
+        { error: `n8n webhook failed (${response.status}): ${text || 'Unknown error'}` },
         { status: 502 }
       );
     }

@@ -1,5 +1,7 @@
 'use client';
 
+import { authFetch } from '@/lib/auth-fetch';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -46,7 +48,7 @@ export default function AttendancePage() {
 
   const fetchAttendance = useCallback(async () => {
     try {
-      const res = await fetch('/api/attendance');
+      const res = await authFetch('/api/attendance');
       const data = await res.json();
       if (res.ok) {
         setTodayRecord(data.today || null);
@@ -80,7 +82,7 @@ export default function AttendancePage() {
   const handleCheckIn = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/attendance', {
+      const res = await authFetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'check-in', workLocation }),
@@ -107,7 +109,7 @@ export default function AttendancePage() {
   const handleCheckOut = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/attendance', {
+      const res = await authFetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'check-out' }),

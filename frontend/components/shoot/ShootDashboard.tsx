@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { authFetch } from '@/lib/auth-fetch';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { Badge } from '@/components/ui/badge';
@@ -409,7 +410,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   const refreshShoots = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const response = await fetch('/api/shoots', { cache: 'no-store' });
+      const response = await authFetch('/api/shoots', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh shoots');
       setShoots(data.shoots ?? []);

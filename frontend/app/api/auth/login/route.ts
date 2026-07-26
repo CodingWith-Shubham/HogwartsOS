@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +17,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const BACKEND_URL = await getBackendUrl();
     const expressRes = await fetch(`${BACKEND_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

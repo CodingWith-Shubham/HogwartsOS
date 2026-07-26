@@ -27,3 +27,16 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     }
    
 });
+
+export const verifyJWTOrN8N = asyncHandler(async (req, res, next) => {
+  // Check if request is from n8n
+  const n8nSecret = req.headers['x-n8n-secret'];
+  if (n8nSecret && n8nSecret === process.env.N8N_SECRET) {
+    // Valid n8n request — attach a system user and proceed
+    req.user = { role: 'admin', _id: 'n8n-system' };
+    return next();
+  }
+
+  // Otherwise fall through to normal JWT verification
+  return verifyJWT(req, res, next);
+});

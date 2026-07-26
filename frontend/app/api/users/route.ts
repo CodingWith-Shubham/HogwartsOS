@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000/api/v1';
 
 export async function GET() {
   const currentUser = getAuthenticatedUser();
@@ -13,6 +12,7 @@ export async function GET() {
   }
 
   try {
+    const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken();
     const res = await fetch(`${BACKEND_URL}/users`, {
       headers: {
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken();
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/auth/register`, {
@@ -76,6 +77,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken();
     const body = await request.json();
     const id = String(body.id ?? body._id ?? '').trim();

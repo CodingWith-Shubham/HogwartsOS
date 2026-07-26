@@ -1,5 +1,5 @@
 const n8nAuth = (req, res, next) => {
-  const secret = req.headers['Krishan@199123'];
+  const secret = req.headers['x-n8n-secret'];
   if (!secret || secret !== process.env.N8N_SECRET) {
     return res.status(401).json({ 
       success: false,

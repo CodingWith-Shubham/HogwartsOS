@@ -5,7 +5,11 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getPayments = asyncHandler(async (req, res) => {
-    const payments = await Payment.find({}).sort({ createdAt: -1 });
+    const filter = {};
+    if (req.query.leadId) filter.leadId = req.query.leadId;
+    if (req.query.paymentId) filter.paymentId = req.query.paymentId;
+    
+    const payments = await Payment.find(filter).sort({ createdAt: -1 });
     const formatted = payments.map(p => {
         const obj = p.toObject();
         obj.id = p._id.toString();

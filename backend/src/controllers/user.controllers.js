@@ -6,7 +6,10 @@ import { asyncHandler } from "../utils/async-handler.js";
 import bcrypt from "bcrypt";
 
 const getAllUsers = asyncHandler(async (req, res) => {
-    const users = await User.find({}).sort({ createdAt: 1 });
+    const filter = {};
+    if (req.query.name) filter.name = { $regex: req.query.name, $options: 'i' };
+    
+    const users = await User.find(filter).sort({ createdAt: 1 });
     const sanitized = users.map(u => sanitizeUser(u));
     return res.status(200).json(new ApiResponse(200, { users: sanitized }, "Users retrieved successfully"));
 });

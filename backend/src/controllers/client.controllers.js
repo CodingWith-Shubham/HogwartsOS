@@ -112,4 +112,15 @@ const updateClient = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { lead: updated }, "Client updated successfully"));
 });
 
-export { getClients, createClient, updateClient };
+const getClientByLeadId = asyncHandler(async (req, res) => {
+    const { leadId } = req.params;
+    const client = await Client.findOne({ leadId });
+    
+    if (!client) {
+        throw new ApiError(404, 'Client not found');
+    }
+    
+    return res.status(200).json(new ApiResponse(200, { leads: [client] }, 'Client fetched'));
+});
+
+export { getClients, createClient, updateClient, getClientByLeadId };

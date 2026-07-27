@@ -782,9 +782,16 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
       if (response.status === 409) {
         const conflict = await response.json();
-        setConflictError(
-          `"${payload.set_name}" is already booked for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please choose a different set or time.`
-        );
+        
+        let errorMessage = "A scheduling conflict occurred.";
+        
+        if (conflict.conflict_type === 'member') {
+          errorMessage = `${conflict.conflicting_member || scheduleForm.shootMemberName} is already assigned to a shoot for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please assign a different member or change the time.`;
+        } else {
+          errorMessage = `"${conflict.conflicting_set || payload.set_name}" is already booked for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please choose a different set or time.`;
+        }
+        
+        setConflictError(errorMessage);
         return;
       }
 

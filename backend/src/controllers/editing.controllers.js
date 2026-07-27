@@ -165,25 +165,27 @@ const createTask = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Task ID and Edit ID are required");
     }
 
-    // Auto-create EditProject if it doesn't exist
-    let project = await EditProject.findOne({ editId: body.editId });
-    if (!project) {
-        project = await EditProject.create({
-            editId: body.editId,
-            shootId: body.shootId,
-            leadId: body.leadId,
-            clientName: body.clientName,
-            emailId: body.emailId,
-            serviceType: body.serviceType,
-            dataLink: body.dataLink,
-            status: "Editing",
-            editStartDate: new Date().toISOString().split('T')[0],
-            assignedAt: body.assignedAt,
-            deadlineAt: body.deadlineAt,
-            editorName: body.assignedToName,
-            editorEmail: body.assignedToEmail,
-        });
-    }
+    // Auto-create EditProject if it doesn't exist (using upsert to prevent race conditions during bulk N8N inserts)
+    await EditProject.findOneAndUpdate(
+        { editId: body.editId },
+        {
+            $setOnInsert: {
+                shootId: body.shootId,
+                leadId: body.leadId,
+                clientName: body.clientName,
+                emailId: body.emailId,
+                serviceType: body.serviceType,
+                dataLink: body.dataLink,
+                status: "Editing",
+                editStartDate: new Date().toISOString().split('T')[0],
+                assignedAt: body.assignedAt,
+                deadlineAt: body.deadlineAt,
+                editorName: body.assignedToName,
+                editorEmail: body.assignedToEmail,
+            }
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     const task = await EditingTask.create(body);
     return res.status(201).json(new ApiResponse(201, { task }, "Task created"));

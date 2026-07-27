@@ -549,7 +549,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
           extra_camera: postShootForm.extraCamera,
           extra_teleprompter: postShootForm.extraTeleprompter,
           extra_duration_hours: postShootForm.extraDurationHours,
-          addon_has_addons: postShootForm.addonHasAddons,
+          has_addons: postShootForm.addonHasAddons === 'yes',
           shoot_notes: postShootForm.shootNotes,
           testimonials: postShootForm.testimonials,
           record_time: postShootForm.recordTime,

@@ -47,12 +47,17 @@ const getClients = asyncHandler(async (req, res) => {
         filteredLeads = leads.filter(l => l.leadId && allowedLeadIds.has(l.leadId));
     }
 
-    // Attach latest payment status to leads
+    // Attach latest payment status to leads.
+    // Payments are already sorted by createdAt DESC so the first payment
+    // encountered for each leadId is the most recent one.
     const leadIds = filteredLeads.map(l => l.leadId);
-    const payments = await Payment.find({ leadId: { $in: leadIds } });
+    const payments = await Payment.find({ leadId: { $in: leadIds } }).sort({ createdAt: -1 });
     const paymentMap = new Map();
     payments.forEach(p => {
-        paymentMap.set(p.leadId, p);
+        // Only set if not already set — keeps the most recent payment per lead
+        if (!paymentMap.has(p.leadId)) {
+            paymentMap.set(p.leadId, p);
+        }
     });
 
     const result = filteredLeads.map(l => {

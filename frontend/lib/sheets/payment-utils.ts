@@ -5,6 +5,9 @@ export const PAYMENT_STATUS = {
   LINK_SENT_LEGACY: 'Payment Link Sent',
   PENDING_VERIFICATION: 'Pending Verification',
   PENDING_VERIFICATION_LEGACY: 'Screenshot Uploaded - Pending Verification',
+  // Statuses set by n8n workflow when client uploads screenshot
+  SCREENSHOT_RECEIVED: 'Screenshot Received',
+  SCREENSHOT_UPLOADED: 'Screenshot Uploaded',
   VERIFIED: 'Payment Verified',
   CONFIRMED: 'Payment Confirmed',
   CONFIRMED_ALT: 'Confirmed',
@@ -18,6 +21,9 @@ const LINK_SENT_STATUSES: string[] = [
 const PENDING_VERIFICATION_STATUSES: string[] = [
   PAYMENT_STATUS.PENDING_VERIFICATION,
   PAYMENT_STATUS.PENDING_VERIFICATION_LEGACY,
+  // n8n workflow sets "Screenshot Received" when client submits the upload form
+  PAYMENT_STATUS.SCREENSHOT_RECEIVED,
+  PAYMENT_STATUS.SCREENSHOT_UPLOADED,
 ];
 
 const VERIFIED_STATUSES: string[] = [

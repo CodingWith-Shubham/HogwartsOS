@@ -34,6 +34,8 @@ export interface PaymentInstallment {
   total_cost: number;
   remaining_amount: number;
   payment_completed: boolean;
+  screenshot_url?: string;
+  utr_number?: string;
 }
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 export type ServiceType =

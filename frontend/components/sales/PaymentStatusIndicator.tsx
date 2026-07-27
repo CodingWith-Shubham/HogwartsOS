@@ -18,23 +18,32 @@ export function PaymentStatusIndicator({ lead, className }: PaymentStatusIndicat
   const status = getPaymentStatus(lead);
   if (!status) return null;
 
+  const screenshotUrl = getScreenshotUrl(lead);
+
   if (isPaymentVerified(lead)) {
     return (
-      <span
-        className={cn(
-          'inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600',
-          className
+      <span className={cn('inline-flex flex-wrap items-center gap-1.5', className)}>
+        <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600">
+          <CheckCircle2 className="h-3 w-3" />
+          Payment Verified
+        </span>
+        {screenshotUrl && (
+          <a
+            href={screenshotUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[11px] font-medium text-green-700 hover:bg-green-500/20 transition-colors"
+          >
+            View SS
+            <ExternalLink className="h-3 w-3 opacity-70" />
+          </a>
         )}
-      >
-        <CheckCircle2 className="h-3 w-3" />
-        Payment Verified
       </span>
     );
   }
 
   if (isPendingPaymentVerification(lead)) {
-    const screenshotUrl = getScreenshotUrl(lead);
-
     if (screenshotUrl) {
       return (
         <a

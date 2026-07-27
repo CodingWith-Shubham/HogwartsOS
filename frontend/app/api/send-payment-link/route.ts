@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Failed to proxy send-payment-link webhook:', error);
-    const message = error instanceof Error ? error.message : 'Failed to send payment link';
+    const message = error instanceof Error ? error.stack : 'Failed to send payment link';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

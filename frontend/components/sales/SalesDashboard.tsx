@@ -580,8 +580,28 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
 
-      const grouped = (data.payments ?? []).reduce((history: Record<string, PaymentInstallment[]>, payment: PaymentInstallment) => {
-        (history[payment.lead_id] ??= []).push(payment);
+      const grouped = (data.payments ?? []).reduce((history: Record<string, PaymentInstallment[]>, payment: any) => {
+        // Normalize to snake_case for the PaymentInstallment interface
+        // MongoDB returns camelCase; n8n / legacy data may use snake_case
+        const normalized: PaymentInstallment = {
+          payment_id: payment.paymentId ?? payment.payment_id ?? '',
+          lead_id: payment.leadId ?? payment.lead_id ?? '',
+          client_name: payment.clientName ?? payment.client_name ?? '',
+          installment_label: (payment.installmentLabel ?? payment.installment_label ?? 'Custom') as any,
+          amount: Number(payment.amount ?? 0),
+          payment_mode: (payment.paymentMode ?? payment.payment_mode ?? 'Online') as any,
+          cash_collected_by: payment.cashCollectedBy ?? payment.cash_collected_by,
+          payment_status: payment.paymentStatus ?? payment.payment_status ?? '',
+          payment_link_sent_at: payment.paymentLinkSentAt ?? payment.payment_link_sent_at,
+          verified_at: payment.verifiedAt ?? payment.verified_at,
+          total_cost: Number(payment.totalCost ?? payment.total_cost ?? 0),
+          remaining_amount: Number(payment.remainingAmount ?? payment.remaining_amount ?? 0),
+          payment_completed: Boolean(payment.paymentCompleted ?? payment.payment_completed),
+          screenshot_url: payment.screenshotUrl ?? payment.screenshot_url,
+          utr_number: payment.utrNumber ?? payment.utr_number,
+        };
+        const key = normalized.lead_id;
+        (history[key] ??= []).push(normalized);
         return history;
       }, {});
       setPaymentHistory(grouped);
@@ -982,13 +1002,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
     setVerifyingLeadId(lead.leadId);
     try {
-      const response = await authFetch('/api/confirm-payment', {
-        method: 'POST',
+      // Call the backend directly — bypasses n8n's GET webhook which
+      // can be accidentally triggered by Gmail's link prefetcher
+      const response = await authFetch(`/api/payments/${paymentId}/verify`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lead_id: lead.leadId,
-          payment_id: paymentId,
-          verified_by: user.name,
+          paymentStatus: 'Payment Verified',
+          verifiedBy: user.name,
+          verifiedAt: new Date().toISOString(),
         }),
       });
 
@@ -997,6 +1019,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         throw new Error(data.error ?? 'Failed to verify payment');
       }
 
+      // Optimistically update local state
       setLeads((prev) =>
         prev.map((item) =>
           item.leadId === lead.leadId
@@ -1016,7 +1039,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       );
 
       toast.success('Payment verified!');
-      await refreshLeads(true);
+      await Promise.all([refreshLeads(true), refreshPaymentHistory(true)]);
     } catch (error) {
       toast.error('Failed to verify payment', {
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -1106,7 +1129,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const renderPaymentAction = (lead: Lead) => {
     const { payments, remaining } = paymentSummary(lead);
     const hasPaymentAwaitingVerification = payments.some((payment) =>
-      ['link sent', 'payment link sent', 'pending verification', 'screenshot uploaded - pending verification'].includes(payment.payment_status.trim().toLowerCase())
+      ['link sent', 'payment link sent', 'pending verification', 'screenshot uploaded - pending verification', 'screenshot received', 'screenshot uploaded'].includes(payment.payment_status.trim().toLowerCase())
     );
 
     if (lead.proposalAccepted && remaining <= 0) {
@@ -2073,12 +2096,66 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                             <p className="font-medium tabular-nums">{formatINR(payment.amount)}</p>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant={payment.payment_mode === 'Cash' ? 'secondary' : 'outline'}>{payment.payment_mode}</Badge>
-                            <Badge variant="outline">{payment.payment_status || 'Pending'}</Badge>
-                          </div>
-                          {payment.cash_collected_by && (
-                            <p className="mt-2 text-xs text-muted-foreground">Collected by: {payment.cash_collected_by}</p>
-                          )}
+                             <Badge variant={payment.payment_mode === 'Cash' ? 'secondary' : 'outline'}>{payment.payment_mode}</Badge>
+                             <Badge variant="outline">{payment.payment_status || 'Pending'}</Badge>
+                           </div>
+                           {payment.cash_collected_by && (
+                             <p className="mt-2 text-xs text-muted-foreground">Collected by: {payment.cash_collected_by}</p>
+                           )}
+                           {payment.utr_number && payment.utr_number !== 'Not provided' && (
+                             <p className="mt-1 text-xs text-muted-foreground">UTR / Ref: {payment.utr_number}</p>
+                           )}
+                           {payment.screenshot_url && (
+                             <a
+                               href={payment.screenshot_url}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               onClick={(e) => e.stopPropagation()}
+                               className="mt-2 inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/20 transition-colors"
+                             >
+                               <ExternalLink className="h-3 w-3" />
+                               View Payment Screenshot
+                             </a>
+                           )}
+                           {/* Show Verify button for installments pending verification */}
+                           {['screenshot received', 'screenshot uploaded', 'pending verification', 'screenshot uploaded - pending verification'].includes(
+                             (payment.payment_status ?? '').trim().toLowerCase()
+                           ) && user && ['manager', 'sales', 'admin'].includes(user.role ?? '') && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="mt-2 h-7 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 text-xs"
+                               disabled={verifyingLeadId === paymentHistoryLead?.leadId}
+                               onClick={async (e) => {
+                                 e.stopPropagation();
+                                 if (!paymentHistoryLead || !payment.payment_id) return;
+                                 setVerifyingLeadId(paymentHistoryLead.leadId);
+                                 try {
+                                   const res = await authFetch(`/api/payments/${payment.payment_id}/verify`, {
+                                     method: 'PUT',
+                                     headers: { 'Content-Type': 'application/json' },
+                                     body: JSON.stringify({
+                                       paymentStatus: 'Payment Verified',
+                                       verifiedBy: user.name,
+                                       verifiedAt: new Date().toISOString(),
+                                     }),
+                                   });
+                                   if (!res.ok) throw new Error('Failed to verify');
+                                   toast.success('Payment verified!');
+                                   await Promise.all([refreshLeads(true), refreshPaymentHistory(true)]);
+                                 } catch {
+                                   toast.error('Failed to verify payment');
+                                 } finally {
+                                   setVerifyingLeadId(null);
+                                 }
+                               }}
+                             >
+                               {verifyingLeadId === paymentHistoryLead?.leadId ? (
+                                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                               ) : null}
+                               Verify Payment
+                             </Button>
+                           )}
                         </div>
                       );
                     })}

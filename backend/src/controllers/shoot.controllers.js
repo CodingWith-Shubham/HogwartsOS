@@ -97,7 +97,7 @@ const updateShoot = asyncHandler(async (req, res) => {
 
     // Intercept Addon verification
     let existingShoot = null;
-    const isVerifyingAddon = updates.addonVerifiedBy || updates.addonPaymentStatus === "Verified";
+    const isVerifyingAddon = updates.addonVerifiedBy || (updates.addonPaymentStatus && updates.addonPaymentStatus.toLowerCase() === "verified");
     if (isVerifyingAddon) {
         existingShoot = await Shoot.findOne({ shootId });
     }
@@ -113,7 +113,7 @@ const updateShoot = asyncHandler(async (req, res) => {
     }
 
     // Automatically log Addon payment as a MongoDB Payment document
-    const wasAlreadyVerified = existingShoot && (existingShoot.addonVerifiedBy || existingShoot.addonPaymentStatus === "Verified");
+    const wasAlreadyVerified = existingShoot && (existingShoot.addonVerifiedBy || (existingShoot.addonPaymentStatus && existingShoot.addonPaymentStatus.toLowerCase() === "verified"));
     if (isVerifyingAddon && existingShoot && !wasAlreadyVerified) {
         const paymentAmount = Number(updated.additionalCost || 0);
         

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 import { getBackendUrl } from '@/lib/backend-url';
 
@@ -28,11 +28,11 @@ export async function PUT(
     const token = getAccessToken(h);
     const body = await request.json();
 
-    const res = await fetch(${BACKEND_URL}/payments//verify, {
+    const res = await fetch(`${BACKEND_URL}/payments/${paymentId}/verify`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': Bearer  } : {}),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });

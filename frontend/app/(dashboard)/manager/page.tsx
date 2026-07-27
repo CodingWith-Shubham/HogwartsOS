@@ -403,7 +403,7 @@ export default function ManagerPage() {
         const editor = editors.find((item) => item.name === serviceEditors.additionalProduct);
         tasks.push({ task_type: 'additional_product', quantity: additionalQuantity, editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' });
       }
-      const response = await fetch('/api/assign-editor-tasks', {
+      const response = await authFetch('/api/editing/assign-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

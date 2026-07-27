@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { Lead, Payment, EditingProject } from '@/lib/sheets/types';
 
-export const dynamic = 'force-dynamic';
 
 const EXPRESS_API_URL = process.env.NEXT_PUBLIC_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
 

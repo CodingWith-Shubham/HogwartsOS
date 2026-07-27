@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { Lead, Shoot, EditingProject } from '@/lib/sheets/types';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { isPendingPaymentVerification } from '@/lib/sheets/payment-utils';
 
@@ -19,7 +20,10 @@ async function fetchFromExpress(endpoint: string) {
 export type NotificationArea = 'sales' | 'shoot' | 'editor' | 'manager';
 export interface AppNotification { id: string; area: NotificationArea; title: string; message: string; href: string; priority: 'normal' | 'urgent'; }
 
-const isTrue = (value: string) => value.trim().toLowerCase() === 'true';
+const isTrue = (value: string | boolean) => {
+  if (typeof value === 'boolean') return value;
+  return value ? value.trim().toLowerCase() === 'true' : false;
+};
 function hoursUntil(value: string): number | null {
   if (!value) return null;
   const time = new Date(value).getTime();
@@ -36,15 +40,15 @@ export async function GET() {
       fetchFromExpress('/editing')
     ]);
 
-    const leads = leadsRes?.leads || [];
-    const shoots = shootsRes?.shoots || [];
-    const editing = editingRes?.editing || [];
+    const leads: Lead[] = leadsRes?.leads || [];
+    const shoots: Shoot[] = shootsRes?.shoots || [];
+    const editing: EditingProject[] = editingRes?.editing || [];
     const notifications: AppNotification[] = [];
     const isManager = user.role === 'manager' || user.role === 'admin';
     const equal = (first: string, second: string) => first.trim().toLowerCase() === second.trim().toLowerCase();
-    const ownsLead = (lead: (typeof leads)[number]) => [user.name, user.email, user.username].some((identity) => equal(lead.assignedTo, identity));
-    const ownsShoot = (shoot: (typeof shoots)[number]) => equal(shoot.shootMemberName, user.name) || equal(shoot.shootMemberEmail, user.email);
-    const ownsEdit = (edit: (typeof editing)[number]) => equal(edit.editorName, user.name) || equal(edit.editorEmail, user.email);
+    const ownsLead = (lead: Lead) => [user.name, user.email, user.username].some((identity) => equal(lead.assignedTo, identity));
+    const ownsShoot = (shoot: Shoot) => equal(shoot.shootMemberName, user.name) || equal(shoot.shootMemberEmail, user.email);
+    const ownsEdit = (edit: EditingProject) => equal(edit.editorName, user.name) || equal(edit.editorEmail, user.email);
 
     if (isManager || user.role === 'sales') leads.filter((lead) => isManager || ownsLead(lead)).filter(isPendingPaymentVerification).forEach((lead) => notifications.push({ id: `payment-${lead.leadId}`, area: 'sales', title: 'Payment needs verification', message: `${lead.name || 'A client'} has uploaded a payment screenshot.`, href: isManager ? '/manager' : '/sales', priority: 'urgent' }));
     if (isManager || user.role === 'shoot') shoots.filter((shoot) => isManager || ownsShoot(shoot)).forEach((shoot) => {

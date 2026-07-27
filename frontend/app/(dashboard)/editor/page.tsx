@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth-context';
+import { authFetch } from '@/lib/auth-fetch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -47,10 +48,15 @@ export default function EditorPage() {
     if (!user?.email) return;
     if (!silent) setRefreshing(true);
     try {
-      const response = await fetch(`/api/editor-tasks?email=${encodeURIComponent(user.email)}`, { cache: 'no-store' });
+      const response = await authFetch('/api/editing', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to load tasks');
-      setTasks(data);
+      const mapped = (data.tasks || []).map((t: any) => ({
+        task_id: t.taskId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
+        data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
+        manager_comment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered
+      })).filter((t: any) => t.assigned_to_email?.toLowerCase() === user.email.toLowerCase());
+      setTasks(mapped);
     } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
     finally { if (!silent) setRefreshing(false); }
   }, [user?.email]);
@@ -69,7 +75,7 @@ export default function EditorPage() {
     if (includeDraft && !draft_link) { toast.error('Add a draft link first'); return; }
     setSaving(task.task_id);
     try {
-      const response = await fetch('/api/update-task-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.task_id, status, ...(includeDraft ? { draft_link } : {}) }) });
+      const response = await authFetch('/api/editing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId: task.task_id, status, ...(includeDraft ? { draftLink: draft_link } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to update task');
       toast.success(status === 'In Progress' ? 'Task started' : 'Draft submitted');

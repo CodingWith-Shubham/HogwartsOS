@@ -27,6 +27,8 @@ const checkIn = asyncHandler(async (req, res) => {
     const minutes = now.getMinutes();
     const isLate = hours > 10 || (hours === 10 && minutes > 30);
 
+    const checkInLocation = req.body.checkInLocation || { lat: null, lng: null };
+
     const attendance = await Attendance.findOneAndUpdate(
         { employeeEmail: user.email.toLowerCase(), date },
         {
@@ -38,7 +40,11 @@ const checkIn = asyncHandler(async (req, res) => {
                 checkIn: now,
                 status: isLate ? "Late" : "Present",
                 workLocation: req.body.workLocation || "Office",
-                notes: req.body.notes || ""
+                notes: req.body.notes || "",
+                checkInLocation: {
+                    lat: checkInLocation.lat ?? null,
+                    lng: checkInLocation.lng ?? null
+                }
             }
         },
         { upsert: true, new: true }
@@ -67,6 +73,11 @@ const checkOut = asyncHandler(async (req, res) => {
     if (req.body.notes) {
         attendance.notes = `${attendance.notes} | ${req.body.notes}`.trim();
     }
+    const checkOutLocation = req.body.checkOutLocation || { lat: null, lng: null };
+    attendance.checkOutLocation = {
+        lat: checkOutLocation.lat ?? null,
+        lng: checkOutLocation.lng ?? null
+    };
     await attendance.save();
 
     return res.status(200).json(new ApiResponse(200, { attendance }, "Checked out successfully"));

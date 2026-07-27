@@ -10,7 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Clock, LogIn, LogOut, MapPin, CheckCircle, AlertCircle, Calendar, UserCheck } from 'lucide-react';
+import {
+  Clock, LogIn, LogOut, MapPin, CheckCircle, AlertCircle, Calendar,
+  UserCheck, Navigation, NavigationOff, ExternalLink, Loader2
+} from 'lucide-react';
+
+interface LocationCoords {
+  lat: number | null;
+  lng: number | null;
+}
 
 interface AttendanceRecord {
   _id?: string;
@@ -23,6 +31,78 @@ interface AttendanceRecord {
   status: 'Present' | 'Late' | 'Half-day' | 'Absent';
   workLocation: 'Office' | 'Remote' | 'On-site Shoot';
   notes?: string;
+  checkInLocation?: LocationCoords;
+  checkOutLocation?: LocationCoords;
+}
+
+// ─── Geolocation Helper ───────────────────────────────────────────────────────
+const getCurrentLocation = (): Promise<LocationCoords> => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ lat: null, lng: null });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve({ lat: null, lng: null }),
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  });
+};
+
+const mapsUrl = (loc?: LocationCoords | null) => {
+  if (!loc?.lat || !loc?.lng) return null;
+  return `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+};
+
+const formatCoords = (loc?: LocationCoords | null) => {
+  if (!loc?.lat || !loc?.lng) return null;
+  return `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
+};
+
+// ─── Location Status Badge ────────────────────────────────────────────────────
+function LocationStatusBadge({ status }: { status: 'idle' | 'acquiring' | 'captured' | 'denied' }) {
+  if (status === 'acquiring') return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">
+      <Loader2 className="h-3 w-3 animate-spin" /> Acquiring Location…
+    </span>
+  );
+  if (status === 'captured') return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+      <Navigation className="h-3 w-3" /> Location Captured
+    </span>
+  );
+  if (status === 'denied') return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+      <NavigationOff className="h-3 w-3" /> Location Unavailable
+    </span>
+  );
+  return null;
+}
+
+// ─── Location Cell for Manager Table ─────────────────────────────────────────
+function LocationCell({ loc }: { loc?: LocationCoords | null }) {
+  const url = mapsUrl(loc);
+  const coords = formatCoords(loc);
+  if (!coords || !url) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+        <NavigationOff className="h-3 w-3" /> Not shared
+      </span>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-xs font-mono text-indigo-400 hover:text-indigo-300 hover:underline transition-colors group"
+    >
+      <MapPin className="h-3 w-3 text-indigo-500 group-hover:text-indigo-300" />
+      {coords}
+      <ExternalLink className="h-3 w-3 opacity-60" />
+    </a>
+  );
 }
 
 export default function AttendancePage() {
@@ -34,6 +114,8 @@ export default function AttendancePage() {
   const [teamLogs, setTeamLogs] = useState<AttendanceRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'acquiring' | 'captured' | 'denied'>('idle');
+  const [capturedLocation, setCapturedLocation] = useState<LocationCoords | null>(null);
 
   // Live Digital Clock
   useEffect(() => {
@@ -45,6 +127,21 @@ export default function AttendancePage() {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Pre-fetch location when page loads (so it's ready when they punch)
+  useEffect(() => {
+    const roles = ['sales', 'shoot', 'editor', 'manager', 'admin'];
+    if (!user?.role || !roles.includes(user.role)) return;
+    setLocationStatus('acquiring');
+    getCurrentLocation().then((loc) => {
+      if (loc.lat && loc.lng) {
+        setCapturedLocation(loc);
+        setLocationStatus('captured');
+      } else {
+        setLocationStatus('denied');
+      }
+    });
+  }, [user?.role]);
 
   const fetchAttendance = useCallback(async () => {
     try {
@@ -79,18 +176,37 @@ export default function AttendancePage() {
     }
   }, [fetchAttendance, fetchTeamAttendance, selectedDate, user]);
 
+  // ── Get fresh location before punch ───────────────────────────────────────
+  const acquireLocation = async (): Promise<LocationCoords> => {
+    setLocationStatus('acquiring');
+    const loc = await getCurrentLocation();
+    if (loc.lat && loc.lng) {
+      setCapturedLocation(loc);
+      setLocationStatus('captured');
+    } else {
+      setLocationStatus('denied');
+    }
+    return loc;
+  };
+
   const handleCheckIn = async () => {
     setIsSubmitting(true);
     try {
+      const loc = await acquireLocation();
+      if (!loc.lat || !loc.lng) {
+        toast.warning('Location not captured', {
+          description: 'Check-in will proceed without GPS coordinates. Please allow location access next time.'
+        });
+      }
       const res = await authFetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check-in', workLocation }),
+        body: JSON.stringify({ action: 'check-in', workLocation, checkInLocation: loc }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('Check-in successful!', {
-          description: `Status: ${data.attendance.status} | Location: ${data.attendance.workLocation}`
+          description: `Status: ${data.attendance.status} | Location: ${data.attendance.workLocation}${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
         if (['manager', 'admin'].includes(user?.role || '')) {
@@ -109,15 +225,21 @@ export default function AttendancePage() {
   const handleCheckOut = async () => {
     setIsSubmitting(true);
     try {
+      const loc = await acquireLocation();
+      if (!loc.lat || !loc.lng) {
+        toast.warning('Location not captured', {
+          description: 'Check-out will proceed without GPS coordinates.'
+        });
+      }
       const res = await authFetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check-out' }),
+        body: JSON.stringify({ action: 'check-out', checkOutLocation: loc }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('Check-out successful!', {
-          description: 'Have a great rest of your day!'
+          description: `Have a great rest of your day!${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
         if (['manager', 'admin'].includes(user?.role || '')) {
@@ -147,7 +269,7 @@ export default function AttendancePage() {
             <Clock className="h-6 w-6 text-indigo-400" /> Employee Attendance Portal
           </h1>
           <p className="text-sm text-slate-300 mt-1">
-            Track daily check-ins, work locations, and attendance history
+            Track daily check-ins, GPS locations, and attendance history
           </p>
         </div>
         <div className="flex items-center gap-4 bg-background/40 backdrop-blur px-4 py-2 rounded-lg border border-white/10">
@@ -201,14 +323,64 @@ export default function AttendancePage() {
               </Select>
             </div>
 
+            {/* GPS Location Status */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                <Navigation className="h-3.5 w-3.5 text-indigo-400" /> GPS Location
+              </label>
+              <div className="flex items-center gap-2">
+                <LocationStatusBadge status={locationStatus} />
+              </div>
+              {capturedLocation?.lat && capturedLocation?.lng && (
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs font-mono text-muted-foreground">
+                    {capturedLocation.lat.toFixed(5)}, {capturedLocation.lng.toFixed(5)}
+                  </p>
+                  <a
+                    href={mapsUrl(capturedLocation) || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-0.5"
+                  >
+                    Preview <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              {locationStatus === 'denied' && (
+                <p className="text-[11px] text-amber-500/80">
+                  ⚠ Allow location access in browser settings for GPS tracking. Attendance still works without it.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3 p-3 bg-secondary/30 rounded-lg border border-border">
               <div>
                 <span className="text-[11px] text-muted-foreground uppercase font-medium">Check-In</span>
                 <p className="text-sm font-bold text-foreground mt-0.5">{formatTime(todayRecord?.checkIn)}</p>
+                {todayRecord?.checkInLocation?.lat && (
+                  <a
+                    href={mapsUrl(todayRecord.checkInLocation) || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-indigo-400 hover:underline flex items-center gap-0.5 mt-0.5"
+                  >
+                    <MapPin className="h-2.5 w-2.5" /> View location
+                  </a>
+                )}
               </div>
               <div>
                 <span className="text-[11px] text-muted-foreground uppercase font-medium">Check-Out</span>
                 <p className="text-sm font-bold text-foreground mt-0.5">{formatTime(todayRecord?.checkOut)}</p>
+                {todayRecord?.checkOutLocation?.lat && (
+                  <a
+                    href={mapsUrl(todayRecord.checkOutLocation) || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-indigo-400 hover:underline flex items-center gap-0.5 mt-0.5"
+                  >
+                    <MapPin className="h-2.5 w-2.5" /> View location
+                  </a>
+                )}
               </div>
             </div>
 
@@ -218,7 +390,8 @@ export default function AttendancePage() {
                 disabled={isSubmitting}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md font-semibold h-11"
               >
-                <LogIn className="h-4 w-4 mr-2" /> Punch Check-In
+                {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
+                {isSubmitting ? 'Locating & Punching…' : 'Punch Check-In'}
               </Button>
             ) : !todayRecord?.checkOut ? (
               <Button
@@ -227,7 +400,8 @@ export default function AttendancePage() {
                 variant="destructive"
                 className="w-full shadow-md font-semibold h-11"
               >
-                <LogOut className="h-4 w-4 mr-2" /> Punch Check-Out
+                {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
+                {isSubmitting ? 'Locating & Punching…' : 'Punch Check-Out'}
               </Button>
             ) : (
               <div className="text-center p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
@@ -255,12 +429,13 @@ export default function AttendancePage() {
                     <TableHead>Check-Out</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>GPS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {history.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">
+                      <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
                         No attendance records found yet.
                       </TableCell>
                     </TableRow>
@@ -284,6 +459,33 @@ export default function AttendancePage() {
                             {record.status}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          {record.checkInLocation?.lat ? (
+                            <a
+                              href={mapsUrl(record.checkInLocation) || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 hover:underline"
+                            >
+                              <MapPin className="h-3 w-3" /> In
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                          {record.checkOutLocation?.lat && (
+                            <>
+                              {' · '}
+                              <a
+                                href={mapsUrl(record.checkOutLocation) || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 hover:underline"
+                              >
+                                <MapPin className="h-3 w-3" /> Out
+                              </a>
+                            </>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -302,7 +504,7 @@ export default function AttendancePage() {
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <UserCheck className="h-5 w-5 text-indigo-400" /> Team Attendance Roster
               </CardTitle>
-              <CardDescription>View check-in status for all team members</CardDescription>
+              <CardDescription>Check-in status and GPS locations for all team members</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -314,7 +516,7 @@ export default function AttendancePage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="rounded-md border border-border overflow-x-auto">
               <Table>
                 <TableHeader className="bg-secondary/40">
                   <TableRow>
@@ -322,14 +524,20 @@ export default function AttendancePage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Check-In</TableHead>
                     <TableHead>Check-Out</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead>Work Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-indigo-400">
+                      <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Check-In GPS</span>
+                    </TableHead>
+                    <TableHead className="text-purple-400">
+                      <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Check-Out GPS</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {teamLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
+                      <TableCell colSpan={8} className="text-center py-6 text-muted-foreground text-sm">
                         No team attendance logged for {selectedDate}.
                       </TableCell>
                     </TableRow>
@@ -353,6 +561,12 @@ export default function AttendancePage() {
                           >
                             {log.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <LocationCell loc={log.checkInLocation} />
+                        </TableCell>
+                        <TableCell>
+                          <LocationCell loc={log.checkOutLocation} />
                         </TableCell>
                       </TableRow>
                     ))

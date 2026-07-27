@@ -39,6 +39,14 @@ const attendanceSchema = new Schema({
     notes: {
         type: String,
         default: ""
+    },
+    checkInLocation: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null }
+    },
+    checkOutLocation: {
+        lat: { type: Number, default: null },
+        lng: { type: Number, default: null }
     }
 }, { timestamps: true });
 

@@ -78,7 +78,7 @@ const assignTasks = asyncHandler(async (req, res) => {
     for (const task of tasks) {
         const newTask = await EditingTask.create({
             taskId: task.task_id || `TSK_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-            editId: task.edit_id || "",
+            editId: task.edit_id || `EDIT_${shoot_id}_${Math.floor(Math.random() * 1000)}`,
             shootId: shoot_id,
             leadId: lead_id || "",
             clientName: client_name || task.client_name || "",

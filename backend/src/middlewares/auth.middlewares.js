@@ -42,8 +42,8 @@ export const verifyJWTOrN8N = asyncHandler(async (req, res, next) => {
 });
 
 export const verifyN8n = (req, res, next) => {
-  const apiKey = req.header('x-api-key'); 
-  if (!apiKey || apiKey !== process.env.N8N_BACKEND_SECRET) {
+  const apiKey = req.header('x-api-key') || req.header('x-n8n-secret'); 
+  if (!apiKey || apiKey !== process.env.N8N_SECRET) {
     return res.status(401).json({ error: 'Unauthorized via n8n' });
   }
   

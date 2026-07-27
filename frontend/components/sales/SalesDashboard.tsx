@@ -54,9 +54,9 @@ import { cn } from '@/lib/utils';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
 
 const SCHEDULE_SHOOT_WEBHOOK_URL =
-  'https://hogwartsautomation.app.n8n.cloud/webhook/schedule-shoot';
+  'https://n8n.hogwartsstudios.com/webhook/schedule-shoot';
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
-  'https://hogwartsautomation.app.n8n.cloud/webhook/final-payment-completed';
+  'https://n8n.hogwartsstudios.com/webhook/final-payment-completed';
 
 const FALLBACK_SALES_MEMBERS = ['Isha Malhotra', 'Krishna Tiwari', 'Krishan Kunal Bagoria'];
 const DEFAULT_ASSIGNED_TO = FALLBACK_SALES_MEMBERS[0];

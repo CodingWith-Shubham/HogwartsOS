@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
 
-const EDITOR_WORKLOAD_URL = 'https://hogwartsautomation.app.n8n.cloud/webhook/editor-workload';
+const EDITOR_WORKLOAD_URL = 'https://n8n.hogwartsstudios.com/webhook/editor-workload';
 
 const DELIVERABLE_FIELDS = [
   { key: 'podcastDraft', payloadKey: 'podcast_draft', label: 'Podcast Draft' },

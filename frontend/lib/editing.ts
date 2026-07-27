@@ -1,6 +1,6 @@
 import type { EditingProject, Lead } from '@/lib/sheets/types';
 
-export const N8N_WEBHOOK_BASE = 'https://hogwartsautomation.app.n8n.cloud/webhook';
+export const N8N_WEBHOOK_BASE = 'https://n8n.hogwartsstudios.com/webhook';
 
 export const EDITORS: { name: string; email: string }[] = [];
 

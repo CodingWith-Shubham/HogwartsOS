@@ -26,9 +26,9 @@ import type { Shoot } from '@/lib/sheets/types';
 import { cn } from '@/lib/utils';
 
 const UPDATE_WEBHOOK_URL =
-  'https://hogwartsautomation.app.n8n.cloud/webhook/update-shoot-details';
+  'https://n8n.hogwartsstudios.com/webhook/update-shoot-details';
 const UPLOAD_WEBHOOK_URL =
-  'https://hogwartsautomation.app.n8n.cloud/webhook/upload-drive-link';
+  'https://n8n.hogwartsstudios.com/webhook/upload-drive-link';
 
 interface ShootDashboardProps {
   initialShoots: Shoot[];

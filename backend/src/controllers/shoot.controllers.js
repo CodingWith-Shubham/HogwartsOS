@@ -21,8 +21,20 @@ const parseBoolean = (value, defaultValue = false) => {
     return defaultValue;
 };
 
+const getShootById = asyncHandler(async (req, res) => {
+  const { shootId } = req.params;
+  const shoot = await Shoot.findOne({ shootId });
+  if (!shoot) throw new ApiError(404, 'Shoot not found');
+  return res.status(200).json(new ApiResponse(200, { shoot }, 'Shoot fetched'));
+});
+
 const getShoots = asyncHandler(async (req, res) => {
-    const shoots = await Shoot.find({}).sort({ createdAt: -1 });
+    const filter = {};
+    if (req.query.leadId)    filter.leadId    = req.query.leadId;
+    if (req.query.shootId)   filter.shootId   = req.query.shootId;
+    if (req.query.shootDate) filter.shootDate = req.query.shootDate;
+
+    const shoots = await Shoot.find(filter).sort({ createdAt: -1 });
     const formatted = shoots.map(s => {
         const obj = s.toObject();
         obj.id = s._id.toString();
@@ -88,4 +100,4 @@ const updateShoot = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { shoot: updated }, "Shoot updated successfully"));
 });
 
-export { getShoots, createShoot, updateShoot };
+export { getShoots, getShootById, createShoot, updateShoot };

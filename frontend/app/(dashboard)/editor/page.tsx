@@ -1,505 +1,100 @@
 'use client';
 
-import { authFetch } from '@/lib/auth-fetch';
-
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle, ExternalLink, FileText, HardDrive, Scissors, Send } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
-import { Card, CardContent } from '@/components/ui/card';
 import { TableShimmer } from '@/components/shared/ShimmerLoader';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  AlertCircle,
-  CheckCircle,
-  ExternalLink,
-  FileText,
-  HardDrive,
-  MessageSquare,
-  Scissors,
-  Send,
-} from 'lucide-react';
-import { formatRelativeTime } from '@/lib/formatter';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth-context';
-import type { EditingProject } from '@/lib/sheets/types';
-import { postWebhook } from '@/lib/editing';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-const DELIVERABLE_FIELDS = [
-  { key: 'podcastDraft', label: 'Podcast Draft', pill: '🎙 Podcast Drafts' },
-  { key: 'podcastEdit', label: 'Podcast Edit', pill: '🎙 Podcast Edits' },
-  { key: 'reelDraft', label: 'Reel Draft', pill: '🎬 Reel Drafts' },
-  { key: 'reel', label: 'Reel Edit', pill: '🎬 Reel Edits' },
-  { key: 'longFormatVideo', label: 'Long Format Video', pill: '📹 Long Format' },
-  { key: 'teaserDemo', label: 'Teaser Demo', pill: '🎯 Teaser Demos' },
-  { key: 'teaser', label: 'Teaser', pill: '🎯 Teasers' },
-  { key: 'thumbnail', label: 'Thumbnail', pill: '🖼 Thumbnails' },
-] as const;
+type EditingTask = {
+  task_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
+  data_link: string; assigned_to_name: string; status: string; draft_link: string;
+  manager_comment: string; deadline_at: string; final_delivered: string;
+};
 
-type DeliverableKey = (typeof DELIVERABLE_FIELDS)[number]['key'];
+const statusClass: Record<string, string> = {
+  Assigned: 'border-blue-500/40 bg-blue-500/15 text-blue-600',
+  'In Progress': 'border-yellow-500/40 bg-yellow-500/15 text-yellow-600',
+  'Draft Sent': 'border-purple-500/40 bg-purple-500/15 text-purple-600',
+  'In Revision': 'border-orange-500/40 bg-orange-500/15 text-orange-600',
+  Delivered: 'border-green-500/40 bg-green-500/15 text-green-600',
+};
 
-function quantity(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
-}
-
-function projectDeliverables(edit: EditingProject) {
-  return DELIVERABLE_FIELDS.map((field) => ({
-    ...field,
-    count: quantity(String(edit[field.key] ?? '0')),
-  })).filter((item) => item.count > 0);
-}
-
-function isSameEditor(edit: EditingProject, name = '', email = '') {
-  const editorName = edit.editorName.trim().toLowerCase();
-  const editorEmail = edit.editorEmail.trim().toLowerCase();
-  return editorName === name.trim().toLowerCase() || editorEmail === email.trim().toLowerCase();
-}
-
-function hoursUntil(value: string) {
-  if (!value) return null;
-  const deadline = new Date(value);
-  if (Number.isNaN(deadline.getTime())) return null;
-  return (deadline.getTime() - Date.now()) / 36e5;
-}
-
-function DeadlineBadge({ deadlineAt }: { deadlineAt: string }) {
-  const hours = hoursUntil(deadlineAt);
-  if (hours === null) {
-    return <Badge variant="outline">Deadline {deadlineAt || '-'}</Badge>;
-  }
-
-  const urgent = hours <= 6;
-  const label =
-    hours <= 0 ? 'Deadline passed' : `${Math.floor(hours)}h ${Math.round((hours % 1) * 60)}m left`;
-
-  return (
-    <Badge
-      className={cn(
-        'w-fit',
-        urgent
-          ? 'animate-pulse border-red-500/40 bg-red-500/15 text-red-600'
-          : 'border-blue-500/40 bg-blue-500/15 text-blue-600'
-      )}
-    >
-      {label}
-    </Badge>
-  );
-}
-
-function DeliverableTracking({
-  edit,
-  done,
-  onToggle,
-}: {
-  edit: EditingProject;
-  done: Partial<Record<DeliverableKey, boolean>>;
-  onToggle: (key: DeliverableKey, checked: boolean) => void;
-}) {
-  const deliverables = projectDeliverables(edit);
-
-  if (deliverables.length === 0) return null;
-
-  return (
-    <div className="space-y-3 border-t border-border pt-3">
-      <div className="flex flex-wrap gap-1.5">
-        {deliverables.map((item) => (
-          <Badge key={item.key} variant="outline" className="text-xs">
-            {item.pill} {item.count}
-          </Badge>
-        ))}
-      </div>
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">Progress</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {deliverables.map((item) => {
-            const checked = Boolean(done[item.key]);
-            return (
-              <label
-                key={item.key}
-                htmlFor={`done-${edit.editId}-${item.key}`}
-                className={cn(
-                  'flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm',
-                  checked && 'bg-green-500/10 text-green-600 border-green-500/30'
-                )}
-              >
-                <Checkbox
-                  id={`done-${edit.editId}-${item.key}`}
-                  checked={checked}
-                  onCheckedChange={(value) => onToggle(item.key, Boolean(value))}
-                />
-                {item.label} ({item.count}) {checked ? 'Done' : ''}
-              </label>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RevisionText(edit: EditingProject) {
-  return `Revision ${edit.revisionCount}/${edit.maxFreeRevisions}`;
+function deadline(value: string) {
+  if (!value) return 'No deadline';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(date);
 }
 
 export default function EditorPage() {
   const { user } = useAuth();
+  const [tasks, setTasks] = useState<EditingTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<EditingProject[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('assigned');
   const [draftLinks, setDraftLinks] = useState<Record<string, string>>({});
-  const [submittingDraftId, setSubmittingDraftId] = useState<string | null>(null);
-  const [arrangingCallId, setArrangingCallId] = useState<string | null>(null);
-  const [deliverableDone, setDeliverableDone] = useState<Record<string, Partial<Record<DeliverableKey, boolean>>>>({});
-  // Keep the previous server snapshot outside render state. `revisions` is a
-  // newly filtered array on every render, so storing it in state here would
-  // trigger this effect again indefinitely.
-  const prevRevisionsRef = useRef<EditingProject[] | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
 
-  const refreshEditing = useCallback(async (silent = false) => {
+  const refresh = useCallback(async (silent = false) => {
+    if (!user?.email) return;
     if (!silent) setRefreshing(true);
     try {
-      const response = await authFetch('/api/editing', { cache: 'no-store' });
+      const response = await fetch(`/api/editor-tasks?email=${encodeURIComponent(user.email)}`, { cache: 'no-store' });
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to refresh editing rows');
-      }
-      setEditing(data.editing ?? []);
-    } catch (error) {
-      if (!silent) {
-        toast.error('Failed to refresh editing rows', {
-          description: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    } finally {
-      if (!silent) setRefreshing(false);
-    }
-  }, []);
+      if (!response.ok) throw new Error(data.error ?? 'Failed to load tasks');
+      setTasks(data);
+    } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
+    finally { if (!silent) setRefreshing(false); }
+  }, [user?.email]);
 
-  useEffect(() => {
-    let mounted = true;
-    async function init() {
-      await refreshEditing(true);
-      if (mounted) setLoading(false);
-    }
-    init();
-    const interval = setInterval(() => refreshEditing(true), 30000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [refreshEditing]);
+  useEffect(() => { refresh(true).finally(() => setLoading(false)); const interval = setInterval(() => refresh(true), 30000); return () => clearInterval(interval); }, [refresh]);
 
-  const editorEdits = editing;
+  const groups = useMemo(() => ({
+    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status)),
+    drafts: tasks.filter((task) => task.status === 'Draft Sent'),
+    revisions: tasks.filter((task) => task.status === 'In Revision'),
+    delivered: tasks.filter((task) => task.status === 'Delivered'),
+  }), [tasks]);
 
-  const assigned = editorEdits.filter((edit) =>
-    ['Editing', 'Extra Revision Approved'].includes(edit.status)
-  );
-  const drafts = editorEdits.filter((edit) => edit.status === 'Draft Sent');
-  const revisions = editorEdits.filter((edit) => edit.status === 'Revision Requested');
-  const delivered = editorEdits.filter((edit) => edit.status === 'Delivered' && edit.finalDelivered);
-
-  useEffect(() => {
-    const prevRevisions = prevRevisionsRef.current;
-    if (prevRevisions !== null && revisions.length > prevRevisions.length) {
-      const newRev = revisions.find((r) => {
-        const prev = prevRevisions.find((p) => p.editId === r.editId);
-        return !prev || r.revisionCount > prev.revisionCount;
-      });
-      const editorName = newRev?.editorName || 'an editor';
-      toast.error(`New revision requested for ${editorName}!`, {
-        description: `Project "${newRev?.clientName || 'Untitled'}" (${newRev?.serviceType || 'Video'}) has a pending revision.`,
-        duration: 8000,
-      });
-    }
-    prevRevisionsRef.current = revisions;
-  }, [revisions]);
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Editor" description="Deliverables queue and status tracking" />
-        <TableShimmer rows={6} cols={5} />
-      </div>
-    );
-  }
-
-  const markDraftReady = async (edit: EditingProject) => {
-    const draftLink = draftLinks[edit.editId] ?? '';
-    if (!draftLink) return;
-
-    setSubmittingDraftId(edit.editId);
+  const updateStatus = async (task: EditingTask, status: string, includeDraft = false) => {
+    const draft_link = draftLinks[task.task_id]?.trim();
+    if (includeDraft && !draft_link) { toast.error('Add a draft link first'); return; }
+    setSaving(task.task_id);
     try {
-      await postWebhook('/draft-ready', {
-        edit_id: edit.editId,
-        draft_link: draftLink,
-        revision_count: edit.revisionCount,
-      });
-      toast.success(edit.status === 'Revision Requested' ? 'Revision marked done!' : 'Draft marked ready!');
-      setDraftLinks((prev) => ({ ...prev, [edit.editId]: '' }));
-      await refreshEditing(true);
-    } catch (error) {
-      toast.error('Failed to mark draft ready', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setSubmittingDraftId(null);
-    }
+      const response = await fetch('/api/update-task-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: task.task_id, status, ...(includeDraft ? { draft_link } : {}) }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Failed to update task');
+      toast.success(status === 'In Progress' ? 'Task started' : 'Draft submitted');
+      setDraftLinks((current) => ({ ...current, [task.task_id]: '' }));
+      await refresh(true);
+    } catch (error) { toast.error('Could not update task', { description: error instanceof Error ? error.message : 'Unknown error' }); }
+    finally { setSaving(null); }
   };
 
-  const arrangeCall = async (edit: EditingProject) => {
-    setArrangingCallId(edit.editId);
-    try {
-      await postWebhook('/arrange-call', {
-        edit_id: edit.editId,
-        editor_name: edit.editorName,
-      });
-      toast.success('Sales rep has been notified to arrange a call.');
-    } catch (error) {
-      toast.error('Failed to request call', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setArrangingCallId(null);
-    }
-  };
-
-  return (
-    <div>
-      <PageHeader
-        title="Editor"
-        description="Post-production queue, drafts, and revisions"
-        actions={
-          <Button variant="outline" size="sm" onClick={() => refreshEditing()} disabled={refreshing}>
-            Refresh
-          </Button>
-        }
-      />
-
-      {revisions.length > 0 && (
-        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-600 flex items-start gap-3 animate-pulse">
-          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="font-semibold text-sm">Revision(s) Pending Attention</h4>
-            <p className="text-xs text-red-500/90 mt-1">
-              You have {revisions.length} project(s) currently requiring revisions. Please switch to the **Revisions** tab to check the feedback and submit your updated draft links.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard title="Assigned" value={assigned.length} icon={Scissors} />
-        <StatCard title="Drafts Sent" value={drafts.length} icon={FileText} />
-        <StatCard title="In Revision" value={revisions.length} icon={AlertCircle} />
-        <StatCard title="Delivered" value={delivered.length} icon={CheckCircle} />
-      </div>
-
-      <Tabs defaultValue="assigned">
-        <TabsList>
-          <TabsTrigger value="assigned">Assigned</TabsTrigger>
-          <TabsTrigger value="drafts">Drafts</TabsTrigger>
-          <TabsTrigger value="revisions">Revisions</TabsTrigger>
-          <TabsTrigger value="delivered">Delivered</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="assigned" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {assigned.map((edit) => (
-              <Card key={edit.editId}>
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{edit.clientName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {edit.serviceType || 'Edit'}
-                        {edit.editorName && ` · Editor: ${edit.editorName}`}
-                      </p>
-                    </div>
-                    <Badge variant="outline">{edit.status}</Badge>
-                  </div>
-                  <DeadlineBadge deadlineAt={edit.deadlineAt} />
-                  <Button variant="outline" size="sm" asChild disabled={!edit.dataLink}>
-                    <a href={edit.dataLink} target="_blank" rel="noreferrer">
-                      <HardDrive className="mr-1.5 h-3.5 w-3.5" />
-                      View Footage
-                    </a>
-                  </Button>
-                  <DeliverableTracking
-                    edit={edit}
-                    done={deliverableDone[edit.editId] ?? {}}
-                    onToggle={(key, checked) =>
-                      setDeliverableDone((prev) => ({
-                        ...prev,
-                        [edit.editId]: {
-                          ...(prev[edit.editId] ?? {}),
-                          [key]: checked,
-                        },
-                      }))
-                    }
-                  />
-                  <div className="space-y-2 border-t border-border pt-3">
-                    <Label htmlFor={`draft-${edit.editId}`}>Draft Link</Label>
-                    <Input
-                      id={`draft-${edit.editId}`}
-                      value={draftLinks[edit.editId] ?? ''}
-                      onChange={(event) =>
-                        setDraftLinks((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                      }
-                      placeholder="https://drive.google.com/..."
-                    />
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => markDraftReady(edit)}
-                      disabled={!draftLinks[edit.editId] || submittingDraftId === edit.editId}
-                    >
-                      <Send className="mr-1.5 h-3.5 w-3.5" />
-                      Mark Draft Ready
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {assigned.length === 0 && (
-              <Card className="md:col-span-2">
-                <CardContent className="py-12 text-center">
-                  <Scissors className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No assigned edits for this editor.</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="drafts" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {drafts.map((edit) => (
-              <Card key={edit.editId}>
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{edit.clientName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Editor: {edit.editorName || 'Unassigned'}
-                      </p>
-                    </div>
-                    <Badge variant="outline">{RevisionText(edit)}</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Sent {edit.assignedAt ? formatRelativeTime(edit.assignedAt) : 'to client'}
-                  </p>
-                  <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
-                    <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
-                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      View Draft
-                    </a>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-            {drafts.length === 0 && (
-              <Card><CardContent className="py-12 text-center"><p className="text-sm text-muted-foreground">No drafts awaiting client review.</p></CardContent></Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="revisions" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {revisions.map((edit) => (
-              <Card key={edit.editId}>
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{edit.clientName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {edit.serviceType || 'Edit'}
-                        {edit.editorName && ` · Editor: ${edit.editorName}`}
-                      </p>
-                    </div>
-                    <Badge className="border-red-500/40 bg-red-500/15 text-red-600">
-                      {RevisionText(edit)}
-                    </Badge>
-                  </div>
-                  {edit.revisionFeedback ? (
-                    <div className="rounded-md bg-muted p-2.5 text-sm border border-border">
-                      <p className="font-medium text-xs text-muted-foreground mb-1">Client / Manager Revision Feedback:</p>
-                      <p className="text-xs text-foreground whitespace-pre-wrap">{edit.revisionFeedback}</p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-600/80 italic">
-                      No feedback submitted yet. Please arrange a call with the client if clarification is needed.
-                    </p>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor={`revision-draft-${edit.editId}`}>Updated Draft Link</Label>
-                    <Input
-                      id={`revision-draft-${edit.editId}`}
-                      value={draftLinks[edit.editId] ?? ''}
-                      onChange={(event) =>
-                        setDraftLinks((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                      }
-                      placeholder="https://drive.google.com/updated..."
-                    />
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => markDraftReady(edit)}
-                      disabled={!draftLinks[edit.editId] || submittingDraftId === edit.editId}
-                    >
-                      Mark Revision Done
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => arrangeCall(edit)} disabled={arrangingCallId === edit.editId}>
-                      <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-                      Arrange Call
-                    </Button>
-                  </div>
-                  </CardContent>
-              </Card>
-            ))}
-            {revisions.length === 0 && (
-              <Card><CardContent className="py-12 text-center"><p className="text-sm text-muted-foreground">No revisions requested.</p></CardContent></Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="delivered" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {delivered.map((edit) => (
-              <Card key={edit.editId}>
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{edit.clientName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {edit.serviceType || 'Completed project'}
-                        {edit.editorName && ` · Editor: ${edit.editorName}`}
-                      </p>
-                    </div>
-                    <Badge className="border-green-500/40 bg-green-500/15 text-green-600">Delivered</Badge>
-                  </div>
-                  {edit.currentDraftLink && (
-                    <a href={edit.currentDraftLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-[#58A6FF] hover:underline">
-                      <CheckCircle className="h-3 w-3" />
-                      Final delivery
-                    </a>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            {delivered.length === 0 && (
-              <Card><CardContent className="py-12 text-center"><p className="text-sm text-muted-foreground">No delivered edits yet.</p></CardContent></Card>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+  const TaskCard = ({ task }: { task: EditingTask }) => (
+    <Card key={task.task_id}><CardContent className="space-y-3 p-4">
+      <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{task.task_label || task.task_type}</h3><p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p></div><Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge></div>
+      <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
+      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
+      {task.manager_comment && <details className="rounded-md border border-border p-2 text-sm"><summary className="cursor-pointer font-medium">Manager comment</summary><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{task.manager_comment}</p></details>}
+      {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
+      {['In Progress', 'In Revision'].includes(task.status) && <div className="space-y-2 border-t border-border pt-3"><Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." /><Button size="sm" onClick={() => updateStatus(task, 'Draft Sent', true)} disabled={saving === task.task_id}><Send className="mr-1.5 h-3.5 w-3.5" />{task.status === 'In Revision' ? 'Upload Revised Draft' : 'Upload Draft Link'}</Button></div>}
+      {task.status === 'Delivered' && <p className="flex items-center gap-1.5 text-sm text-green-600"><CheckCircle className="h-4 w-4" />Completed</p>}
+    </CardContent></Card>
   );
+
+  if (loading) return <div className="space-y-6"><PageHeader title="Editor" description="Individual task queue" /><TableShimmer rows={6} cols={4} /></div>;
+  const panel = (items: EditingTask[], empty: string) => <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{items.map((task) => <TaskCard key={task.task_id} task={task} />)}{items.length === 0 && <Card className="md:col-span-2"><CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent></Card>}</div>;
+  return <div><PageHeader title="Editor" description="Your individual editing tasks" actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
+    <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
+    <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
+  </div>;
 }

@@ -9,10 +9,11 @@ interface StatCardProps {
   icon?: LucideIcon;
   trend?: { value: string; positive: boolean };
   className?: string;
+  onClick?: () => void;
 }
 
-export function StatCard({ title, value, description, icon: Icon, trend, className }: StatCardProps) {
-  return (
+export function StatCard({ title, value, description, icon: Icon, trend, className, onClick }: StatCardProps) {
+  const card = (
     <Card className={cn('overflow-hidden card-hover-effect', className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
@@ -42,5 +43,18 @@ export function StatCard({ title, value, description, icon: Icon, trend, classNa
         )}
       </CardContent>
     </Card>
+  );
+
+  if (!onClick) return card;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      aria-label={`View ${title}`}
+    >
+      {card}
+    </button>
   );
 }

@@ -25,6 +25,7 @@ import { useAuth } from '@/lib/auth-context';
 import type { EditingProject, Lead, Shoot } from '@/lib/sheets/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ManagerTaskBoard } from '@/components/manager/ManagerTaskBoard';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
 
 const EDITOR_WORKLOAD_URL = 'https://n8n.hogwartsstudios.com/webhook/editor-workload';
@@ -61,6 +62,33 @@ const DEFAULT_DELIVERABLES: DeliverableValues = {
   thumbnail: '0',
 };
 
+const ASSIGNMENT_DELIVERABLE_FIELDS = [
+  { key: 'podcastEdit', label: 'Podcast Edit', taskType: 'podcast_edit' },
+  { key: 'teaserEdit', label: 'Teaser Edit', taskType: 'teaser_edit' },
+  { key: 'reelEdit', label: 'Reel Edit', taskType: 'reel_edit' },
+  { key: 'thumbnailEdit', label: 'Thumbnail Edit', taskType: 'thumbnail_edit' },
+  { key: 'longFormatVideo', label: 'Long Form Edit', taskType: 'long_format_video', durationKey: 'longFormatDuration' },
+  { key: 'shortFormatVideo', label: 'Short Form Edit', taskType: 'short_format_video', durationKey: 'shortFormatDuration' },
+] as const;
+
+type AssignmentDeliverableKey = (typeof ASSIGNMENT_DELIVERABLE_FIELDS)[number]['key'];
+
+type AssignmentDeliverableValues = Record<AssignmentDeliverableKey, string> & {
+  longFormatDuration: string;
+  shortFormatDuration: string;
+};
+
+const DEFAULT_ASSIGNMENT_DELIVERABLES: AssignmentDeliverableValues = {
+  podcastEdit: '0',
+  teaserEdit: '0',
+  reelEdit: '0',
+  thumbnailEdit: '0',
+  longFormatVideo: '0',
+  longFormatDuration: '',
+  shortFormatVideo: '0',
+  shortFormatDuration: '',
+};
+
 function normalizeQuantity(value: unknown) {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed) || parsed < 0) return '0';
@@ -85,6 +113,20 @@ function leadDeliverables(lead: Lead | undefined): DeliverableValues {
     teaserDemo: normalizeQuantity(lead.teaserDemo),
     teaser: normalizeQuantity(lead.teaser),
     thumbnail: normalizeQuantity(lead.thumbnail),
+  };
+}
+
+function leadAssignmentDeliverables(lead: Lead | undefined): AssignmentDeliverableValues {
+  if (!lead) return { ...DEFAULT_ASSIGNMENT_DELIVERABLES };
+  return {
+    podcastEdit: normalizeQuantity(lead.podcastEdit),
+    teaserEdit: normalizeQuantity(lead.teaserEdit),
+    reelEdit: normalizeQuantity(lead.reelEdit),
+    thumbnailEdit: normalizeQuantity(lead.thumbnailEdit),
+    longFormatVideo: normalizeQuantity(lead.longFormatVideo),
+    longFormatDuration: lead.longFormatDuration ?? '',
+    shortFormatVideo: normalizeQuantity(lead.shortFormatVideo),
+    shortFormatDuration: lead.shortFormatDuration ?? '',
   };
 }
 
@@ -223,8 +265,8 @@ export default function ManagerPage() {
   const editors = useMemo(() => {
     const list = users.filter((u) => u.role === 'editor');
     return list.length > 0 ? list.map(u => ({ name: u.name, email: u.email })) : [
-      { name: 'Shubham Singh Rana', email: 'shubham@hogwartsstudios.com' },
-      { name: 'Deepak Sharma', email: 'deepak@hogwartsstudios.com' }
+      { name: 'Shubham Singh Rana', email: 'mamgai75@gmail.com' },
+      { name: 'Deepak Sharma', email: 'mamgai75@gmail.com' }
     ];
   }, [users]);
 
@@ -240,25 +282,17 @@ export default function ManagerPage() {
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
   const [extraCosts, setExtraCosts] = useState<Record<string, string>>({});
   const [extraFeedback, setExtraFeedback] = useState<Record<string, string>>({});
+  const [serviceEditors, setServiceEditors] = useState<Record<string, string>>({});
+  const [assignmentErrors, setAssignmentErrors] = useState<Record<string, string>>({});
   
   const [assignForm, setAssignForm] = useState({
     serviceType: '',
-    editorName: 'Shubham Singh Rana',
-    editorEmail: 'shubham@hogwartsstudios.com',
     dataLink: '',
-    totalService: '1',
-    ...DEFAULT_DELIVERABLES,
+    additionalProduct: '',
+    additionalProductQuantity: '0',
+    managerComment: '',
+    ...DEFAULT_ASSIGNMENT_DELIVERABLES,
   });
-
-  useEffect(() => {
-    if (editors.length > 0 && assignForm.editorName === 'Shubham Singh Rana') {
-      setAssignForm((prev) => ({
-        ...prev,
-        editorName: editors[0].name,
-        editorEmail: editors[0].email,
-      }));
-    }
-  }, [editors, assignForm.editorName]);
 
   useEffect(() => {
     let mounted = true;
@@ -339,42 +373,53 @@ export default function ManagerPage() {
     const lead = leads.find((item) => item.leadId === shoot.leadId);
     setAssignShoot(shoot);
     setAssignForm({
-      serviceType: '',
-      editorName: editors[0]?.name || 'Shubham Singh Rana',
-      editorEmail: editors[0]?.email || 'shubham@hogwartsstudios.com',
+      serviceType: lead?.servicePitched ?? '',
       dataLink: shoot.dataLink,
-      totalService: '1',
-      ...leadDeliverables(lead),
+      additionalProduct: '',
+      additionalProductQuantity: '0',
+      managerComment: '',
+      ...leadAssignmentDeliverables(lead),
     });
+    setServiceEditors({});
+    setAssignmentErrors({});
   };
 
   const handleAssignEditor = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!assignShoot) return;
 
+    const activeServices = ASSIGNMENT_DELIVERABLE_FIELDS.filter((field) => Number(normalizeQuantity(assignForm[field.key])) > 0);
+    const additionalQuantity = Number(normalizeQuantity(assignForm.additionalProductQuantity));
+    const missing = Object.fromEntries([...activeServices.map((field) => field.key), ...(additionalQuantity > 0 ? ['additionalProduct'] : [])].filter((key) => !serviceEditors[key]).map((key) => [key, 'Choose an editor'])) as Record<string, string>;
+    if (Object.keys(missing).length) { setAssignmentErrors(missing); toast.error('Assign an editor for every service'); return; }
+
     setAssigningEditor(true);
     try {
-      await postWebhook('/assign-editor', {
-        shoot_id: assignShoot.shootId,
-        lead_id: assignShoot.leadId,
-        client_name: assignShoot.clientName,
-        email_id: assignShoot.emailId,
-        client_email: assignShoot.emailId,
-        data_link: assignForm.dataLink,
-        service_type: assignForm.serviceType,
-        editor_name: assignForm.editorName,
-        editor_email: assignForm.editorEmail,
-        total_service: assignForm.totalService,
-        podcast_draft: normalizeQuantity(assignForm.podcastDraft),
-        podcast_edit: normalizeQuantity(assignForm.podcastEdit),
-        reel_draft: normalizeQuantity(assignForm.reelDraft),
-        reel_edit: normalizeQuantity(assignForm.reelEdit),
-        reel: normalizeQuantity(assignForm.reelEdit),
-        long_format_video: normalizeQuantity(assignForm.longFormatVideo),
-        teaser_demo: normalizeQuantity(assignForm.teaserDemo),
-        teaser: normalizeQuantity(assignForm.teaser),
-        thumbnail: normalizeQuantity(assignForm.thumbnail),
+      const tasks: { task_type: string; quantity: number; editor_name: string; editor_email: string }[] = activeServices.map((field) => {
+        const editor = editors.find((item) => item.name === serviceEditors[field.key]);
+        return { task_type: field.taskType, quantity: Number(normalizeQuantity(assignForm[field.key])), editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' };
       });
+      if (additionalQuantity > 0) {
+        const editor = editors.find((item) => item.name === serviceEditors.additionalProduct);
+        tasks.push({ task_type: 'additional_product', quantity: additionalQuantity, editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' });
+      }
+      const response = await fetch('/api/assign-editor-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shoot_id: assignShoot.shootId,
+          lead_id: assignShoot.leadId,
+          client_name: assignShoot.clientName,
+          email_id: assignShoot.emailId,
+          client_email: assignShoot.emailId,
+          data_link: assignForm.dataLink,
+          service_type: assignForm.serviceType,
+          tasks,
+          manager_comment: assignForm.managerComment.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'Failed to assign editor');
       toast.success('Editor assigned!');
       setAssignShoot(null);
       await refreshEditing();
@@ -385,15 +430,6 @@ export default function ManagerPage() {
     } finally {
       setAssigningEditor(false);
     }
-  };
-
-  const handleEditorChange = (editorName: string) => {
-    const editor = editors.find((item) => item.name === editorName) ?? editors[0];
-    setAssignForm((prev) => ({
-      ...prev,
-      editorName: editor.name,
-      editorEmail: editor.email,
-    }));
   };
 
   const sendDraftToClient = async (edit: EditingProject) => {
@@ -546,6 +582,8 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+
+      <ManagerTaskBoard editors={editors} canReallocate={user?.role === 'manager' || user?.role === 'admin'} />
 
       <Card className="mb-6">
         <CardHeader>
@@ -708,45 +746,64 @@ export default function ManagerPage() {
                   <div>
                     <p className="text-sm font-medium">Deliverable Assignment</p>
                     <p className="text-xs text-muted-foreground">
-                      Prefilled from the client proposal. Adjust before assigning if needed.
+                      Automatically fetched from the client proposal.
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {DELIVERABLE_FIELDS.map((field) => (
-                      <div className="space-y-2" key={field.key}>
-                        <Label htmlFor={`assign-${field.key}`}>{field.label}</Label>
-                        <Input
-                          id={`assign-${field.key}`}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={assignForm[field.key]}
-                          onChange={(event) =>
-                            setAssignForm((prev) => ({
-                              ...prev,
-                              [field.key]: event.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                    ))}
+                    {ASSIGNMENT_DELIVERABLE_FIELDS.map((field) => {
+                      const durationKey = 'durationKey' in field ? field.durationKey : null;
+                      return (
+                        <div className="space-y-2" key={field.key}>
+                          <Label>{field.label}</Label>
+                          <div className="flex gap-2">
+                            <Input value={assignForm[field.key]} readOnly className="w-20 bg-muted" />
+                            <Select value={serviceEditors[field.key] ?? ''} onValueChange={(value) => { setServiceEditors((current) => ({ ...current, [field.key]: value })); setAssignmentErrors((current) => ({ ...current, [field.key]: '' })); }} disabled={Number(normalizeQuantity(assignForm[field.key])) === 0}>
+                              <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Choose editor" /></SelectTrigger>
+                              <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          {durationKey && <p className="text-xs text-muted-foreground">Duration: {assignForm[durationKey] || '-'}</p>}
+                          {assignmentErrors[field.key] && <p className="text-xs text-red-500">{assignmentErrors[field.key]}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-sm font-medium">
-                    Total deliverables: {totalDeliverables(assignForm)}
-                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Editor</Label>
-                  <Select value={assignForm.editorName} onValueChange={handleEditorChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Label htmlFor="additional-product">Additional Products</Label>
+                  <Select
+                    value={assignForm.additionalProduct}
+                    onValueChange={(value) => setAssignForm((prev) => ({ ...prev, additionalProduct: value }))}
+                  >
+                    <SelectTrigger id="additional-product">
+                      <SelectValue placeholder="Choose an additional product" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {editors.map((editor) => (
-                        <SelectItem key={editor.name} value={editor.name}>
-                          {editorDropdownLabel(editorWorkload, editor.name)}
-                        </SelectItem>
+                      {ASSIGNMENT_DELIVERABLE_FIELDS.map((field) => (
+                        <SelectItem key={field.key} value={field.label}>{field.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="additional-product-quantity">Additional Product Quantity</Label>
+                  <Input
+                    id="additional-product-quantity"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={assignForm.additionalProductQuantity}
+                    onChange={(event) => setAssignForm((prev) => ({ ...prev, additionalProductQuantity: event.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Additional Product Editor</Label>
+                  <Select value={serviceEditors.additionalProduct ?? ''} onValueChange={(value) => { setServiceEditors((current) => ({ ...current, additionalProduct: value })); setAssignmentErrors((current) => ({ ...current, additionalProduct: '' })); }} disabled={Number(normalizeQuantity(assignForm.additionalProductQuantity)) === 0}>
+                    <SelectTrigger><SelectValue placeholder="Choose editor" /></SelectTrigger>
+                    <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {assignmentErrors.additionalProduct && <p className="text-xs text-red-500">{assignmentErrors.additionalProduct}</p>}
                 </div>
                 <div className="space-y-2 sm:col-span-2 border border-border rounded-md p-3 bg-muted/30">
                   <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Editor Availability & Workload</Label>
@@ -755,17 +812,10 @@ export default function ManagerPage() {
                       const workload = workloadForEditor(editorWorkload, editor.name);
                       const total = workload?.totalDeliverables ?? 0;
                       const level = workloadLevel(total);
-                      const isSelected = assignForm.editorName === editor.name;
                       return (
                         <div
                           key={editor.name}
-                          onClick={() => handleEditorChange(editor.name)}
-                          className={cn(
-                            "cursor-pointer rounded-md border p-2 text-left transition-all",
-                            isSelected
-                              ? "border-primary bg-primary/5 ring-1 ring-primary"
-                              : "border-border bg-card hover:bg-muted"
-                          )}
+                          className="rounded-md border border-border bg-card p-2 text-left"
                         >
                           <div className="flex justify-between items-center">
                             <span className="text-xs font-medium">{editor.name}</span>
@@ -796,16 +846,6 @@ export default function ManagerPage() {
                     })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editor-email">Editor Email</Label>
-                  <Input
-                    id="editor-email"
-                    type="email"
-                    required
-                    value={assignForm.editorEmail}
-                    onChange={(event) => setAssignForm((prev) => ({ ...prev, editorEmail: event.target.value }))}
-                  />
-                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="data-link">Data Link</Label>
                   <Input
@@ -815,15 +855,14 @@ export default function ManagerPage() {
                     onChange={(event) => setAssignForm((prev) => ({ ...prev, dataLink: event.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="total-service">Total Service</Label>
-                  <Input
-                    id="total-service"
-                    type="number"
-                    min="1"
-                    required
-                    value={assignForm.totalService}
-                    onChange={(event) => setAssignForm((prev) => ({ ...prev, totalService: event.target.value }))}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="manager-comment">Manager Comment</Label>
+                  <Textarea
+                    id="manager-comment"
+                    value={assignForm.managerComment}
+                    onChange={(event) => setAssignForm((prev) => ({ ...prev, managerComment: event.target.value }))}
+                    placeholder="Add any instructions for the editor..."
+                    rows={3}
                   />
                 </div>
               </div>

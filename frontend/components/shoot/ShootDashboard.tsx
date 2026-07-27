@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '@/lib/auth-fetch';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
@@ -23,11 +23,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar, Camera, CheckCircle, Clock, ExternalLink, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Shoot } from '@/lib/sheets/types';
+import type { User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const UPDATE_WEBHOOK_URL =
   'https://n8n.hogwartsstudios.com/webhook/update-shoot-details';
-const UPLOAD_WEBHOOK_URL =
+const UPLOAD_DRIVE_LINK_URL =
   'https://n8n.hogwartsstudios.com/webhook/upload-drive-link';
 
 interface ShootDashboardProps {
@@ -38,12 +39,14 @@ interface PostShootForm {
   extraCamera: string;
   extraTeleprompter: string;
   extraDurationHours: string;
-  additionalCost: string;
+  addonHasAddons: 'yes' | 'no';
   recordTime: string;
   studioTime: string;
   testimonials: string;
   shootNotes: string;
 }
+
+type HandoverRecipient = Pick<User, 'name' | 'email'> & { key: string };
 
 const DURATION_HOURS = Array.from({ length: 25 }, (_, index) => String(index));
 const DURATION_MINUTES = Array.from({ length: 60 }, (_, index) =>
@@ -300,16 +303,28 @@ function ShootCard({
   shoot,
   onEdit,
   onUpload,
+  onConfirmHandover,
   uploadValue,
   onUploadValueChange,
   uploading,
+  handoverRecipients,
+  selectedHandover,
+  onHandoverRecipientChange,
+  handingOver,
+  confirmedHandover,
 }: {
   shoot: Shoot;
   onEdit: (shoot: Shoot) => void;
   onUpload: (shoot: Shoot) => void;
+  onConfirmHandover: (shoot: Shoot) => void;
   uploadValue: string;
   onUploadValueChange: (shootId: string, value: string) => void;
   uploading: boolean;
+  handoverRecipients: HandoverRecipient[];
+  selectedHandover?: HandoverRecipient;
+  onHandoverRecipientChange: (shootId: string, recipientKey: string) => void;
+  handingOver: boolean;
+  confirmedHandover?: HandoverRecipient;
 }) {
   const uploaded = isTrue(shoot.driveLinkUploaded);
 
@@ -373,6 +388,44 @@ function ShootCard({
                 Upload Drive Link
               </Button>
             </div>
+            <div className="space-y-2 rounded-md border border-dashed border-border px-3 py-2.5">
+              <p className="text-sm font-medium">Hard Disk Handover</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Label htmlFor={`handover-to-${shoot.id}`} className="text-xs text-muted-foreground">
+                    Hand over hard disk to
+                  </Label>
+                  <Select
+                    value={selectedHandover?.key ?? ''}
+                    onValueChange={(recipientKey) => onHandoverRecipientChange(shoot.shootId, recipientKey)}
+                    disabled={Boolean(confirmedHandover)}
+                  >
+                    <SelectTrigger id={`handover-to-${shoot.id}`} className="h-9 text-sm">
+                      <SelectValue placeholder="Select the handover recipient" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="client">Client — {shoot.clientName || 'Unnamed client'}</SelectItem>
+                      {handoverRecipients.map((recipient) => (
+                        <SelectItem key={recipient.key} value={recipient.key}>
+                          {recipient.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onConfirmHandover(shoot)}
+                  disabled={handingOver || !selectedHandover || Boolean(confirmedHandover)}
+                >
+                  Confirm Handover
+                </Button>
+              </div>
+              {confirmedHandover && (
+                <p className="text-xs text-green-600">✅ Hard disk handed to {confirmedHandover.name}</p>
+              )}
+            </div>
           </div>
         ) : (
           <div className="border-t border-border pt-3">
@@ -396,21 +449,27 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   const [saving, setSaving] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>({});
+  const [handoverRecipients, setHandoverRecipients] = useState<HandoverRecipient[]>([]);
+  const [selectedHandovers, setSelectedHandovers] = useState<Record<string, HandoverRecipient>>({});
+  const [confirmedHandovers, setConfirmedHandovers] = useState<Record<string, HandoverRecipient>>({});
+  const [handingOverId, setHandingOverId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('today');
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [postShootForm, setPostShootForm] = useState<PostShootForm>({
     extraCamera: '0',
     extraTeleprompter: '0',
     extraDurationHours: '0',
-    additionalCost: '0',
+    addonHasAddons: 'no',
     recordTime: '',
     studioTime: '',
     testimonials: '',
     shootNotes: '',
   });
 
-  const refreshShoots = useCallback(async (silent = false) => {
+  const refreshShoots = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const response = await authFetch('/api/shoots', { cache: 'no-store' });
+      const response = await authFetch(`/api/shoots${forceFresh ? '?fresh=1' : ''}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh shoots');
       setShoots(data.shoots ?? []);
@@ -426,10 +485,35 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   }, []);
 
   useEffect(() => {
-    refreshShoots(true);
+    void refreshShoots(true, true);
+  }, [refreshShoots]);
+
+  useEffect(() => {
     const interval = setInterval(() => refreshShoots(true), 30000);
     return () => clearInterval(interval);
   }, [refreshShoots]);
+
+  useEffect(() => {
+    const fetchHandoverRecipients = async () => {
+      try {
+        const response = await fetch('/api/users', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? 'Failed to load users');
+
+        setHandoverRecipients(
+          (data.users ?? [])
+            .filter((user: User) => user.role === 'sales' || user.role === 'editor')
+            .map((user: User) => ({ ...user, key: user.email }))
+        );
+      } catch (error) {
+        toast.error('Failed to load handover recipients', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    };
+
+    fetchHandoverRecipients();
+  }, []);
 
   const today = todayKey();
   const todaysShoots = shoots.filter((shoot) => shoot.shootDate === today);
@@ -445,7 +529,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       extraCamera: shoot.extraCamera || '0',
       extraTeleprompter: shoot.extraTeleprompter || '0',
       extraDurationHours: shoot.extraDurationHours || '0',
-      additionalCost: shoot.additionalCost || '0',
+      addonHasAddons: 'no',
       recordTime: shoot.recordTime || '',
       studioTime: shoot.studioTime || '',
       testimonials: shoot.testimonials || '',
@@ -465,7 +549,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
           extra_camera: postShootForm.extraCamera,
           extra_teleprompter: postShootForm.extraTeleprompter,
           extra_duration_hours: postShootForm.extraDurationHours,
-          additional_cost: postShootForm.additionalCost,
+          addon_has_addons: postShootForm.addonHasAddons,
           shoot_notes: postShootForm.shootNotes,
           testimonials: postShootForm.testimonials,
           record_time: postShootForm.recordTime,
@@ -493,7 +577,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
 
     setUploadingId(shoot.shootId);
     try {
-      const response = await fetch(UPLOAD_WEBHOOK_URL, {
+      const response = await fetch(UPLOAD_DRIVE_LINK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -522,6 +606,36 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
     }
   };
 
+  const confirmHandover = async (shoot: Shoot) => {
+    const recipient = selectedHandovers[shoot.shootId];
+    if (!recipient || confirmedHandovers[shoot.shootId]) return;
+
+    setHandingOverId(shoot.shootId);
+    try {
+      const response = await fetch(UPLOAD_DRIVE_LINK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shoot_id: shoot.shootId,
+          data_link: '',
+          handover_to: recipient.name,
+          handover_to_email: recipient.email,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to confirm hard disk handover');
+
+      setConfirmedHandovers((prev) => ({ ...prev, [shoot.shootId]: recipient }));
+      toast.success(`Hard disk handed to ${recipient.name}`);
+    } catch (error) {
+      toast.error('Failed to confirm handover', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setHandingOverId(null);
+    }
+  };
+
   const renderList = (items: Shoot[], empty: string) => {
     if (items.length === 0) {
       return (
@@ -542,15 +656,35 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
             shoot={shoot}
             onEdit={openEdit}
             onUpload={uploadDriveLink}
+            onConfirmHandover={confirmHandover}
             uploadValue={driveLinks[shoot.shootId] ?? ''}
             onUploadValueChange={(shootId, value) =>
               setDriveLinks((prev) => ({ ...prev, [shootId]: value }))
             }
             uploading={uploadingId === shoot.shootId}
+            handoverRecipients={handoverRecipients}
+            selectedHandover={selectedHandovers[shoot.shootId]}
+            onHandoverRecipientChange={(shootId, recipientKey) => {
+              const recipient = recipientKey === 'client'
+                ? { key: 'client', name: shoot.clientName || 'Client', email: shoot.emailId }
+                : handoverRecipients.find((user) => user.key === recipientKey);
+              if (recipient) {
+                setSelectedHandovers((prev) => ({ ...prev, [shootId]: recipient }));
+              }
+            }}
+            handingOver={handingOverId === shoot.shootId}
+            confirmedHandover={confirmedHandovers[shoot.shootId]}
           />
         ))}
       </div>
     );
+  };
+
+  const openTab = (tab: string) => {
+    setActiveTab(tab);
+    window.requestAnimationFrame(() => {
+      tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   return (
@@ -563,7 +697,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
             <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
               {pendingUploads} pending uploads
             </Badge>
-            <Button variant="outline" size="sm" onClick={() => refreshShoots()} disabled={refreshing}>
+            <Button variant="outline" size="sm" onClick={() => refreshShoots(false, true)} disabled={refreshing}>
               Refresh
             </Button>
           </div>
@@ -571,36 +705,38 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard title="Today's Shoots" value={todaysShoots.length} icon={Camera} />
-        <StatCard title="Upcoming" value={upcoming.length} icon={Clock} />
-        <StatCard title="Completed" value={completed.length} icon={CheckCircle} />
-        <StatCard title="Total Scheduled" value={shoots.length} icon={Calendar} />
+        <StatCard title="Today's Shoots" value={todaysShoots.length} icon={Camera} onClick={() => openTab('today')} />
+        <StatCard title="Upcoming" value={upcoming.length} icon={Clock} onClick={() => openTab('upcoming')} />
+        <StatCard title="Completed" value={completed.length} icon={CheckCircle} onClick={() => openTab('completed')} />
+        <StatCard title="Total Scheduled" value={shoots.length} icon={Calendar} onClick={() => openTab('calendar')} />
       </div>
 
-      <Tabs defaultValue="today">
-        <TabsList>
-          <TabsTrigger value="today">Today</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-        </TabsList>
+      <div ref={tabsRef} className="scroll-mt-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="today">Today</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="today" className="mt-4">
-          {renderList(todaysShoots, 'No shoots scheduled for today.')}
-        </TabsContent>
+          <TabsContent value="today" className="mt-4">
+            {renderList(todaysShoots, 'No shoots scheduled for today.')}
+          </TabsContent>
 
-        <TabsContent value="calendar" className="mt-4">
-          <ShootCalendar shoots={shoots} onSelect={setDetail} />
-        </TabsContent>
+          <TabsContent value="calendar" className="mt-4">
+            <ShootCalendar shoots={shoots} onSelect={setDetail} />
+          </TabsContent>
 
-        <TabsContent value="upcoming" className="mt-4">
-          {renderList(upcoming, 'No upcoming pending shoots.')}
-        </TabsContent>
+          <TabsContent value="upcoming" className="mt-4">
+            {renderList(upcoming, 'No upcoming pending shoots.')}
+          </TabsContent>
 
-        <TabsContent value="completed" className="mt-4">
-          {renderList(completed, 'No completed shoots yet.')}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="completed" className="mt-4">
+            {renderList(completed, 'No completed shoots yet.')}
+          </TabsContent>
+        </Tabs>
+      </div>
 
       <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
         <DialogContent className="sm:max-w-lg">
@@ -637,7 +773,6 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
               ['extraCamera', 'Extra Camera'],
               ['extraTeleprompter', 'Extra Teleprompter'],
               ['extraDurationHours', 'Extra Duration Hours'],
-              ['additionalCost', 'Additional Cost INR'],
             ].map(([key, label]) => (
               <div className="space-y-2" key={key}>
                 <Label htmlFor={key}>{label}</Label>
@@ -652,6 +787,23 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
                 />
               </div>
             ))}
+            <div className="space-y-2">
+              <Label htmlFor="addonHasAddons">Has Addons</Label>
+              <Select
+                value={postShootForm.addonHasAddons}
+                onValueChange={(value) =>
+                  setPostShootForm((prev) => ({ ...prev, addonHasAddons: value as 'yes' | 'no' }))
+                }
+              >
+                <SelectTrigger id="addonHasAddons">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="recordTime">Record Time</Label>
               <DurationSelect

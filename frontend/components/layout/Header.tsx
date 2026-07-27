@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -22,13 +22,9 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Search, Bell, LogOut, User as UserIcon, Settings, Menu, Command } from 'lucide-react';
+import { Search, LogOut, Settings, Menu, Command } from 'lucide-react';
 import { getNavForRole } from '@/lib/navigation';
-import { ACTIVITY } from '@/lib/mock-data';
-import { formatRelativeTime } from '@/lib/formatter';
-import type { Lead } from '@/lib/sheets/types';
-import { isPendingPaymentVerification } from '@/lib/sheets/payment-utils';
-import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -38,46 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [pendingVerifications, setPendingVerifications] = useState(0);
-  const [pendingLeads, setPendingLeads] = useState<Lead[]>([]);
   const navItems = user ? getNavForRole(user.role) : [];
-
-  const refreshPendingVerifications = useCallback(async () => {
-    if (!user) {
-      setPendingVerifications(0);
-      setPendingLeads([]);
-      return;
-    }
-
-    try {
-      const response = await authFetch('/api/clients', { cache: 'no-store' });
-      const data = await response.json();
-      if (!response.ok) return;
-
-      const leads: Lead[] = data.leads ?? [];
-      const pending = leads.filter(
-        (lead) =>
-          isPendingPaymentVerification(lead) &&
-          (lead.assignedTo === user.name || user.role === 'manager')
-      );
-
-      setPendingVerifications(pending.length);
-      setPendingLeads(pending);
-    } catch {
-      // silently ignore header notification fetch errors
-    }
-  }, [user]);
-
-  useEffect(() => {
-    refreshPendingVerifications();
-    const interval = setInterval(refreshPendingVerifications, 30000);
-    const onLeadsUpdated = () => refreshPendingVerifications();
-    window.addEventListener('leads-updated', onLeadsUpdated);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('leads-updated', onLeadsUpdated);
-    };
-  }, [refreshPendingVerifications]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -110,7 +67,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <div className="flex-1" />
 
-
+        <NotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

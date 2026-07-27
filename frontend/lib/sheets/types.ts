@@ -219,3 +219,55 @@ export const DEFAULT_LEAD_STATUS_META = {
   bg: 'rgba(139,148,158,0.12)',
   border: 'rgba(139,148,158,0.3)',
 };
+
+// ---------------------------------------------------------------------------
+// Analytics metric shapes returned by /api/realtime-data
+// ---------------------------------------------------------------------------
+
+export interface SalesMetrics {
+  newClientsAdded: number;
+  totalSalesValue: number;
+  totalCollectionValue: number;
+  totalPendingAmount: number;
+  serviceWiseClients: { name: string; count: number; color: string }[];
+}
+
+export interface ShootMetrics {
+  shootsToday: number;
+  shootsFuture: number;
+  shootsPast: number;
+  shootExtraHoursSummary: number;
+  shootExtraEquipment: number;
+  avgRecordTime: number;
+  avgStudioTime: number;
+}
+
+export interface AgingTask {
+  task_id: string;
+  client_name: string;
+  task_label: string;
+  assigned_to_name: string;
+  days: number;
+}
+
+export interface EditorTaskStats {
+  editor_name: string;
+  editor_email: string;
+  assigned: number;
+  inProgress: number;
+  sharedForReview: number;
+  delivered: number;
+  outOfTAT: number;
+}
+
+export interface EditingMetrics {
+  total: number;
+  notStarted: number;
+  inProgress: number;
+  sharedForReview: number;
+  delivered: number;
+  outOfTAT: number;
+  aging: AgingTask[];
+  tasksPerEditor: EditorTaskStats[];
+  loadCapacity: { editor_name: string; activeCount: number }[];
+}

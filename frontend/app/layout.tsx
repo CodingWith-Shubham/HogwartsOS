@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   title: 'Howgarts Media — Production CRM',
   description:
     'Enterprise B2B CRM & production workflow management for media productions.',
+  manifest: '/manifest.webmanifest',
 };
 
 export default function RootLayout({

@@ -139,7 +139,28 @@ const updateProject = asyncHandler(async (req, res) => {
 });
 
 const createTask = asyncHandler(async (req, res) => {
-    const body = req.body;
+    const rawBody = req.body;
+    
+    // Map snake_case from N8N to camelCase for Mongoose
+    const body = {
+        taskId: rawBody.taskId || rawBody.task_id,
+        editId: rawBody.editId || rawBody.edit_id,
+        shootId: rawBody.shootId || rawBody.shoot_id || "",
+        leadId: rawBody.leadId || rawBody.lead_id || "UNKNOWN_LEAD",
+        clientName: rawBody.clientName || rawBody.client_name || "",
+        emailId: rawBody.emailId || rawBody.clientEmail || rawBody.client_email || rawBody.email_id || "",
+        serviceType: rawBody.serviceType || rawBody.service_type || "",
+        taskType: rawBody.taskType || rawBody.task_type || "",
+        taskLabel: rawBody.taskLabel || rawBody.task_label || "",
+        dataLink: rawBody.dataLink || rawBody.data_link || "",
+        assignedToName: rawBody.assignedToName || rawBody.assigned_to_name || "",
+        assignedToEmail: rawBody.assignedToEmail || rawBody.assigned_to_email || "",
+        status: rawBody.status || "Assigned",
+        managerComment: rawBody.managerComment || rawBody.manager_comment || "",
+        deadlineAt: rawBody.deadlineAt || rawBody.deadline_at || "",
+        assignedAt: rawBody.assignedAt || rawBody.assigned_at || new Date().toISOString()
+    };
+
     if (!body.taskId || !body.editId) {
         throw new ApiError(400, "Task ID and Edit ID are required");
     }
@@ -149,18 +170,18 @@ const createTask = asyncHandler(async (req, res) => {
     if (!project) {
         project = await EditProject.create({
             editId: body.editId,
-            shootId: body.shootId || "",
-            leadId: body.leadId || "UNKNOWN_LEAD",
-            clientName: body.clientName || "",
-            emailId: body.emailId || body.clientEmail || "",
-            serviceType: body.serviceType || "",
-            dataLink: body.dataLink || "",
+            shootId: body.shootId,
+            leadId: body.leadId,
+            clientName: body.clientName,
+            emailId: body.emailId,
+            serviceType: body.serviceType,
+            dataLink: body.dataLink,
             status: "Editing",
             editStartDate: new Date().toISOString().split('T')[0],
-            assignedAt: body.assignedAt || new Date().toISOString(),
-            deadlineAt: body.deadlineAt || "",
-            editorName: body.assignedToName || "",
-            editorEmail: body.assignedToEmail || "",
+            assignedAt: body.assignedAt,
+            deadlineAt: body.deadlineAt,
+            editorName: body.assignedToName,
+            editorEmail: body.assignedToEmail,
         });
     }
 

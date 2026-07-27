@@ -88,9 +88,17 @@ const updateShoot = asyncHandler(async (req, res) => {
         updates.driveLinkUploaded = parseBoolean(updates.driveLinkUploaded);
     }
 
+    // Map verified_by from n8n to addonVerifiedBy to ensure the Shoot schema correctly catches it
+    if (updates.verified_by && !updates.addonVerifiedBy) {
+        updates.addonVerifiedBy = updates.verified_by;
+        updates.addonVerifiedAt = updates.verified_at || new Date().toISOString();
+        updates.addonPaymentStatus = "Verified";
+    }
+
     // Intercept Addon verification
     let existingShoot = null;
-    if (updates.addonVerifiedBy) {
+    const isVerifyingAddon = updates.addonVerifiedBy || updates.addonPaymentStatus === "Verified";
+    if (isVerifyingAddon) {
         existingShoot = await Shoot.findOne({ shootId });
     }
 
@@ -105,7 +113,8 @@ const updateShoot = asyncHandler(async (req, res) => {
     }
 
     // Automatically log Addon payment as a MongoDB Payment document
-    if (updates.addonVerifiedBy && existingShoot && !existingShoot.addonVerifiedBy) {
+    const wasAlreadyVerified = existingShoot && (existingShoot.addonVerifiedBy || existingShoot.addonPaymentStatus === "Verified");
+    if (isVerifyingAddon && existingShoot && !wasAlreadyVerified) {
         const paymentAmount = Number(updated.additionalCost || 0);
         
         // Calculate amountPaidSoFar by summing up existing payments

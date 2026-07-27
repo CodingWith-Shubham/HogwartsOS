@@ -67,14 +67,29 @@ const verifyPayment = asyncHandler(async (req, res) => {
     const { paymentId } = req.params;
     const body = req.body;
 
-    // Build the update object from the request body.
-    // This endpoint is called by both:
-    //   1. n8n workflow (to save screenshot URL when client uploads proof)
-    //   2. Frontend confirm-payment route (to mark as Payment Verified)
+    // Determine the status to set
+    let newPaymentStatus = body.paymentStatus;
+    
+    // Safety override: if n8n is sending a screenshot upload, force it to 'Screenshot Received' 
+    // to prevent accidental auto-verification if the n8n workflow is misconfigured to send 'Payment Verified'
+    if (req.user?._id === 'n8n-system' && body.screenshotUrl) {
+        newPaymentStatus = "Screenshot Received";
+        body.verifiedBy = ""; // Clear out any accidental verifier name
+    } else if (!newPaymentStatus) {
+        if (body.screenshotUrl) {
+            newPaymentStatus = "Screenshot Received";
+        } else {
+            newPaymentStatus = "Payment Verified"; // fallback for legacy behavior
+        }
+    }
+
     const updateFields = {
-        paymentStatus: body.paymentStatus || "Payment Verified",
-        verifiedBy: body.verifiedBy || req.user?.name || "System",
-        verifiedAt: body.verifiedAt || new Date().toISOString(),
+        paymentStatus: newPaymentStatus,
+        // Only set verified fields if it's actually being verified, not just receiving a screenshot
+        ...(newPaymentStatus === "Payment Verified" && {
+            verifiedBy: body.verifiedBy || req.user?.name || "System",
+            verifiedAt: body.verifiedAt || new Date().toISOString(),
+        })
     };
 
     // Persist screenshot URL if provided (set by n8n when client uploads)
@@ -106,6 +121,23 @@ const verifyPayment = asyncHandler(async (req, res) => {
 
     if (!payment) {
         throw new ApiError(404, "Payment record not found");
+    }
+
+    // Also update the Client status so the pipeline reflects the current state
+    let clientStatus;
+    if (newPaymentStatus === "Screenshot Received" || newPaymentStatus === "Screenshot Uploaded") {
+        clientStatus = "Payment Under Review";
+    } else if (newPaymentStatus === "Payment Verified") {
+        clientStatus = payment.paymentCompleted ? "Payment Completed" : "Payment Verified";
+    } else if (body.paymentCompleted || payment.paymentCompleted) {
+        clientStatus = "Payment Completed";
+    }
+
+    if (clientStatus) {
+        await Client.findOneAndUpdate(
+            { leadId: payment.leadId },
+            { $set: { status: clientStatus } }
+        );
     }
 
     return res.status(200).json(new ApiResponse(200, { payment }, "Payment updated successfully"));

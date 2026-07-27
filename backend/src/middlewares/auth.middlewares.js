@@ -39,4 +39,15 @@ export const verifyJWTOrN8N = asyncHandler(async (req, res, next) => {
 
   // Otherwise fall through to normal JWT verification
   return verifyJWT(req, res, next);
-});
+});
+
+export const verifyN8n = (req, res, next) => {
+  const apiKey = req.header('x-api-key'); 
+  if (!apiKey || apiKey !== process.env.N8N_BACKEND_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized via n8n' });
+  }
+  
+  // Attach a mock system user so controllers relying on req.user don't crash
+  req.user = { role: 'admin', _id: 'n8n-system', name: 'n8n-system' };
+  next();
+};

@@ -68,7 +68,7 @@ const addRevision = asyncHandler(async (req, res) => {
 });
 
 const assignTasks = asyncHandler(async (req, res) => {
-    const { shoot_id, lead_id, client_name, email_id, client_email, data_link, tasks } = req.body;
+    const { shoot_id, lead_id, client_name, email_id, client_email, data_link, service_type, tasks } = req.body;
     
     if (!shoot_id || !data_link || !Array.isArray(tasks) || tasks.length === 0) {
         throw new ApiError(400, "Shoot ID, data link, and at least one task are required");
@@ -83,7 +83,7 @@ const assignTasks = asyncHandler(async (req, res) => {
             leadId: lead_id || "",
             clientName: client_name || task.client_name || "",
             emailId: email_id || client_email || "",
-            serviceType: task.service_type || "",
+            serviceType: service_type || task.service_type || "",
             taskType: task.task_type || "",
             taskLabel: task.task_label || "",
             dataLink: data_link,
@@ -98,4 +98,100 @@ const assignTasks = asyncHandler(async (req, res) => {
     return res.status(201).json(new ApiResponse(201, { tasks: createdTasks }, "Tasks assigned successfully"));
 });
 
-export { getEditingData, updateTask, addRevision, assignTasks };
+
+
+// --- N8N Dedicated Endpoints ---
+
+const createProject = asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!body.editId || !body.leadId) {
+        throw new ApiError(400, "Edit ID and Lead ID are required");
+    }
+    const project = await EditProject.create(body);
+    return res.status(201).json(new ApiResponse(201, { project }, "Project created"));
+});
+
+const getProjects = asyncHandler(async (req, res) => {
+    const filter = {};
+    if (req.query.final_delivered) filter.finalDelivered = req.query.final_delivered === 'true';
+    if (req.query.deadline_notified) filter.deadlineNotified = req.query.deadline_notified === 'true';
+    
+    const projects = await EditProject.find(filter).sort({ createdAt: -1 });
+    return res.status(200).json(new ApiResponse(200, { projects }, "Projects fetched"));
+});
+
+const getProjectById = asyncHandler(async (req, res) => {
+    const { edit_id } = req.params;
+    const project = await EditProject.findOne({ editId: edit_id });
+    if (!project) throw new ApiError(404, "Project not found");
+    return res.status(200).json(new ApiResponse(200, { project }, "Project fetched"));
+});
+
+const updateProject = asyncHandler(async (req, res) => {
+    const { edit_id } = req.params;
+    const project = await EditProject.findOneAndUpdate(
+        { editId: edit_id },
+        { $set: req.body },
+        { new: true }
+    );
+    if (!project) throw new ApiError(404, "Project not found");
+    return res.status(200).json(new ApiResponse(200, { project }, "Project updated"));
+});
+
+const createTask = asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!body.taskId || !body.editId) {
+        throw new ApiError(400, "Task ID and Edit ID are required");
+    }
+    const task = await EditingTask.create(body);
+    return res.status(201).json(new ApiResponse(201, { task }, "Task created"));
+});
+
+const getTaskById = asyncHandler(async (req, res) => {
+    const { task_id } = req.params;
+    const task = await EditingTask.findOne({ taskId: task_id });
+    if (!task) throw new ApiError(404, "Task not found");
+    return res.status(200).json(new ApiResponse(200, { task }, "Task fetched"));
+});
+
+const updateTaskById = asyncHandler(async (req, res) => {
+    const { task_id } = req.params;
+    const updates = { ...req.body };
+    
+    const task = await EditingTask.findOne({ taskId: task_id });
+    if (!task) throw new ApiError(404, "Task not found");
+
+    if (updates.assignedToEmail && updates.assignedToEmail !== task.assignedToEmail) {
+        const historyEntry = {
+            previousEditorName: task.assignedToName,
+            previousEditorEmail: task.assignedToEmail,
+            newEditorName: updates.assignedToName,
+            newEditorEmail: updates.assignedToEmail,
+            reallocatedAt: new Date().toISOString(),
+            reason: updates.reallocationReason || "Reassigned by manager"
+        };
+        const currentHistory = Array.isArray(task.allocationHistory) ? task.allocationHistory : [];
+        updates.allocationHistory = [...currentHistory, historyEntry];
+    }
+
+    const updated = await EditingTask.findOneAndUpdate(
+        { taskId: task_id },
+        { $set: updates },
+        { new: true }
+    );
+
+    return res.status(200).json(new ApiResponse(200, { task: updated }, "Task updated"));
+});
+
+const createRevision = asyncHandler(async (req, res) => {
+    const body = req.body;
+    if (!body.projectId) throw new ApiError(400, "Project ID is required");
+    
+    const revision = await Revision.create({
+        ...body,
+        timestamp: new Date().toISOString()
+    });
+    return res.status(201).json(new ApiResponse(201, { revision }, "Revision created"));
+});
+
+export { getEditingData, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision };

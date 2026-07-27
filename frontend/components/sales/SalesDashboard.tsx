@@ -200,12 +200,12 @@ function buildTimeValue(hour: string, minute: string, period: string) {
 }
 
 function isShootEligible(lead: Lead) {
-  return ['Payment Confirmed', 'Payment Verified'].includes(lead.status);
+  return ['Payment Confirmed', 'Payment Verified', 'Awaiting Shoot'].includes(lead.status);
 }
 
 function isPaymentComplete(lead: Lead) {
   const paymentStatus = lead.payment_status ?? lead.payment?.paymentStatus ?? '';
-  return isShootEligible(lead) || ['Payment Confirmed', 'Payment Verified'].includes(paymentStatus);
+  return isShootEligible(lead) || ['Payment Confirmed', 'Payment Verified', 'Cash Received'].includes(paymentStatus);
 }
 
 function isFinalPaymentCompleted(lead: Lead) {

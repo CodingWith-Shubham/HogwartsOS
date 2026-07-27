@@ -30,6 +30,7 @@ const VERIFIED_STATUSES: string[] = [
   PAYMENT_STATUS.VERIFIED,
   PAYMENT_STATUS.CONFIRMED,
   PAYMENT_STATUS.CONFIRMED_ALT,
+  'Cash Received',
 ];
 
 export function getPaymentStatus(lead: Lead): string {

@@ -2,7 +2,7 @@
 
 import { authFetch } from '@/lib/auth-fetch';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -328,6 +328,14 @@ export default function ManagerPage() {
     };
   }, []);
 
+  const editingRef = useRef(editing);
+  const editorsRef = useRef(editors);
+
+  useEffect(() => {
+    editingRef.current = editing;
+    editorsRef.current = editors;
+  }, [editing, editors]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -345,12 +353,12 @@ export default function ManagerPage() {
         if (response.ok && apiWorkloads.length > 0) {
           setEditorWorkload(apiWorkloads);
         } else {
-          setEditorWorkload(calculateWorkloadFromEditing(editing, editors));
+          setEditorWorkload(calculateWorkloadFromEditing(editingRef.current, editorsRef.current));
         }
       } catch (error) {
         console.error('Failed to fetch editor workload, using local calculation:', error);
         if (mounted) {
-          setEditorWorkload(calculateWorkloadFromEditing(editing, editors));
+          setEditorWorkload(calculateWorkloadFromEditing(editingRef.current, editorsRef.current));
         }
       }
     }
@@ -361,7 +369,7 @@ export default function ManagerPage() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [editing]);
+  }, []);
 
   const refreshEditing = async () => {
     const response = await authFetch('/api/editing', { cache: 'no-store' });

@@ -411,23 +411,17 @@ export default function ManagerPage() {
         const editor = editors.find((item) => item.name === serviceEditors.additionalProduct);
         tasks.push({ task_type: 'additional_product', quantity: additionalQuantity, editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' });
       }
-      const response = await authFetch('/api/editing/assign-tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shoot_id: assignShoot.shootId,
-          lead_id: assignShoot.leadId,
-          client_name: assignShoot.clientName,
-          email_id: assignShoot.emailId,
-          client_email: assignShoot.emailId,
-          data_link: assignForm.dataLink,
-          service_type: assignForm.serviceType,
-          tasks,
-          manager_comment: assignForm.managerComment.trim(),
-        }),
+      await postWebhook('/assign-editor-tasks', {
+        shoot_id: assignShoot.shootId,
+        lead_id: assignShoot.leadId,
+        client_name: assignShoot.clientName,
+        email_id: assignShoot.emailId,
+        client_email: assignShoot.emailId,
+        data_link: assignForm.dataLink,
+        service_type: assignForm.serviceType,
+        tasks,
+        manager_comment: assignForm.managerComment.trim(),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'Failed to assign editor');
       toast.success('Editor assigned!');
       setAssignShoot(null);
       await refreshEditing();

@@ -143,6 +143,27 @@ const createTask = asyncHandler(async (req, res) => {
     if (!body.taskId || !body.editId) {
         throw new ApiError(400, "Task ID and Edit ID are required");
     }
+
+    // Auto-create EditProject if it doesn't exist
+    let project = await EditProject.findOne({ editId: body.editId });
+    if (!project) {
+        project = await EditProject.create({
+            editId: body.editId,
+            shootId: body.shootId || "",
+            leadId: body.leadId || "UNKNOWN_LEAD",
+            clientName: body.clientName || "",
+            emailId: body.emailId || body.clientEmail || "",
+            serviceType: body.serviceType || "",
+            dataLink: body.dataLink || "",
+            status: "Editing",
+            editStartDate: new Date().toISOString().split('T')[0],
+            assignedAt: body.assignedAt || new Date().toISOString(),
+            deadlineAt: body.deadlineAt || "",
+            editorName: body.assignedToName || "",
+            editorEmail: body.assignedToEmail || "",
+        });
+    }
+
     const task = await EditingTask.create(body);
     return res.status(201).json(new ApiResponse(201, { task }, "Task created"));
 });

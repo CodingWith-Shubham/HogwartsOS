@@ -12,13 +12,15 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
+import { postWebhook } from '@/lib/editing';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 type EditingTask = {
-  task_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
+  task_id: string; edit_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
   data_link: string; assigned_to_name: string; status: string; draft_link: string;
   manager_comment: string; deadline_at: string; final_delivered: string;
+  revision_count?: string;
 };
 
 const statusClass: Record<string, string> = {
@@ -52,9 +54,9 @@ export default function EditorPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to load tasks');
       const mapped = (data.tasks || []).map((t: any) => ({
-        task_id: t.taskId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
+        task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
-        manager_comment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered
+        manager_comment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
       })).filter((t: any) => t.assigned_to_email?.toLowerCase() === user.email.toLowerCase());
       setTasks(mapped);
     } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
@@ -78,6 +80,15 @@ export default function EditorPage() {
       const response = await authFetch('/api/editing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId: task.task_id, status, ...(includeDraft ? { draftLink: draft_link } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to update task');
+      
+      if (status === 'Draft Sent' && draft_link) {
+        await postWebhook('/draft-ready', {
+          edit_id: task.edit_id,
+          draft_link: draft_link,
+          revision_count: task.revision_count || '0'
+        });
+      }
+
       toast.success(status === 'In Progress' ? 'Task started' : 'Draft submitted');
       setDraftLinks((current) => ({ ...current, [task.task_id]: '' }));
       await refresh(true);

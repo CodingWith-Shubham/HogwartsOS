@@ -426,6 +426,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   }, []);
 
   useEffect(() => {
+    refreshShoots(true);
     const interval = setInterval(() => refreshShoots(true), 30000);
     return () => clearInterval(interval);
   }, [refreshShoots]);

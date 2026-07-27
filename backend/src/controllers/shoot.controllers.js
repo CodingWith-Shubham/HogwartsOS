@@ -1,5 +1,6 @@
 import { Shoot } from "../models/shoot.models.js";
 import { Client } from "../models/client.models.js";
+import { Payment } from "../models/payment.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -87,6 +88,12 @@ const updateShoot = asyncHandler(async (req, res) => {
         updates.driveLinkUploaded = parseBoolean(updates.driveLinkUploaded);
     }
 
+    // Intercept Addon verification
+    let existingShoot = null;
+    if (updates.addonVerifiedBy) {
+        existingShoot = await Shoot.findOne({ shootId });
+    }
+
     const updated = await Shoot.findOneAndUpdate(
         { shootId },
         { $set: updates },
@@ -95,6 +102,35 @@ const updateShoot = asyncHandler(async (req, res) => {
 
     if (!updated) {
         throw new ApiError(404, "Shoot not found");
+    }
+
+    // Automatically log Addon payment as a MongoDB Payment document
+    if (updates.addonVerifiedBy && existingShoot && !existingShoot.addonVerifiedBy) {
+        const paymentAmount = Number(updated.additionalCost || 0);
+        
+        // Calculate amountPaidSoFar by summing up existing payments
+        const previousPayments = await Payment.find({ leadId: updated.leadId });
+        const previousAmount = previousPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        await Payment.create({
+            paymentId: `PAY_${Date.now()}_ADDON`,
+            leadId: updated.leadId,
+            clientName: updated.clientName,
+            amount: paymentAmount,
+            paymentLinkSent: false,
+            paymentStatus: "Payment Verified",
+            verifiedBy: updates.addonVerifiedBy,
+            verifiedAt: updates.addonVerifiedAt || new Date().toISOString(),
+            totalCost: paymentAmount, // As requested in plan, logging it standalone
+            remainingAmount: 0,
+            paymentCompleted: true,
+            installmentNumber: "Addon",
+            installmentLabel: "Addon Payment",
+            paymentMode: "Online",
+            screenshotUrl: updated.addonScreenshot || "",
+            utrNumber: updated.addonUtr || "Not provided",
+            amountPaidSoFar: previousAmount + paymentAmount
+        });
     }
 
     return res.status(200).json(new ApiResponse(200, { shoot: updated }, "Shoot updated successfully"));

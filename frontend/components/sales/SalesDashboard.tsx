@@ -615,6 +615,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, []);
 
   useEffect(() => {
+    refreshLeads(true);
+    refreshShoots(true);
+    refreshEditing(true);
+    refreshPaymentHistory(true);
+
     const interval = setInterval(() => {
       refreshLeads(true);
       refreshShoots(true);
@@ -1303,11 +1308,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const renderScheduleAction = (lead: Lead) => {
     const existingShoot = shootsByLeadId.get(lead.leadId);
+    const isAlreadyScheduled = existingShoot || ['Shoot Scheduled', 'Shoot Done'].includes(lead.status);
 
-    if (existingShoot) {
+    if (isAlreadyScheduled) {
       return (
         <Button variant="outline" size="sm" disabled className="text-muted-foreground">
-          Shoot Scheduled
+          {lead.status === 'Shoot Done' ? 'Shoot Done' : 'Shoot Scheduled'}
         </Button>
       );
     }

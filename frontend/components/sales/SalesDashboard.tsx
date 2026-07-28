@@ -711,7 +711,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const verifiedPayments = payments.filter(isVerifiedInstallment);
     const totalCollected = verifiedPayments.reduce((sum, payment) => sum + payment.amount, 0);
     const baseCollected = verifiedPayments
-      .filter((p) => p.installmentNumber !== 'Addon')
+      .filter((p) => p.installment_label !== 'Addon Payment' && p.installment_label !== 'Addon')
       .reduce((sum, payment) => sum + payment.amount, 0);
 
     const remaining = isFinalPaymentCompleted(lead)
@@ -2284,15 +2284,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="shootEndTime">Shoot End Time</Label>
-                  <TimeOfDaySelect
-                    id="shootEndTime"
-                    value={scheduleForm.shootEndTime}
-                    onChange={() => undefined}
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="totalHours">Total Hours</Label>
                   <Input
                     id="totalHours"
@@ -2314,6 +2305,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                     placeholder={scheduleForm.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
                   />
                   <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shootEndTime">Shoot End Time</Label>
+                  <TimeOfDaySelect
+                    id="shootEndTime"
+                    value={scheduleForm.shootEndTime}
+                    onChange={() => undefined}
+                    disabled
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="teleprompter">Teleprompter</Label>

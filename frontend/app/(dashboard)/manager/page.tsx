@@ -282,7 +282,8 @@ export default function ManagerPage() {
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
   const [extraCosts, setExtraCosts] = useState<Record<string, string>>({});
   const [extraFeedback, setExtraFeedback] = useState<Record<string, string>>({});
-  const [serviceEditors, setServiceEditors] = useState<Record<string, string>>({});
+  type AssignmentSplit = { quantity: number; editorName: string };
+  const [serviceAssignments, setServiceAssignments] = useState<Record<string, AssignmentSplit[]>>({});
   const [assignmentErrors, setAssignmentErrors] = useState<Record<string, string>>({});
   
   const [assignForm, setAssignForm] = useState({
@@ -388,7 +389,7 @@ export default function ManagerPage() {
       managerComment: '',
       ...leadAssignmentDeliverables(lead),
     });
-    setServiceEditors({});
+    setServiceAssignments({});
     setAssignmentErrors({});
   };
 
@@ -398,18 +399,70 @@ export default function ManagerPage() {
 
     const activeServices = ASSIGNMENT_DELIVERABLE_FIELDS.filter((field) => Number(normalizeQuantity(assignForm[field.key])) > 0);
     const additionalQuantity = Number(normalizeQuantity(assignForm.additionalProductQuantity));
-    const missing = Object.fromEntries([...activeServices.map((field) => field.key), ...(additionalQuantity > 0 ? ['additionalProduct'] : [])].filter((key) => !serviceEditors[key]).map((key) => [key, 'Choose an editor'])) as Record<string, string>;
-    if (Object.keys(missing).length) { setAssignmentErrors(missing); toast.error('Assign an editor for every service'); return; }
+    let hasError = false;
+    const newErrors: Record<string, string> = {};
+    
+    const validateSplits = (key: string, requiredQty: number) => {
+      const splits = serviceAssignments[key] || [];
+      if (splits.length === 0) {
+        newErrors[key] = 'Assign an editor';
+        hasError = true;
+        return;
+      }
+      const sum = splits.reduce((acc, split) => acc + (Number(split.quantity) || 0), 0);
+      if (sum !== requiredQty) {
+        newErrors[key] = `Assigned total (${sum}) must match required (${requiredQty})`;
+        hasError = true;
+      }
+      if (splits.some(s => !s.editorName)) {
+        newErrors[key] = 'Choose an editor for all splits';
+        hasError = true;
+      }
+    };
+
+    activeServices.forEach(field => validateSplits(field.key, Number(normalizeQuantity(assignForm[field.key]))));
+    if (additionalQuantity > 0) validateSplits('additionalProduct', additionalQuantity);
+
+    if (hasError) {
+      setAssignmentErrors(newErrors);
+      toast.error('Please fix assignment errors');
+      return;
+    }
 
     setAssigningEditor(true);
     try {
-      const tasks: { task_type: string; quantity: number; editor_name: string; editor_email: string }[] = activeServices.map((field) => {
-        const editor = editors.find((item) => item.name === serviceEditors[field.key]);
-        return { task_type: field.taskType, quantity: Number(normalizeQuantity(assignForm[field.key])), editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' };
+      const tasks: { task_type: string; quantity: number; task_label?: string; editor_name: string; editor_email: string }[] = [];
+      
+      activeServices.forEach((field) => {
+        const splits = serviceAssignments[field.key] || [];
+        splits.forEach((split) => {
+          const editor = editors.find(e => e.name === split.editorName);
+          for (let i = 0; i < split.quantity; i++) {
+            tasks.push({
+              task_type: field.taskType,
+              quantity: 1,
+              task_label: `${field.label}${split.quantity > 1 || splits.length > 1 ? ` (${i + 1})` : ''}`,
+              editor_name: editor?.name ?? '',
+              editor_email: editor?.email ?? ''
+            });
+          }
+        });
       });
+
       if (additionalQuantity > 0) {
-        const editor = editors.find((item) => item.name === serviceEditors.additionalProduct);
-        tasks.push({ task_type: 'additional_product', quantity: additionalQuantity, editor_name: editor?.name ?? '', editor_email: editor?.email ?? '' });
+        const splits = serviceAssignments['additionalProduct'] || [];
+        splits.forEach((split) => {
+          const editor = editors.find(e => e.name === split.editorName);
+          for (let i = 0; i < split.quantity; i++) {
+            tasks.push({
+              task_type: 'additional_product',
+              quantity: 1,
+              task_label: `${assignForm.additionalProduct || 'Additional Product'}${split.quantity > 1 || splits.length > 1 ? ` (${i + 1})` : ''}`,
+              editor_name: editor?.name ?? '',
+              editor_email: editor?.email ?? ''
+            });
+          }
+        });
       }
       await postWebhook('/assign-editor-tasks', {
         shoot_id: assignShoot.shootId,
@@ -754,16 +807,71 @@ export default function ManagerPage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {ASSIGNMENT_DELIVERABLE_FIELDS.map((field) => {
                       const durationKey = 'durationKey' in field ? field.durationKey : null;
+                      const requiredQty = Number(normalizeQuantity(assignForm[field.key]));
+                      const splits = serviceAssignments[field.key] || (requiredQty > 0 ? [{ quantity: requiredQty, editorName: '' }] : []);
+                      const currentAssigned = splits.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+
                       return (
                         <div className="space-y-2" key={field.key}>
-                          <Label>{field.label}</Label>
-                          <div className="flex gap-2">
-                            <Input value={assignForm[field.key]} readOnly className="w-20 bg-muted" />
-                            <Select value={serviceEditors[field.key] ?? ''} onValueChange={(value) => { setServiceEditors((current) => ({ ...current, [field.key]: value })); setAssignmentErrors((current) => ({ ...current, [field.key]: '' })); }} disabled={Number(normalizeQuantity(assignForm[field.key])) === 0}>
-                              <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Choose editor" /></SelectTrigger>
-                              <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
-                            </Select>
+                          <div className="flex justify-between items-center">
+                            <Label>{field.label} {requiredQty > 0 && <span className="text-muted-foreground font-normal">(Required: {requiredQty})</span>}</Label>
                           </div>
+                          
+                          {splits.map((split, index) => (
+                            <div key={index} className="flex gap-2 items-center">
+                              <Input 
+                                type="number" 
+                                min="1" 
+                                max={requiredQty}
+                                value={split.quantity || ''} 
+                                onChange={(e) => {
+                                  const newSplits = [...splits];
+                                  newSplits[index].quantity = Number(e.target.value);
+                                  setServiceAssignments(prev => ({ ...prev, [field.key]: newSplits }));
+                                  setAssignmentErrors(prev => ({ ...prev, [field.key]: '' }));
+                                }}
+                                disabled={requiredQty === 0}
+                                className="w-16 h-10 text-center px-2" 
+                              />
+                              <Select 
+                                value={split.editorName || ''} 
+                                onValueChange={(value) => { 
+                                  const newSplits = [...splits];
+                                  newSplits[index].editorName = value;
+                                  setServiceAssignments(prev => ({ ...prev, [field.key]: newSplits })); 
+                                  setAssignmentErrors(prev => ({ ...prev, [field.key]: '' })); 
+                                }} 
+                                disabled={requiredQty === 0}
+                              >
+                                <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Choose editor" /></SelectTrigger>
+                                <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
+                              </Select>
+                              {splits.length > 1 && (
+                                <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-red-500 shrink-0" onClick={() => {
+                                  const newSplits = splits.filter((_, i) => i !== index);
+                                  setServiceAssignments(prev => ({ ...prev, [field.key]: newSplits }));
+                                }}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                          
+                          {requiredQty > 0 && currentAssigned < requiredQty && (
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="sm" 
+                              className="w-full text-xs h-8 border-dashed"
+                              onClick={() => {
+                                const newSplits = [...splits, { quantity: requiredQty - currentAssigned, editorName: '' }];
+                                setServiceAssignments(prev => ({ ...prev, [field.key]: newSplits }));
+                              }}
+                            >
+                              + Add Split (Remaining: {requiredQty - currentAssigned})
+                            </Button>
+                          )}
+
                           {durationKey && <p className="text-xs text-muted-foreground">Duration: {assignForm[durationKey] || '-'}</p>}
                           {assignmentErrors[field.key] && <p className="text-xs text-red-500">{assignmentErrors[field.key]}</p>}
                         </div>
@@ -801,11 +909,76 @@ export default function ManagerPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Additional Product Editor</Label>
-                  <Select value={serviceEditors.additionalProduct ?? ''} onValueChange={(value) => { setServiceEditors((current) => ({ ...current, additionalProduct: value })); setAssignmentErrors((current) => ({ ...current, additionalProduct: '' })); }} disabled={Number(normalizeQuantity(assignForm.additionalProductQuantity)) === 0}>
-                    <SelectTrigger><SelectValue placeholder="Choose editor" /></SelectTrigger>
-                    <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {assignmentErrors.additionalProduct && <p className="text-xs text-red-500">{assignmentErrors.additionalProduct}</p>}
+                  {(() => {
+                    const requiredQty = Number(normalizeQuantity(assignForm.additionalProductQuantity));
+                    if (requiredQty === 0) {
+                        return (
+                          <Select disabled>
+                            <SelectTrigger className="h-10"><SelectValue placeholder="Choose editor" /></SelectTrigger>
+                          </Select>
+                        );
+                    }
+                    const splits = serviceAssignments['additionalProduct'] || [{ quantity: requiredQty, editorName: '' }];
+                    const currentAssigned = splits.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+
+                    return (
+                      <div className="space-y-2">
+                        {splits.map((split, index) => (
+                          <div key={index} className="flex gap-2 items-center">
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              max={requiredQty}
+                              value={split.quantity || ''} 
+                              onChange={(e) => {
+                                const newSplits = [...splits];
+                                newSplits[index].quantity = Number(e.target.value);
+                                setServiceAssignments(prev => ({ ...prev, additionalProduct: newSplits }));
+                                setAssignmentErrors(prev => ({ ...prev, additionalProduct: '' }));
+                              }}
+                              className="w-16 h-10 text-center px-2" 
+                            />
+                            <Select 
+                              value={split.editorName || ''} 
+                              onValueChange={(value) => { 
+                                const newSplits = [...splits];
+                                newSplits[index].editorName = value;
+                                setServiceAssignments(prev => ({ ...prev, additionalProduct: newSplits })); 
+                                setAssignmentErrors(prev => ({ ...prev, additionalProduct: '' })); 
+                              }} 
+                            >
+                              <SelectTrigger className="h-10 flex-1"><SelectValue placeholder="Choose editor" /></SelectTrigger>
+                              <SelectContent>{editors.map((editor) => <SelectItem key={editor.name} value={editor.name}>{editorDropdownLabel(editorWorkload, editor.name)}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {splits.length > 1 && (
+                              <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-red-500 shrink-0" onClick={() => {
+                                const newSplits = splits.filter((_, i) => i !== index);
+                                setServiceAssignments(prev => ({ ...prev, additionalProduct: newSplits }));
+                              }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        
+                        {currentAssigned < requiredQty && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full text-xs h-8 border-dashed"
+                            onClick={() => {
+                              const newSplits = [...splits, { quantity: requiredQty - currentAssigned, editorName: '' }];
+                              setServiceAssignments(prev => ({ ...prev, additionalProduct: newSplits }));
+                            }}
+                          >
+                            + Add Split (Remaining: {requiredQty - currentAssigned})
+                          </Button>
+                        )}
+                        {assignmentErrors.additionalProduct && <p className="text-xs text-red-500">{assignmentErrors.additionalProduct}</p>}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="space-y-2 sm:col-span-2 border border-border rounded-md p-3 bg-muted/30">
                   <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Editor Availability & Workload</Label>

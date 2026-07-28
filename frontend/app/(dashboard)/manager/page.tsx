@@ -808,7 +808,7 @@ export default function ManagerPage() {
                     {ASSIGNMENT_DELIVERABLE_FIELDS.map((field) => {
                       const durationKey = 'durationKey' in field ? field.durationKey : null;
                       const requiredQty = Number(normalizeQuantity(assignForm[field.key]));
-                      const splits = serviceAssignments[field.key] || (requiredQty > 0 ? [{ quantity: requiredQty, editorName: '' }] : []);
+                      const splits = serviceAssignments[field.key] || (requiredQty > 0 ? [{ quantity: requiredQty, editorName: '' }] : [{ quantity: 0, editorName: '' }]);
                       const currentAssigned = splits.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
 
                       return (
@@ -823,7 +823,7 @@ export default function ManagerPage() {
                                 type="number" 
                                 min="1" 
                                 max={requiredQty}
-                                value={split.quantity || ''} 
+                                value={requiredQty === 0 ? 0 : (split.quantity || '')} 
                                 onChange={(e) => {
                                   const newSplits = [...splits];
                                   newSplits[index].quantity = Number(e.target.value);

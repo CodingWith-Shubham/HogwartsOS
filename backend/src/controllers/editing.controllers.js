@@ -35,14 +35,23 @@ const updateTask = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const updateData = req.body;
 
-    const task = await EditingTask.findOneAndUpdate(
+    let task = await EditingTask.findOneAndUpdate(
         { taskId },
         { $set: updateData },
         { new: true }
     );
 
     if (!task) {
-        throw new ApiError(404, "Editing task not found");
+        // Fallback for legacy editing projects
+        task = await EditProject.findOneAndUpdate(
+            { editId: taskId },
+            { $set: updateData },
+            { new: true }
+        );
+    }
+
+    if (!task) {
+        throw new ApiError(404, "Editing task or project not found");
     }
 
     return res.status(200).json(new ApiResponse(200, { task }, "Task updated successfully"));

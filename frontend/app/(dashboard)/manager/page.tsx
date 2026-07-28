@@ -280,6 +280,9 @@ export default function ManagerPage() {
   const [assigningEditor, setAssigningEditor] = useState(false);
   const [sendingDraftId, setSendingDraftId] = useState<string | null>(null);
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
+  const [feedbackTask, setFeedbackTask] = useState<any | null>(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [extraCosts, setExtraCosts] = useState<Record<string, string>>({});
   const [extraFeedback, setExtraFeedback] = useState<Record<string, string>>({});
   type AssignmentSplit = { quantity: number; editorName: string };
@@ -519,6 +522,35 @@ export default function ManagerPage() {
     }
   };
 
+  const submitManagerFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackTask) return;
+    setSubmittingFeedback(true);
+    try {
+      const response = await authFetch('/api/editing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: feedbackTask.editId,
+          status: 'In Progress',
+          managerComment: feedbackText.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Failed to submit feedback');
+      toast.success('Feedback submitted to editor!');
+      setFeedbackTask(null);
+      setFeedbackText('');
+      await refreshEditing();
+    } catch (error) {
+      toast.error('Could not submit feedback', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
   const sendDraftToClient = async (edit: EditingProject) => {
     const clientEmail = findClientEmail(edit, leads);
     if (!clientEmail) {
@@ -736,20 +768,25 @@ export default function ManagerPage() {
             <p className="text-sm text-muted-foreground py-4 text-center">No drafts ready for manager review.</p>
           ) : (
             draftReady.map((edit) => (
-              <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1.2fr_1fr_1fr_auto] lg:items-center">
+              <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
                 <div>
                   <p className="text-sm font-medium">{edit.clientName}</p>
                   <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">Deadline: {edit.deadlineAt || '-'}</p>
-                <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
-                  <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
-                    View Draft <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                  </a>
-                </Button>
-                <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
-                  Send to Client
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
+                    <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
+                      View Draft <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => { setFeedbackTask(edit); setFeedbackText(''); }}>
+                    Provide Feedback
+                  </Button>
+                  <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
+                    Send to Client
+                  </Button>
+                </div>
               </div>
             ))
           )}
@@ -1082,6 +1119,35 @@ export default function ManagerPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!feedbackTask} onOpenChange={(open) => !open && setFeedbackTask(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={submitManagerFeedback}>
+            <DialogHeader>
+              <DialogTitle>Provide Feedback</DialogTitle>
+              <DialogDescription>
+                Send this task back to the editor with your feedback.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="manager-feedback">Feedback</Label>
+                <Textarea
+                  id="manager-feedback"
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="What needs to be changed?"
+                  rows={4}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFeedbackTask(null)}>Cancel</Button>
+              <Button type="submit" disabled={submittingFeedback || !feedbackText.trim()}>Submit Feedback</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

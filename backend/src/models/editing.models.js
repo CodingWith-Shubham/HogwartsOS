@@ -57,7 +57,8 @@ const editProjectSchema = new Schema({
     deadlineAt: { type: String, default: "" },
     deadlineNotified: { type: String, default: "false" },
     finalDelivered: { type: Boolean, default: false },
-    reelEdit: { type: String, default: "0" }
+    reelEdit: { type: String, default: "0" },
+    managerComment: { type: String, default: "" }
 }, { timestamps: true });
 
 const editingTaskSchema = new Schema({

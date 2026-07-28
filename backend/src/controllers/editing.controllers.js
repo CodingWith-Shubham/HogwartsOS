@@ -5,8 +5,11 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getEditingData = asyncHandler(async (req, res) => {
+    const taskFilter = {};
+    if (req.query.editorEmail) taskFilter.assignedToEmail = req.query.editorEmail;
+
     const editProjects = await EditProject.find({}).sort({ createdAt: -1 });
-    const editingTasks = await EditingTask.find({}).sort({ createdAt: -1 });
+    const editingTasks = await EditingTask.find(taskFilter).sort({ createdAt: -1 });
     const revisions = await Revision.find({}).sort({ createdAt: -1 });
 
     const formattedProjects = editProjects.map(p => {

@@ -8,6 +8,7 @@ import bcrypt from "bcrypt";
 const getAllUsers = asyncHandler(async (req, res) => {
     const filter = {};
     if (req.query.name) filter.name = { $regex: req.query.name, $options: 'i' };
+    if (req.query.role) filter.role = req.query.role;
     
     const users = await User.find(filter).sort({ createdAt: 1 });
     const sanitized = users.map(u => sanitizeUser(u));

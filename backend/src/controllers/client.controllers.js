@@ -8,7 +8,14 @@ import { asyncHandler } from "../utils/async-handler.js";
 
 const getClients = asyncHandler(async (req, res) => {
     const user = req.user;
-    const leads = await Client.find({}).sort({ createdAt: -1 });
+
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+
+    let query = Client.find(filter).sort({ createdAt: -1 });
+    if (req.query.limit) query = query.limit(Number(req.query.limit));
+
+    const leads = await query;
 
     let filteredLeads = leads;
 

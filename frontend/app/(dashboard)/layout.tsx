@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { getNavForRole } from '@/lib/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Film } from 'lucide-react';
+import ChatBot from '@/components/shared/ChatBot';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -92,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </main>
         </div>
+        <ChatBot />
       </div>
     </AuthGuard>
   );

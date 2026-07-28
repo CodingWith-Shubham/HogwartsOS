@@ -708,13 +708,16 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const paymentSummary = (lead: Lead) => {
     const payments = paymentHistory[lead.leadId] ?? [];
     const totalCost = parseCost(lead.cost);
-    const totalCollected = payments
-      .filter(isVerifiedInstallment)
+    const verifiedPayments = payments.filter(isVerifiedInstallment);
+    const totalCollected = verifiedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const baseCollected = verifiedPayments
+      .filter((p) => p.installmentNumber !== 'Addon')
       .reduce((sum, payment) => sum + payment.amount, 0);
+
     const remaining = isFinalPaymentCompleted(lead)
       ? 0
       : payments.length > 0
-      ? Math.max(0, totalCost - totalCollected)
+      ? Math.max(0, totalCost - baseCollected)
       : totalCost;
 
     return { payments, totalCollected, remaining };

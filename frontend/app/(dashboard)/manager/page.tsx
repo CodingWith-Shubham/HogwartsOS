@@ -312,7 +312,23 @@ export default function ManagerPage() {
         ]);
         if (!mounted) return;
         if (shootResponse.ok) setShoots(shootData.shoots ?? []);
-        if (editingResponse.ok) setEditing(editingData.editing ?? []);
+        if (editingResponse.ok) {
+          const projects = editingData.editingProjects ?? editingData.editing ?? [];
+          const tasks = editingData.tasks ?? [];
+          const mappedTasks = tasks.map((t: any) => ({
+            editId: t.taskId || t._id || Math.random().toString(),
+            shootId: t.shootId || t.shoot_id,
+            clientName: t.clientName || t.client_name || '',
+            editorName: t.assignedToName || t.editor_name || '',
+            serviceType: t.taskLabel || t.taskType || t.serviceType || t.task_type || '',
+            status: t.status || 'Assigned',
+            deadlineAt: t.deadlineAt || t.deadline_at || '',
+            currentDraftLink: t.draftLink || t.draft_link || '',
+            revisionCount: t.revisionCount || 0,
+            maxFreeRevisions: t.maxFreeRevisions || 0,
+          }));
+          setEditing([...projects, ...mappedTasks]);
+        }
         if (leadResponse.ok) setLeads(leadData.leads ?? []);
       } catch (error) {
         console.error('Failed to fetch manager dashboard data:', error);
@@ -375,7 +391,23 @@ export default function ManagerPage() {
   const refreshEditing = async () => {
     const response = await authFetch('/api/editing', { cache: 'no-store' });
     const data = await response.json();
-    if (response.ok) setEditing(data.editing ?? []);
+    if (response.ok) {
+      const projects = data.editingProjects ?? data.editing ?? [];
+      const tasks = data.tasks ?? [];
+      const mappedTasks = tasks.map((t: any) => ({
+        editId: t.taskId || t._id || Math.random().toString(),
+        shootId: t.shootId || t.shoot_id,
+        clientName: t.clientName || t.client_name || '',
+        editorName: t.assignedToName || t.editor_name || '',
+        serviceType: t.taskLabel || t.taskType || t.serviceType || t.task_type || '',
+        status: t.status || 'Assigned',
+        deadlineAt: t.deadlineAt || t.deadline_at || '',
+        currentDraftLink: t.draftLink || t.draft_link || '',
+        revisionCount: t.revisionCount || 0,
+        maxFreeRevisions: t.maxFreeRevisions || 0,
+      }));
+      setEditing([...projects, ...mappedTasks]);
+    }
   };
 
   const openAssignShoot = (shoot: Shoot) => {
@@ -569,7 +601,7 @@ export default function ManagerPage() {
     },
     [editing, shoots]
   );
-  const inEditing = editing.filter((edit) => edit.status === 'Editing');
+  const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress'].includes(edit.status));
   const draftReady = editing.filter((edit) => edit.status === 'Draft Ready');
   const extraRevisionNeeded = editing.filter(isExtraRevisionNeeded);
 

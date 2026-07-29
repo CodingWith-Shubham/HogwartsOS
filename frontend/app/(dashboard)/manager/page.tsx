@@ -19,6 +19,7 @@ import {
 import {
   Briefcase, Camera, Scissors, CheckCircle, ExternalLink,
 } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { formatINR, formatDate } from '@/lib/formatter';
 import { useWorkflow } from '@/hooks/use-workflow';
 import { useAuth } from '@/lib/auth-context';
@@ -771,28 +772,51 @@ export default function ManagerPage() {
           {draftReady.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No drafts ready for manager review.</p>
           ) : (
-            draftReady.map((edit) => (
-              <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
-                <div>
-                  <p className="text-sm font-medium">{edit.clientName}</p>
-                  <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Deadline: {edit.deadlineAt || '-'}</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
-                    <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
-                      View Draft <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                    </a>
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => { setFeedbackTask(edit); setFeedbackText(''); }}>
-                    Provide Feedback
-                  </Button>
-                  <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
-                    Send to Client
-                  </Button>
-                </div>
-              </div>
-            ))
+            <Accordion type="multiple" className="w-full space-y-4">
+              {Object.entries(
+                draftReady.reduce((acc, edit) => {
+                  const client = edit.clientName || 'Unknown Client';
+                  if (!acc[client]) acc[client] = [];
+                  acc[client].push(edit);
+                  return acc;
+                }, {} as Record<string, EditingProject[]>)
+              ).map(([client, drafts]) => (
+                <AccordionItem key={client} value={client} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
+                    <div className="flex items-center gap-2 font-semibold">
+                      {client}
+                      <Badge variant="secondary" className="ml-2">{drafts.length}</Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="p-4 pt-2 border-t">
+                    <div className="space-y-3">
+                      {drafts.map((edit) => (
+                        <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
+                          <div>
+                            <p className="text-sm font-medium">{edit.clientName}</p>
+                            <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Deadline: {edit.deadlineAt || '-'}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
+                              <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
+                                View Draft <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                              </a>
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => { setFeedbackTask(edit); setFeedbackText(''); }}>
+                              Provide Feedback
+                            </Button>
+                            <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
+                              Send to Client
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           )}
         </CardContent>
       </Card>

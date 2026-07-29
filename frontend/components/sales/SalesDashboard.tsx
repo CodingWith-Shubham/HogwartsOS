@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2 } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -479,6 +479,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [salesMembers, assignedTo]);
   const [proposalOpen, setProposalOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const [editLeadOpen, setEditLeadOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [filterTab, setFilterTab] = useState<LeadFilterTab>('all');
   const [submittingProposal, setSubmittingProposal] = useState(false);
@@ -951,6 +954,69 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
   };
 
+  const handleEditLeadSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingLead) return;
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
+
+    try {
+      const response = await authFetch('/api/clients', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: editingLead.leadId,
+          name: form.get('company'),
+          phoneNumber: form.get('contact'),
+          whatsapp: form.get('whatsapp'),
+          service: form.get('service'),
+          assignedTo: form.get('assignTo'),
+          clientEmail: form.get('clientEmail'),
+          cost: form.get('cost'),
+          reachoutDone: form.get('reachoutDone'),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to update lead');
+      }
+
+      setEditLeadOpen(false);
+      setEditingLead(null);
+      toast.success('Lead Updated');
+      await refreshLeads(true);
+    } catch (error) {
+      toast.error('Failed to update lead', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  const handleDeleteLead = async (lead: Lead) => {
+    if (!confirm(`Are you sure you want to delete lead for ${lead.name}?`)) return;
+    setDeletingLeadId(lead.leadId);
+    try {
+      const response = await authFetch('/api/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.leadId })
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to delete lead');
+      }
+      toast.success('Lead deleted');
+      await refreshLeads(true);
+    } catch (error) {
+      toast.error('Failed to delete lead', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setDeletingLeadId(null);
+    }
+  };
+
   const handleSendPaymentLink = async () => {
     if (!paymentLead || !user) return;
 
@@ -1408,14 +1474,55 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     </div>
   );
 
-  const renderActions = (lead: Lead) => (
-    <div className="flex flex-col gap-1.5 items-start">
-      {renderProposalAction(lead)}
-      {renderPaymentAction(lead)}
-      {renderFinalPaymentAction(lead)}
-      {renderScheduleAction(lead)}
-    </div>
-  );
+  const renderActions = (lead: Lead) => {
+    const isVerified = isPaymentVerified(lead);
+    const validStatuses = ['New Lead', 'Proposal Sent', 'Proposal Revoked', 'Awaiting Payment'];
+    const canEdit = validStatuses.includes(lead.status) || lead.proposalAccepted || isVerified;
+    const canDelete = (validStatuses.includes(lead.status) || lead.proposalAccepted) && !isVerified;
+
+    return (
+      <div className="flex flex-col gap-1.5 items-start">
+        {canEdit && (
+          <div className="flex items-center gap-2 mb-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingLead(lead);
+                setEditLeadOpen(true);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            {canDelete && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                disabled={deletingLeadId === lead.leadId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteLead(lead);
+                }}
+              >
+                {deletingLeadId === lead.leadId ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+        {renderProposalAction(lead)}
+        {renderPaymentAction(lead)}
+        {renderFinalPaymentAction(lead)}
+        {renderScheduleAction(lead)}
+      </div>
+    );
+  };
 
   const columns: Column<Lead>[] = [
     {
@@ -2518,6 +2625,91 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               </Button>
             </SheetFooter>
           </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={editLeadOpen} onOpenChange={setEditLeadOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit Lead</SheetTitle>
+            <SheetDescription>Update lead details</SheetDescription>
+          </SheetHeader>
+          {editingLead && (
+            <form onSubmit={handleEditLeadSubmit} className="space-y-4 mt-6">
+              <div className="space-y-2">
+                <Label htmlFor="edit-company">Company Name</Label>
+                <Input id="edit-company" name="company" defaultValue={editingLead.name} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-contact">Contact Number</Label>
+                <Input id="edit-contact" name="contact" defaultValue={editingLead.phoneNumber} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-whatsapp">WhatsApp Username</Label>
+                <Input id="edit-whatsapp" name="whatsapp" defaultValue={editingLead.whatsapp} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-service">Service Required</Label>
+                <Select name="service" defaultValue={editingLead.servicePitched || editingLead.service || 'podcast'}>
+                  <SelectTrigger id="edit-service">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="podcast">Podcast</SelectItem>
+                    <SelectItem value="reel">Reel</SelectItem>
+                    <SelectItem value="brand_film">Brand Film</SelectItem>
+                    <SelectItem value="product_video">Product Video</SelectItem>
+                    <SelectItem value="event_coverage">Event Coverage</SelectItem>
+                    <SelectItem value="social_media">Social Media</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-clientEmail">Client Email</Label>
+                <Input id="edit-clientEmail" name="clientEmail" type="email" defaultValue={editingLead.clientEmail} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-cost">Cost in ₹</Label>
+                <Input id="edit-cost" name="cost" type="number" min="0" step="0.01" defaultValue={editingLead.cost} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-assignTo">Assign To</Label>
+                <Select name="assignTo" defaultValue={editingLead.assignedTo || DEFAULT_ASSIGNED_TO} required>
+                  <SelectTrigger id="edit-assignTo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesMembers.map((member) => (
+                      <SelectItem key={member} value={member}>
+                        {member}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-reachoutDone">Reachout Done</Label>
+                <Select name="reachoutDone" defaultValue={(editingLead.reachoutDone?.toLowerCase() || 'no') as 'yes' | 'no'}>
+                  <SelectTrigger id="edit-reachoutDone">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <SheetFooter className="mt-6">
+                <Button type="button" variant="outline" onClick={() => setEditLeadOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  <Edit className="mr-1.5 h-4 w-4" />
+                  Save Changes
+                </Button>
+              </SheetFooter>
+            </form>
+          )}
         </SheetContent>
       </Sheet>
     </div>

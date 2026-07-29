@@ -138,19 +138,34 @@ const getProjects = asyncHandler(async (req, res) => {
 
 const getProjectById = asyncHandler(async (req, res) => {
     const { edit_id } = req.params;
-    const project = await EditProject.findOne({ editId: edit_id });
-    if (!project) throw new ApiError(404, "Project not found");
+    let project = await EditProject.findOne({ editId: edit_id });
+    if (!project) {
+        project = await EditingTask.findOne({ taskId: edit_id });
+    }
+    if (!project) throw new ApiError(404, "Project or Task not found");
     return res.status(200).json(new ApiResponse(200, { project }, "Project fetched"));
 });
 
 const updateProject = asyncHandler(async (req, res) => {
     const { edit_id } = req.params;
-    const project = await EditProject.findOneAndUpdate(
+    const updates = { ...req.body };
+    if (updates.managerComment === "" || updates.managerComment === undefined) {
+        delete updates.managerComment;
+    }
+
+    let project = await EditProject.findOneAndUpdate(
         { editId: edit_id },
-        { $set: req.body },
+        { $set: updates },
         { new: true }
     );
-    if (!project) throw new ApiError(404, "Project not found");
+    if (!project) {
+        project = await EditingTask.findOneAndUpdate(
+            { taskId: edit_id },
+            { $set: updates },
+            { new: true }
+        );
+    }
+    if (!project) throw new ApiError(404, "Project or Task not found");
     return res.status(200).json(new ApiResponse(200, { project }, "Project updated"));
 });
 

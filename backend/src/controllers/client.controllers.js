@@ -135,4 +135,16 @@ const getClientByLeadId = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { leads: [client] }, 'Client fetched'));
 });
 
-export { getClients, createClient, updateClient, getClientByLeadId };
+const deleteClient = asyncHandler(async (req, res) => {
+    const { leadId } = req.params;
+
+    const deleted = await Client.findOneAndDelete({ leadId });
+
+    if (!deleted) {
+        throw new ApiError(404, "Client not found");
+    }
+
+    return res.status(200).json(new ApiResponse(200, { lead: deleted }, "Client deleted successfully"));
+});
+
+export { getClients, createClient, updateClient, getClientByLeadId, deleteClient };

@@ -316,8 +316,10 @@ export default function ManagerPage() {
         if (!mounted) return;
         if (shootResponse.ok) setShoots(shootData.shoots ?? []);
         if (editingResponse.ok) {
-          const projects = editingData.editingProjects ?? editingData.editing ?? [];
+          const rawProjects = editingData.editingProjects ?? editingData.editing ?? [];
           const tasks = editingData.tasks ?? [];
+          const parentEditIds = new Set(tasks.map((t: any) => t.editId));
+          const projects = rawProjects.filter((p: any) => !parentEditIds.has(p.editId));
           const mappedTasks = tasks.map((t: any) => ({
             editId: t.taskId || t._id || Math.random().toString(),
             shootId: t.shootId || t.shoot_id,
@@ -395,8 +397,10 @@ export default function ManagerPage() {
     const response = await authFetch('/api/editing', { cache: 'no-store' });
     const data = await response.json();
     if (response.ok) {
-      const projects = data.editingProjects ?? data.editing ?? [];
+      const rawProjects = data.editingProjects ?? data.editing ?? [];
       const tasks = data.tasks ?? [];
+      const parentEditIds = new Set(tasks.map((t: any) => t.editId));
+      const projects = rawProjects.filter((p: any) => !parentEditIds.has(p.editId));
       const mappedTasks = tasks.map((t: any) => ({
         editId: t.taskId || t._id || Math.random().toString(),
         shootId: t.shootId || t.shoot_id,
@@ -634,7 +638,7 @@ export default function ManagerPage() {
     [editing, shoots]
   );
   const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress'].includes(edit.status));
-  const draftReady = editing.filter((edit) => edit.status === 'Draft Ready');
+  const draftReady = editing.filter((edit) => edit.status === 'Draft Ready' || edit.status === 'Draft Sent');
   const extraRevisionNeeded = editing.filter(isExtraRevisionNeeded);
 
   if (loading) {

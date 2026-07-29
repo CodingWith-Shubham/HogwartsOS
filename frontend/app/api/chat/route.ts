@@ -122,7 +122,8 @@ const tools = [
 
 async function executeExpressTool(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  token?: string
 ): Promise<unknown> {
   const base = process.env.NEXT_PUBLIC_BACKEND_URL
     ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1`
@@ -132,6 +133,10 @@ async function executeExpressTool(
     "Content-Type": "application/json",
     "x-n8n-secret": process.env.N8N_SECRET || "",
   };
+  
+  if (token) {
+    headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+  }
 
   try {
     switch (name) {
@@ -199,6 +204,7 @@ async function executeExpressTool(
 export async function POST(req: NextRequest) {
   try {
     const { messages, userRole, userEmail, userName } = await req.json();
+    const token = req.headers.get("x-auth-token") || req.headers.get("authorization") || "";
     const firstName = userName?.split(" ")[0] || "there";
 
     const systemInstruction = `You are Aria, the AI assistant for Hogwarts Media Studio CRM. You help the internal team manage clients, shoots, payments, editing workflows, and general studio operations.
@@ -287,7 +293,7 @@ RESPONSE FORMAT:
       const toolResultsParts = [];
 
       for (const call of functionCalls) {
-        const result = await executeExpressTool(call.name, call.args);
+        const result = await executeExpressTool(call.name, call.args, token);
         toolResultsParts.push({
           functionResponse: {
             name: call.name,

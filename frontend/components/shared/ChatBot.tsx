@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { MessageCircle, X, Send, Sparkles, Loader2 } from "lucide-react";
+import { authFetch } from "@/lib/auth-fetch";
 
 type Message = {
   id: string;
@@ -161,7 +162,7 @@ export default function ChatBot() {
       setIsLoading(true);
 
       try {
-        const res = await fetch("/api/chat", {
+        const res = await authFetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

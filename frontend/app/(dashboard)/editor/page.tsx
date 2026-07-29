@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import { postWebhook } from '@/lib/editing';
@@ -109,7 +110,34 @@ export default function EditorPage() {
   );
 
   if (loading) return <div className="space-y-6"><PageHeader title="Editor" description="Individual task queue" /><TableShimmer rows={6} cols={4} /></div>;
-  const panel = (items: EditingTask[], empty: string) => <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{items.map((task) => <TaskCard key={task.task_id} task={task} />)}{items.length === 0 && <Card className="md:col-span-2"><CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent></Card>}</div>;
+  const panel = (items: EditingTask[], empty: string) => {
+    if (items.length === 0) return <Card className="md:col-span-2"><CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent></Card>;
+    const grouped = items.reduce((acc, task) => {
+      const client = task.client_name || 'Unknown Client';
+      if (!acc[client]) acc[client] = [];
+      acc[client].push(task);
+      return acc;
+    }, {} as Record<string, EditingTask[]>);
+    return (
+      <Accordion type="multiple" className="w-full space-y-4" defaultValue={Object.keys(grouped)}>
+        {Object.entries(grouped).map(([client, clientTasks]) => (
+          <AccordionItem key={client} value={client} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
+              <div className="flex items-center gap-2 font-semibold">
+                {client}
+                <Badge variant="secondary" className="ml-2">{clientTasks.length}</Badge>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="p-4 pt-2 border-t">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {clientTasks.map((task) => <TaskCard key={task.task_id} task={task} />)}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    );
+  };
   return <div><PageHeader title="Editor" description="Your individual editing tasks" actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
     <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
     <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>

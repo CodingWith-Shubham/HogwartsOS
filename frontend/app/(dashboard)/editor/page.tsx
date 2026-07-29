@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 type EditingTask = {
   task_id: string; edit_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
   data_link: string; assigned_to_name: string; status: string; draft_link: string;
-  manager_comment: string; deadline_at: string; final_delivered: string;
+  managerComment: string; deadline_at: string; final_delivered: string;
   revision_count?: string;
 };
 
@@ -56,7 +56,7 @@ export default function EditorPage() {
       const mapped = (data.tasks || []).map((t: any) => ({
         task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
-        manager_comment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
+        managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
       })).filter((t: any) => t.assigned_to_email?.toLowerCase() === user.email.toLowerCase());
       setTasks(mapped);
     } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
@@ -101,7 +101,7 @@ export default function EditorPage() {
       <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{task.task_label || task.task_type}</h3><p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p></div><Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge></div>
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
-      {task.manager_comment && <details className="rounded-md border border-border p-2 text-sm"><summary className="cursor-pointer font-medium">Manager comment</summary><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{task.manager_comment}</p></details>}
+      {task.managerComment && <details className="rounded-md border border-border p-2 text-sm"><summary className="cursor-pointer font-medium">Manager comment</summary><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{task.managerComment}</p></details>}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
       {['In Progress', 'In Revision'].includes(task.status) && <div className="space-y-2 border-t border-border pt-3"><Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." /><Button size="sm" onClick={() => updateStatus(task, 'Draft Sent', true)} disabled={saving === task.task_id}><Send className="mr-1.5 h-3.5 w-3.5" />{task.status === 'In Revision' ? 'Upload Revised Draft' : 'Upload Draft Link'}</Button></div>}
       {task.status === 'Delivered' && <p className="flex items-center gap-1.5 text-sm text-green-600"><CheckCircle className="h-4 w-4" />Completed</p>}

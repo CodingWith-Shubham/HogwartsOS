@@ -35,6 +35,10 @@ const updateTask = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const updateData = req.body;
 
+    if (updateData.managerComment === "" || updateData.managerComment === undefined) {
+        delete updateData.managerComment;
+    }
+
     let task = await EditingTask.findOneAndUpdate(
         { taskId },
         { $set: updateData },
@@ -228,6 +232,10 @@ const updateTaskById = asyncHandler(async (req, res) => {
         };
         const currentHistory = Array.isArray(task.allocationHistory) ? task.allocationHistory : [];
         updates.allocationHistory = [...currentHistory, historyEntry];
+    }
+
+    if (updates.managerComment === "" || updates.managerComment === undefined) {
+        delete updates.managerComment;
     }
 
     const updated = await EditingTask.findOneAndUpdate(

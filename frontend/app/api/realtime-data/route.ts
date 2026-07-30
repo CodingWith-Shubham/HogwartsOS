@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import type { Lead, Payment, EditingProject } from '@/lib/sheets/types';
 
+import { getBackendUrl } from '@/lib/backend-url';
 
-const EXPRESS_API_URL = process.env.NEXT_PUBLIC_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
-
-async function fetchFromExpress(endpoint: string) {
+async function fetchFromExpress(endpoint: string, token: string | null) {
   try {
-    const res = await fetch(`${EXPRESS_API_URL}${endpoint}`, { cache: 'no-store' });
+    const BACKEND_URL = await getBackendUrl();
+    const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      cache: 'no-store'
+    });
     if (!res.ok) return null;
-    return await res.json();
+    const json = await res.json();
+    return json.data || null;
   } catch (err) {
     return null;
   }
@@ -75,28 +81,30 @@ function daysSince(dateStr: string | undefined): number {
   return Math.floor((Date.now() - d.getTime()) / 86_400_000);
 }
 
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = getAuthenticatedUser();
+    const h = request.headers;
+    const user = getAuthenticatedUser(h);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const [leadsRes, paymentsRes, editingRes, shootsRes, editingTasksRes] = await Promise.all([
-      fetchFromExpress('/clients'),
-      fetchFromExpress('/payments'),
-      fetchFromExpress('/editing'),
-      fetchFromExpress('/shoots'),
-      fetchFromExpress('/editor-tasks'), // Or wherever editing tasks are
+    const token = getAccessToken(h);
+
+    const [leadsRes, paymentsRes, editingRes, shootsRes] = await Promise.all([
+      fetchFromExpress('/clients', token),
+      fetchFromExpress('/payments', token),
+      fetchFromExpress('/editing', token),
+      fetchFromExpress('/shoots', token),
     ]);
 
     const allLeads: Lead[] = leadsRes?.leads || [];
     const allPayments: Payment[] = paymentsRes?.payments || [];
-    const allEditing: EditingProject[] = editingRes?.editing || [];
+    const allEditing: EditingProject[] = editingRes?.editingProjects || editingRes?.editing || [];
     const allShoots: any[] = shootsRes?.shoots || [];
-    const allEditingTasks: any[] = editingTasksRes?.tasks || [];
+    const allEditingTasks: any[] = editingRes?.tasks || [];
 
     let leads = allLeads;
     let payments = allPayments;

@@ -468,7 +468,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [editing, setEditing] = useState<EditingProject[]>(initialEditing);
   const [refreshing, setRefreshing] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
-  const [newLeadService, setNewLeadService] = useState('podcast');
   const [reachoutDone, setReachoutDone] = useState<'yes' | 'no'>('no');
   const [assignedTo, setAssignedTo] = useState<string>(DEFAULT_ASSIGNED_TO);
 
@@ -754,18 +753,19 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const openScheduleModal = (lead: Lead) => {
+    const existingShoot = shootsByLeadId.get(lead.leadId);
     setScheduleLead(lead);
     setScheduleForm({
       shootDate: '',
       shootStartTime: '',
       shootEndTime: '',
       totalHours: '',
-      camera: '1',
+      camera: lead.camera || existingShoot?.camera || '1',
       teleprompter: 'No',
       bts: 'No',
-      recordTime: '',
+      recordTime: lead.recordTime || existingShoot?.recordTime || '',
       setName: '',
-      studioTime: '',
+      studioTime: lead.studioTime || existingShoot?.studioTime || '',
       shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
       shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
     });
@@ -905,7 +905,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const handleLeadOpenChange = (open: boolean) => {
     setLeadOpen(open);
     if (open) {
-      setNewLeadService('podcast');
       setReachoutDone('no');
       setAssignedTo(DEFAULT_ASSIGNED_TO);
     }
@@ -925,7 +924,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           name: form.get('company'),
           phoneNumber: form.get('contact'),
           whatsapp: form.get('whatsapp'),
-          service: newLeadService,
           assignedTo,
           clientEmail: form.get('clientEmail'),
           cost: form.get('cost'),
@@ -939,7 +937,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       }
 
       formEl.reset();
-      setNewLeadService('podcast');
       setReachoutDone('no');
       setAssignedTo(DEFAULT_ASSIGNED_TO);
       setLeadOpen(false);
@@ -2565,22 +2562,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               <Input id="whatsapp" name="whatsapp" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="service">Service Required</Label>
-              <Select value={newLeadService} onValueChange={setNewLeadService}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="podcast">Podcast</SelectItem>
-                  <SelectItem value="reel">Reel</SelectItem>
-                  <SelectItem value="brand_film">Brand Film</SelectItem>
-                  <SelectItem value="product_video">Product Video</SelectItem>
-                  <SelectItem value="event_coverage">Event Coverage</SelectItem>
-                  <SelectItem value="social_media">Social Media</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="clientEmail">Client Email</Label>
               <Input id="clientEmail" name="clientEmail" type="email" placeholder="client@example.com" />
             </div>
@@ -2647,22 +2628,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               <div className="space-y-2">
                 <Label htmlFor="edit-whatsapp">WhatsApp Username</Label>
                 <Input id="edit-whatsapp" name="whatsapp" defaultValue={editingLead.whatsapp} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-service">Service Required</Label>
-                <Select name="service" defaultValue={editingLead.servicePitched || editingLead.service || 'podcast'}>
-                  <SelectTrigger id="edit-service">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="podcast">Podcast</SelectItem>
-                    <SelectItem value="reel">Reel</SelectItem>
-                    <SelectItem value="brand_film">Brand Film</SelectItem>
-                    <SelectItem value="product_video">Product Video</SelectItem>
-                    <SelectItem value="event_coverage">Event Coverage</SelectItem>
-                    <SelectItem value="social_media">Social Media</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-clientEmail">Client Email</Label>

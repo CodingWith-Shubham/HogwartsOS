@@ -22,11 +22,11 @@ export function findAssignedSalespersonEmail(edit: EditingProject, leads: Lead[]
 }
 
 export function findClientEmail(edit: EditingProject, leads: Lead[]) {
-  const editEmail = edit.emailId.trim();
+  const editEmail = edit.emailId?.trim();
   if (editEmail) return editEmail;
 
   const lead = leads.find((item) => item.leadId === edit.leadId);
-  return lead?.clientEmail.trim() ?? '';
+  return lead?.clientEmail?.trim() ?? '';
 }
 
 export async function postWebhook(path: string, body: Record<string, unknown>) {

@@ -323,7 +323,9 @@ export default function ManagerPage() {
           const projects = rawProjects.filter((p: any) => !parentEditIds.has(p.editId));
           const mappedTasks = tasks.map((t: any) => ({
             editId: t.taskId || t._id || Math.random().toString(),
-            shootId: t.shootId || t.shoot_id,
+            shootId: t.shootId || t.shoot_id || '',
+            leadId: t.leadId || t.lead_id || '',
+            emailId: t.emailId || t.email_id || t.clientEmailId || t.client_email_id || '',
             clientName: t.clientName || t.client_name || '',
             editorName: t.assignedToName || t.editor_name || '',
             serviceType: t.taskLabel || t.taskType || t.serviceType || t.task_type || '',

@@ -39,6 +39,9 @@ const getShoots = asyncHandler(async (req, res) => {
     const formatted = shoots.map(s => {
         const obj = s.toObject();
         obj.id = s._id.toString();
+        if (obj.clientEmailId && !obj.emailId) {
+            obj.emailId = obj.clientEmailId;
+        }
         return obj;
     });
     return res.status(200).json(new ApiResponse(200, { shoots: formatted }, "Shoots retrieved successfully"));
@@ -56,7 +59,7 @@ const createShoot = asyncHandler(async (req, res) => {
         leadId: body.leadId,
         clientName: body.clientName || "",
         contactNum: body.contactNum || "",
-        clientEmailId: body.clientEmailId || "",
+        clientEmailId: body.clientEmailId || body.emailId || body.email_id || "",
         shootDate: body.shootDate,
         shootStartTime: body.shootStartTime || "10:00",
         shootEndTime: body.shootEndTime || "12:00",

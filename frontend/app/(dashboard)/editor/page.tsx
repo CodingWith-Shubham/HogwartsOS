@@ -58,7 +58,7 @@ export default function EditorPage() {
         task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
         managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
-      })).filter((t: any) => t.assigned_to_email?.toLowerCase() === user.email.toLowerCase());
+      })).filter((t: any) => user?.role === 'manager' || user?.role === 'admin' || t.assigned_to_email?.toLowerCase() === user?.email?.toLowerCase());
       setTasks(mapped);
     } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
     finally { if (!silent) setRefreshing(false); }
@@ -101,6 +101,7 @@ export default function EditorPage() {
     <Card key={task.task_id}><CardContent className="space-y-3 p-4">
       <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{task.task_label || task.task_type}</h3><p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p></div><Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge></div>
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
+      {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
       {task.managerComment && <details className="rounded-md border border-border p-2 text-sm"><summary className="cursor-pointer font-medium">Manager comment</summary><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{task.managerComment}</p></details>}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
@@ -109,7 +110,7 @@ export default function EditorPage() {
     </CardContent></Card>
   );
 
-  if (loading) return <div className="space-y-6"><PageHeader title="Editor" description="Individual task queue" /><TableShimmer rows={6} cols={4} /></div>;
+  if (loading) return <div className="space-y-6"><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks" : "Individual task queue"} /><TableShimmer rows={6} cols={4} /></div>;
   const panel = (items: EditingTask[], empty: string) => {
     if (items.length === 0) return <Card className="md:col-span-2"><CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent></Card>;
     const grouped = items.reduce((acc, task) => {
@@ -138,7 +139,7 @@ export default function EditorPage() {
       </Accordion>
     );
   };
-  return <div><PageHeader title="Editor" description="Your individual editing tasks" actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
+  return <div><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks across editors" : "Your individual editing tasks"} actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
     <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
     <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
   </div>;

@@ -18,7 +18,7 @@ export type ProjectStatus =
 
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'overdue';
 export type PaymentMode = 'Online' | 'Cash';
-export type InstallmentLabel = 'Advance' | 'Day Before Shoot' | 'Post Shoot' | 'Custom';
+export type InstallmentLabel = 'Advance' | 'Day Before Shoot' | 'Post Shoot' | 'Custom' | 'Addon Payment' | 'Addon';
 
 export interface PaymentInstallment {
   payment_id: string;

@@ -47,6 +47,7 @@ export interface Lead {
   id: string;
   leadId: string;
   phoneNumber: string;
+  whatsapp?: string;
   date: string;
   adRefCode: string;
   source: string;

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
+import { getBackendUrlSync } from "@/lib/backend-url";
 
 const tools = [
   {
@@ -125,9 +126,7 @@ async function executeExpressTool(
   args: Record<string, unknown>,
   token?: string
 ): Promise<unknown> {
-  const base = process.env.NEXT_PUBLIC_BACKEND_URL
-    ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1`
-    : "https://api.hogwartsstudios.com/api/v1";
+  const base = getBackendUrlSync();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

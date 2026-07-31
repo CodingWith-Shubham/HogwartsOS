@@ -1,53 +1,32 @@
 /**
- * Backend URL resolver with localhost-first, VPS-fallback strategy.
- *
+ * Backend URL resolver.
  * Priority:
- *  1. NEXT_PUBLIC_BACKEND_URL env var (if explicitly set)
- *  2. http://127.0.0.1:8000/api/v1 (local dev)  ← tried first at runtime
- *  3. https://api.hogwartsstudios.com/api/v1     ← VPS fallback
+ *  1. NEXT_PUBLIC_BACKEND_URL or NEXT_PUBLIC_EXPRESS_API_URL env var (e.g. from .env.local)
+ *  2. https://api.hogwartsstudios.com (Default VPS Express backend)
+ *
+ * Formats URL to consistently include `/api/v1` path prefix for API calls.
  */
 
-const LOCAL_BACKEND = 'http://127.0.0.1:8000/api/v1';
-const VPS_BACKEND = 'https://api.hogwartsstudios.com/api/v1';
+const DEFAULT_BACKEND_HOST = 'https://api.hogwartsstudios.com';
 
-let _resolvedUrl: string | null = null;
+export function formatBackendUrl(rawUrl: string): string {
+  let url = rawUrl.trim().replace(/\/+$/, '');
+  if (!/\/api\/v\d+$/i.test(url)) {
+    url = `${url}/api/v1`;
+  }
+  return url;
+}
 
-/**
- * Returns the base backend URL.
- * On first call it pings localhost; if unreachable it falls back to VPS.
- * The result is cached for the lifetime of the server process.
- */
+export function getBackendUrlSync(): string {
+  const envUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_EXPRESS_API_URL;
+  return formatBackendUrl(envUrl || DEFAULT_BACKEND_HOST);
+}
+
 export async function getBackendUrl(): Promise<string> {
-  // If an explicit env override is set, always use it (no fallback needed).
-  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
-    return process.env.NEXT_PUBLIC_BACKEND_URL;
-  }
-
-  // Return cached value after first resolution
-  if (_resolvedUrl) return _resolvedUrl;
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
-    await fetch(`${LOCAL_BACKEND}/healthcheck`, {
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    clearTimeout(timeout);
-    console.log('[backend-url] ✅ Using local backend:', LOCAL_BACKEND);
-    _resolvedUrl = LOCAL_BACKEND;
-  } catch {
-    console.log('[backend-url] ⚠️  Local backend unreachable, falling back to VPS:', VPS_BACKEND);
-    _resolvedUrl = VPS_BACKEND;
-  }
-
-  return _resolvedUrl;
+  return getBackendUrlSync();
 }
 
-/**
- * Resets the cached resolved URL.
- * Call this if you want the next request to re-probe localhost.
- */
 export function resetBackendUrlCache() {
-  _resolvedUrl = null;
+  // Kept for backwards compatibility
 }
+

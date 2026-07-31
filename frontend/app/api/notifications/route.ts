@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import type { Lead, Shoot, EditingProject } from '@/lib/sheets/types';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 import { isPendingPaymentVerification } from '@/lib/sheets/payment-utils';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-const EXPRESS_API_URL = process.env.NEXT_PUBLIC_EXPRESS_API_URL || 'http://localhost:5000/api/v1';
-
 async function fetchFromExpress(endpoint: string) {
   try {
-    const res = await fetch(`${EXPRESS_API_URL}${endpoint}`, { cache: 'no-store' });
+    const baseUrl = await getBackendUrl();
+    const res = await fetch(`${baseUrl}${endpoint}`, { cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {

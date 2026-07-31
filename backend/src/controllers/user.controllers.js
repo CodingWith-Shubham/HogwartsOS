@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "../models/user.models.js";
 import { sanitizeUser } from "../utils/sanitize-user.js";
 import { ApiResponse } from "../utils/api-response.js";
@@ -23,8 +24,10 @@ const updateUser = asyncHandler(async (req, res) => {
         body.password = await bcrypt.hash(body.password, 10);
     }
 
-    const user = await User.findByIdAndUpdate(
-        id,
+    const query = mongoose.isValidObjectId(id) ? { _id: id } : { empId: id };
+
+    const user = await User.findOneAndUpdate(
+        query,
         { $set: body },
         { new: true }
     );

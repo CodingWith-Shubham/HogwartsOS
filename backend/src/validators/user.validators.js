@@ -1,22 +1,20 @@
 import { z } from "zod";
 
 export const registerUserSchema = z.object({
-    username: z
-        .string()
-        .min(3, "Username must be at least 3 characters")
-        .max(20),
-
-    email: z.email("Invalid email"),
-
+    username: z.string().min(2, "Username must be at least 2 characters"),
+    email: z.string().email("Invalid email"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    name: z.string().optional(),
     fullName: z.string().optional(),
-
-    password: z
-        .string()
-        .min(8, "Password must be at least 8 characters"),
-});
+    role: z.string().optional(),
+    phone: z.string().optional(),
+    designation: z.string().optional(),
+    redirectTo: z.string().optional(),
+    empId: z.string().optional(),
+}).passthrough();
 
 export const loginUserSchema = z.object({
-    email: z.email("Invalid email"),
+    email: z.string().email("Invalid email"),
     password: z.string().min(1, "Password is required")
 });
 
@@ -26,7 +24,7 @@ export const changePasswordSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-    email: z.email("Invalid email"),
+    email: z.string().email("Invalid email"),
 });
 
 export const resetForgotPasswordSchema = z.object({

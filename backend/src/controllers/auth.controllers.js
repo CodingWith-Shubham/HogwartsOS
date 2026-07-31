@@ -26,43 +26,73 @@ const generateAccessandRefreshToken = async (userId) => {
 };
 
 const registerUser = asyncHandler(async (req, res) => {
-  const { username, email, password, role } = req.body;
-  const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+  const { username, email, password, role, name, fullName, phone, designation, redirectTo, empId } = req.body;
+  const displayName = (name || fullName || username || '').trim();
+
+  const normalizedEmail = email ? email.toLowerCase().trim() : '';
+  const normalizedUsername = username ? username.toLowerCase().trim() : '';
+
+  const existingUser = await User.findOne({
+    $or: [{ username: normalizedUsername }, { email: normalizedEmail }]
+  });
+
   if (existingUser) {
     throw new ApiError(409, "Username or email already exists", []);
   }
+
+  const generatedEmpId = empId || `u_${Date.now().toString(36)}`;
+  const initials = displayName
+    ? displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 3)
+    : "EMP";
+
   const user = await User.create({
-    username,
-    email,
+    empId: generatedEmpId,
+    username: normalizedUsername,
+    email: normalizedEmail,
+    name: displayName,
     password,
-    role,
-    isEmailVerified: false,
+    role: role || "sales",
+    phone: phone || "",
+    designation: designation || "",
+    initials,
+    redirectTo: redirectTo || (role === 'manager' ? '/manager' : role === 'sales' ? '/sales' : role === 'editor' ? '/editor' : '/shoot'),
+    isEmailVerified: true,
   });
 
-  const { unhashedToken, hashedToken, expiry } = user.generateTemporaryToken();
-  user.emailVerificationToken = hashedToken;
-  user.emailVerificationExpiry = expiry;
-  await user.save({ validateBeforeSave: false });
-  const verificationUrl = `${req.protocol}://${req.get("host")}/api/v1/auth/verify-email/${unhashedToken}`;
-  console.log("Verification URL:", verificationUrl);
-  await sendMail({
-    email: user.email,
-    subject: "Email Verification",
-    mailgenContent: emailVerificationMailgenContent(
-      user.username,
-      verificationUrl,
-    ),
-  });
+  // Attempt verification email if configured, but do not fail user registration if email fails
+  try {
+    const { unhashedToken, hashedToken, expiry } = user.generateTemporaryToken();
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpiry = expiry;
+    await user.save({ validateBeforeSave: false });
+    const verificationUrl = `${req.protocol}://${req.get("host")}/api/v1/auth/verify-email/${unhashedToken}`;
+    console.log("Verification URL:", verificationUrl);
+    await sendMail({
+      email: user.email,
+      subject: "Email Verification",
+      mailgenContent: emailVerificationMailgenContent(
+        user.username,
+        verificationUrl,
+      ),
+    });
+  } catch (mailErr) {
+    console.warn("Verification email not sent:", mailErr?.message || mailErr);
+  }
+
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken",
   );
+
+  const sanitized = sanitizeUser(createdUser);
+
   return res.status(201).json(
     new ApiResponse(
       201,
       {
-        createdUser: sanitizeUser(createdUser),
+        createdUser: sanitized,
+        user: sanitized,
       },
-      "User registered successfully. Email verification link is sent to your email that is valid for 20 minutes.",
+      "User registered successfully.",
     ),
   );
 });
@@ -221,7 +251,7 @@ const resetForgotPassword = asyncHandler(async (req, res) => {
     forgotPasswordExpiry: { $gt: Date.now() },
   });
   if (!user) {
-    throw new ApiError(489, "Invalid or expired password reset token", []);
+    throw new ApiError(400, "Invalid or expired password reset token", []);
   }
   user.password = newPassword;
   user.forgotPasswordToken = undefined;

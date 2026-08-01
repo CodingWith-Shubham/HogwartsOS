@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DashboardShimmer } from '@/components/shared/ShimmerLoader';
-import { Loader2, Plus, Wallet, FileText, CheckCircle, Clock, Video, FileAudio, Users, Briefcase, Handshake, MonitorPlay, Camera, FileCheck, AlertCircle, ArrowRight, TrendingUp, IndianRupee, Zap, Timer } from 'lucide-react';
+import { Loader2, Plus, Wallet, FileText, CheckCircle, Clock, Video, FileAudio, Users, Briefcase, Handshake, MonitorPlay, Camera, FileCheck, AlertCircle, ArrowRight, TrendingUp, IndianRupee, Zap, Timer, Layers } from 'lucide-react';
 import { CorrectionsVsRevisionsWidget } from '@/components/dashboard/CorrectionsVsRevisionsWidget';
 import { formatINR, formatDate, titleCase } from '@/lib/formatter';
 import {

@@ -23,7 +23,6 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { formatINR, formatDate } from '@/lib/formatter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { CorrectionsPanel } from '@/components/manager/CorrectionsPanel';
 import { useWorkflow } from '@/hooks/use-workflow';
 import { useAuth } from '@/lib/auth-context';
 import type { EditingProject, Lead, Shoot } from '@/lib/sheets/types';
@@ -474,6 +473,20 @@ export default function ManagerPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to submit feedback');
+
+      // Silently log a correction for tracking manager-to-editor feedback vs revisions
+      await authFetch('/api/corrections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: feedbackTask.leadId || feedbackTask.editId,
+          editingTaskId: feedbackTask.editId,
+          editorId: feedbackTask.editorEmail || '',
+          editorName: feedbackTask.editorName || '',
+          note: feedbackText.trim()
+        })
+      }).catch(err => console.error('Failed to log correction', err));
+
       toast.success('Feedback submitted to editor!');
       setFeedbackTask(null);
       setFeedbackText('');
@@ -736,14 +749,6 @@ export default function ManagerPage() {
                             <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
                               Send to Client
                             </Button>
-                          </div>
-                          <div className="w-full lg:col-span-3 mt-2">
-                            <CorrectionsPanel 
-                              projectId={edit.leadId || edit.editId}
-                              editingTaskId={edit.editId}
-                              editorName={edit.editorName || ''}
-                              editorId={edit.editorEmail || ''}
-                            />
                           </div>
                         </div>
                       ))}

@@ -11,6 +11,8 @@ import paymentRouter from './routes/payment.routes.js';
 import editingRouter from './routes/editing.routes.js';
 import realtimeRouter from './routes/realtime.routes.js';
 import attendanceRouter from './routes/attendance.routes.js';
+import correctionRouter from './routes/correction.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
 
 import errorHandler from './utils/error-handler.js';
 import { ApiError } from './utils/api-error.js';
@@ -38,6 +40,8 @@ app.use('/api/v1/payments', paymentRouter);
 app.use('/api/v1/editing', editingRouter);
 app.use('/api/v1/realtime-data', realtimeRouter);
 app.use('/api/v1/attendance', attendanceRouter);
+app.use('/api/v1/corrections', correctionRouter);
+app.use('/api/v1/dashboard', dashboardRouter);
 
 app.get('/', (req, res) => {
     res.json({ message: 'Hogwarts Studio CRM Backend API Running' });

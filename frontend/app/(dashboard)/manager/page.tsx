@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { formatINR, formatDate } from '@/lib/formatter';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { CorrectionsPanel } from '@/components/manager/CorrectionsPanel';
 import { useWorkflow } from '@/hooks/use-workflow';
 import { useAuth } from '@/lib/auth-context';
 import type { EditingProject, Lead, Shoot } from '@/lib/sheets/types';
@@ -735,6 +737,14 @@ export default function ManagerPage() {
                               Send to Client
                             </Button>
                           </div>
+                          <div className="w-full lg:col-span-3 mt-2">
+                            <CorrectionsPanel 
+                              projectId={edit.leadId || edit.editId}
+                              editingTaskId={edit.editId}
+                              editorName={edit.editorName || ''}
+                              editorId={edit.editorEmail || ''}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1086,14 +1096,37 @@ export default function ManagerPage() {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="manager-feedback">Feedback</Label>
-                <Textarea
-                  id="manager-feedback"
-                  value={feedbackText}
-                  onChange={(e) => setFeedbackText(e.target.value)}
-                  placeholder="What needs to be changed?"
-                  rows={4}
-                  required
-                />
+                  <Textarea
+                    id="manager-feedback"
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    onFocus={(e) => {
+                      if (e.target.value === '') setFeedbackText('• ');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const target = e.target as HTMLTextAreaElement;
+                        const start = target.selectionStart;
+                        const val = target.value;
+                        const before = val.substring(0, start);
+                        const after = val.substring(target.selectionEnd);
+                        
+                        if (val.trim() === '') {
+                          setFeedbackText('• ');
+                        } else {
+                          let newText = before + '\n• ' + after;
+                          if (!before.startsWith('• ') && before.trim().length > 0 && before.indexOf('\n') === -1) {
+                            newText = '• ' + before + '\n• ' + after;
+                          }
+                          setFeedbackText(newText);
+                        }
+                      }
+                    }}
+                    placeholder="• What needs to be changed?"
+                    rows={6}
+                    required
+                  />
               </div>
             </div>
             <DialogFooter>

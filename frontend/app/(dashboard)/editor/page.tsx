@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import { postWebhook } from '@/lib/editing';
@@ -46,6 +47,7 @@ export default function EditorPage() {
   const [activeTab, setActiveTab] = useState('assigned');
   const [draftLinks, setDraftLinks] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [checkedFeedback, setCheckedFeedback] = useState<Record<string, Set<number>>>({});
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.email) return;
@@ -86,6 +88,16 @@ export default function EditorPage() {
   const updateStatus = async (task: EditingTask, status: string, includeDraft = false) => {
     const draft_link = draftLinks[task.task_id]?.trim();
     if (includeDraft && !draft_link) { toast.error('Add a draft link first'); return; }
+
+    if (status === 'Draft Sent' && task.managerComment) {
+      const requiredChecks = task.managerComment.split('\n').filter(l => l.trim().length > 0).length;
+      const checkedCount = checkedFeedback[task.task_id]?.size || 0;
+      if (checkedCount < requiredChecks) {
+        toast.error('Please check off all manager feedback points before submitting the new draft.');
+        return;
+      }
+    }
+
     setSaving(task.task_id);
     try {
       const response = await authFetch('/api/editing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId: task.task_id, status, ...(includeDraft ? { draftLink: draft_link } : {}) }) });
@@ -113,9 +125,53 @@ export default function EditorPage() {
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
       {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
-      {task.managerComment && <details className="rounded-md border border-border p-2 text-sm"><summary className="cursor-pointer font-medium">Manager comment</summary><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{task.managerComment}</p></details>}
+      {task.managerComment && (
+        <details className="rounded-md border border-border p-2 text-sm" open={task.status === 'In Revision'}>
+          <summary className="cursor-pointer font-medium">Manager feedback</summary>
+          <div className="mt-2 space-y-2">
+            {task.managerComment.split('\n').filter(l => l.trim().length > 0).map((line, idx) => {
+              const text = line.replace(/^•\s*/, '');
+              const isChecked = checkedFeedback[task.task_id]?.has(idx) || false;
+              return (
+                <div key={idx} className="flex items-start gap-2">
+                  <Checkbox 
+                    id={`${task.task_id}-fb-${idx}`}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => {
+                      setCheckedFeedback(prev => {
+                        const next = new Set(prev[task.task_id] || []);
+                        if (checked) next.add(idx);
+                        else next.delete(idx);
+                        return { ...prev, [task.task_id]: next };
+                      });
+                    }}
+                  />
+                  <label htmlFor={`${task.task_id}-fb-${idx}`} className="text-muted-foreground leading-snug cursor-pointer select-none">
+                    {text}
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
-      {['In Progress', 'In Revision'].includes(task.status) && <div className="space-y-2 border-t border-border pt-3"><Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." /><Button size="sm" onClick={() => updateStatus(task, 'Draft Sent', true)} disabled={saving === task.task_id}><Send className="mr-1.5 h-3.5 w-3.5" />{task.status === 'In Revision' ? 'Upload Revised Draft' : 'Upload Draft Link'}</Button></div>}
+      {['In Progress', 'In Revision'].includes(task.status) && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." />
+          <Button 
+            size="sm" 
+            onClick={() => updateStatus(task, 'Draft Sent', true)} 
+            disabled={saving === task.task_id || Boolean(
+              task.managerComment && 
+              (checkedFeedback[task.task_id]?.size || 0) < task.managerComment.split('\n').filter(l => l.trim().length > 0).length
+            )}
+          >
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            {task.status === 'In Revision' ? 'Upload Revised Draft' : 'Upload Draft Link'}
+          </Button>
+        </div>
+      )}
       {task.status === 'Delivered' && <p className="flex items-center gap-1.5 text-sm text-green-600"><CheckCircle className="h-4 w-4" />Completed</p>}
     </CardContent></Card>
   );

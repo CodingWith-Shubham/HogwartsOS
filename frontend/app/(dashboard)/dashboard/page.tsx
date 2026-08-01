@@ -9,10 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DashboardShimmer } from '@/components/shared/ShimmerLoader';
-import {
-  Wallet, Briefcase, Camera, FileCheck, AlertCircle, ArrowRight, Plus, TrendingUp,
-  IndianRupee, Clock, Video, Layers, Users, Zap, Timer,
-} from 'lucide-react';
+import { Loader2, Plus, Wallet, FileText, CheckCircle, Clock, Video, FileAudio, Users, Briefcase, Handshake, MonitorPlay, Camera, FileCheck, AlertCircle, ArrowRight, TrendingUp, IndianRupee, Zap, Timer } from 'lucide-react';
+import { CorrectionsVsRevisionsWidget } from '@/components/dashboard/CorrectionsVsRevisionsWidget';
 import { formatINR, formatDate, titleCase } from '@/lib/formatter';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -117,7 +115,6 @@ export default function DashboardPage() {
   const shootMetrics = realtimeData?.analytics?.shootMetrics;
   const editingMetrics = realtimeData?.analytics?.editingMetrics;
 
-  // Editing pipeline display config
   const editingPipeline = editingMetrics
     ? [
         { label: 'Not Started', value: editingMetrics.notStarted, color: '#8B949E', bg: 'rgba(139,148,158,0.15)' },
@@ -141,8 +138,12 @@ export default function DashboardPage() {
         <StatCard title="Active Projects" value={activeProjects} icon={Briefcase} />
         <StatCard title="Today's Shoots" value={todayShootsCount} icon={Camera} />
         <StatCard title="Pending Reviews" value={pendingReviews} icon={FileCheck} />
-        <StatCard title="Pending Payments" value={pendingPayments} icon={AlertCircle} />
-        <StatCard title="Editors Busy" value={`${busyEditors}/${totalEditors}`} icon={TrendingUp} />
+        <StatCard title="Ready for Review" value={editingMetrics ? editingMetrics.sharedForReview : 0} icon={FileText} trend={{ value: '-2%', positive: false }} />
+        <StatCard title="Active Editors" value={editingMetrics ? editingMetrics.activeEditors : 0} icon={Users} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <CorrectionsVsRevisionsWidget />
       </div>
 
       {/* ── Revenue chart + Pipeline ─────────────────────────────────────── */}

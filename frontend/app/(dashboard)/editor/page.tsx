@@ -126,7 +126,7 @@ export default function EditorPage() {
       {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
       {task.managerComment && (
-        <details className="rounded-md border border-border p-2 text-sm" open={task.status === 'In Revision'}>
+        <details className="rounded-md border border-border p-2 text-sm" defaultOpen={task.status === 'In Revision'}>
           <summary className="cursor-pointer font-medium">Manager feedback</summary>
           <div className="mt-2 space-y-2">
             {task.managerComment.split('\n').filter(l => l.trim().length > 0).map((line, idx) => {
@@ -197,7 +197,7 @@ export default function EditorPage() {
             </AccordionTrigger>
             <AccordionContent className="p-4 pt-2 border-t">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {clientTasks.map((task) => <TaskCard key={task.task_id} task={task} />)}
+                {clientTasks.map((task) => TaskCard({ task }))}
               </div>
             </AccordionContent>
           </AccordionItem>

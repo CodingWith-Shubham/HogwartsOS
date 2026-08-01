@@ -405,32 +405,36 @@ export default function ManagerPage() {
       
       activeServices.forEach((field) => {
         const splits = serviceAssignments[field.key] || [];
+        let globalIndex = 1;
         splits.forEach((split) => {
           const editor = editors.find(e => e.name === split.editorName);
           for (let i = 0; i < split.quantity; i++) {
             tasks.push({
               task_type: field.taskType,
               quantity: 1,
-              task_label: `${field.label}${split.quantity > 1 || splits.length > 1 ? ` (${i + 1})` : ''}`,
+              task_label: `${field.label} #${globalIndex}`,
               editor_name: editor?.name ?? '',
               editor_email: editor?.email ?? ''
             });
+            globalIndex++;
           }
         });
       });
 
       if (additionalQuantity > 0) {
         const splits = serviceAssignments['additionalProduct'] || [];
+        let globalIndex = 1;
         splits.forEach((split) => {
           const editor = editors.find(e => e.name === split.editorName);
           for (let i = 0; i < split.quantity; i++) {
             tasks.push({
               task_type: 'additional_product',
               quantity: 1,
-              task_label: `${assignForm.additionalProduct || 'Additional Product'}${split.quantity > 1 || splits.length > 1 ? ` (${i + 1})` : ''}`,
+              task_label: `${assignForm.additionalProduct || 'Additional Product'} #${globalIndex}`,
               editor_name: editor?.name ?? '',
               editor_email: editor?.email ?? ''
             });
+            globalIndex++;
           }
         });
       }

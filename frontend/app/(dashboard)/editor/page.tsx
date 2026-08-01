@@ -23,6 +23,7 @@ type EditingTask = {
   data_link: string; assigned_to_name: string; status: string; draft_link: string;
   managerComment: string; deadline_at: string; final_delivered: string;
   revision_count?: string;
+  revisions?: any[];
 };
 
 const statusClass: Record<string, string> = {
@@ -59,7 +60,8 @@ export default function EditorPage() {
       const mapped = (data.tasks || []).map((t: any) => ({
         task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
-        managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
+        managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0',
+        revisions: (data.revisions || []).filter((r: any) => r.projectId === t.editId).sort((a: any, b: any) => b.revisionRound - a.revisionRound)
       })).filter((t: any) => {
         if (user?.role === 'manager' || user?.role === 'admin') return true;
         const tEmail = t.assigned_to_email?.trim().toLowerCase();
@@ -104,7 +106,7 @@ export default function EditorPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to update task');
       
-      if (status === 'Draft Sent' && draft_link) {
+      if (status === 'Draft Ready' && draft_link) {
         await postWebhook('/draft-ready', {
           edit_id: task.edit_id,
           draft_link: draft_link,
@@ -155,13 +157,27 @@ export default function EditorPage() {
           </div>
         </details>
       )}
+      {task.revisions && task.revisions.length > 0 && (
+        <div className="space-y-2 mt-2">
+          {task.revisions.map((rev: any, index: number) => (
+            <details key={rev.id || index} className="rounded-md border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10 p-2 text-sm" open={task.status === 'In Revision' && index === 0}>
+              <summary className="cursor-pointer font-medium text-orange-700 dark:text-orange-400">
+                Client Feedback (Round {rev.revisionRound})
+              </summary>
+              <div className="mt-2 space-y-2 text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {rev.feedback || 'No feedback text provided.'}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
       {['In Progress', 'In Revision'].includes(task.status) && (
         <div className="space-y-2 border-t border-border pt-3">
           <Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." />
           <Button 
             size="sm" 
-            onClick={() => updateStatus(task, 'Draft Sent', true)} 
+            onClick={() => updateStatus(task, 'Draft Ready', true)} 
             disabled={saving === task.task_id || Boolean(
               task.managerComment && 
               (checkedFeedback[task.task_id]?.size || 0) < task.managerComment.split('\n').filter(l => l.trim().length > 0).length

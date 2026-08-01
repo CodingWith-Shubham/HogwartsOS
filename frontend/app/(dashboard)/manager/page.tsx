@@ -523,6 +523,14 @@ export default function ManagerPage() {
         revision_count: edit.revisionCount,
         assigned_salesperson_email: findAssignedSalespersonEmail(edit, leads),
       });
+
+      // Update the status in the database so it persists across refreshes
+      await authFetch('/api/editing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: edit.editId, status: 'Draft Sent' })
+      });
+
       toast.success('Draft sent to client!');
       setEditing((prev) =>
         prev.map((item) => (item.editId === edit.editId ? { ...item, status: 'Draft Sent' } : item))
@@ -587,7 +595,7 @@ export default function ManagerPage() {
     [editing, shoots]
   );
   const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress'].includes(edit.status));
-  const draftReady = editing.filter((edit) => edit.status === 'Draft Ready' || edit.status === 'Draft Sent');
+  const draftReady = editing.filter((edit) => edit.status === 'Draft Ready');
   const extraRevisionNeeded = editing.filter(isExtraRevisionNeeded);
 
   if (loading) {

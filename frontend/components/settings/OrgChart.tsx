@@ -54,25 +54,31 @@ export function OrgChart({ employees }: OrgChartProps) {
     </div>
   );
 
-  const renderDepartments = () => (
-    <>
-      {sales.length > 0 && (
-        <TreeNode label={<DepartmentHeading title="Sales Team" count={sales.length} colorClass="text-purple-600 border-purple-500/30 bg-purple-500/10" />}>
+  const renderDepartments = () => {
+    const nodes = [];
+    if (sales.length > 0) {
+      nodes.push(
+        <TreeNode key="sales" label={<DepartmentHeading title="Sales Team" count={sales.length} colorClass="text-purple-600 border-purple-500/30 bg-purple-500/10" />}>
           {sales.map(emp => <TreeNode key={emp.id || emp._id} label={<StyledNode employee={emp} />} />)}
         </TreeNode>
-      )}
-      {editors.length > 0 && (
-        <TreeNode label={<DepartmentHeading title="Creative Editors" count={editors.length} colorClass="text-blue-600 border-blue-500/30 bg-blue-500/10" />}>
+      );
+    }
+    if (editors.length > 0) {
+      nodes.push(
+        <TreeNode key="editors" label={<DepartmentHeading title="Creative Editors" count={editors.length} colorClass="text-blue-600 border-blue-500/30 bg-blue-500/10" />}>
           {editors.map(emp => <TreeNode key={emp.id || emp._id} label={<StyledNode employee={emp} />} />)}
         </TreeNode>
-      )}
-      {shoots.length > 0 && (
-        <TreeNode label={<DepartmentHeading title="Production / Shoot" count={shoots.length} colorClass="text-orange-600 border-orange-500/30 bg-orange-500/10" />}>
+      );
+    }
+    if (shoots.length > 0) {
+      nodes.push(
+        <TreeNode key="shoots" label={<DepartmentHeading title="Production / Shoot" count={shoots.length} colorClass="text-orange-600 border-orange-500/30 bg-orange-500/10" />}>
           {shoots.map(emp => <TreeNode key={emp.id || emp._id} label={<StyledNode employee={emp} />} />)}
         </TreeNode>
-      )}
-    </>
-  );
+      );
+    }
+    return nodes;
+  };
 
   return (
     <Card className="w-full overflow-hidden p-6 border border-border/80 bg-card/40 backdrop-blur-md shadow-lg flex justify-center">

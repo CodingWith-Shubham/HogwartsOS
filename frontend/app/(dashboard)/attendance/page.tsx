@@ -125,20 +125,28 @@ export default function AttendancePage() {
   const [employeeSummaries, setEmployeeSummaries] = useState<any[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(false);
 
-  const fetchSummaries = async () => {
+  const fetchSummaries = useCallback(async () => {
     setLoadingSummaries(true);
     try {
       const res = await authFetch('/api/attendance?action=summary');
       const data = await res.json();
       if (res.ok && Array.isArray(data.summaries)) {
         setEmployeeSummaries(data.summaries);
+      } else if (res.ok && Array.isArray(data)) {
+        setEmployeeSummaries(data);
       }
     } catch (e) {
       toast.error('Failed to load employee summaries');
     } finally {
       setLoadingSummaries(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user?.role === 'manager') {
+      fetchSummaries();
+    }
+  }, [user, fetchSummaries]);
 
   // Live Digital Clock
   useEffect(() => {
@@ -744,7 +752,21 @@ export default function AttendancePage() {
                                 {Object.entries(summary.months).reverse().map(([month, stats]: [string, any]) => (
                                   <AccordionItem key={month} value={month}>
                                     <AccordionTrigger className="text-base font-semibold">
-                                      {new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                      <div className="flex items-center justify-between w-full pr-4">
+                                        <span>{new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                                        <Badge 
+                                          variant="outline" 
+                                          className={
+                                            (stats.attendancePercentage || 0) >= 85 
+                                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+                                              : (stats.attendancePercentage || 0) >= 70 
+                                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20" 
+                                              : "bg-red-500/10 text-red-500 border-red-500/20"
+                                          }
+                                        >
+                                          {stats.attendancePercentage || 0}% Attendance
+                                        </Badge>
+                                      </div>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-2">

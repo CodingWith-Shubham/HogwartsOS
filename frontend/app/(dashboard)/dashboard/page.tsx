@@ -133,12 +133,6 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Operational overview of all active productions"
-        actions={
-          <Button size="sm">
-            <Plus className="mr-1.5 h-4 w-4" />
-            New Lead
-          </Button>
-        }
       />
 
       {/* ── Top-level stat cards ─────────────────────────────────────────── */}

@@ -223,7 +223,34 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
         }
     }
 
-    const summaries = Object.values(summaryMap);
+    const getWorkingDaysInMonth = (year, month) => {
+        let date = new Date(year, month, 1);
+        let workingDays = 0;
+        while (date.getMonth() === month) {
+            if (date.getDay() !== 0) workingDays++; // excluding Sunday
+            date.setDate(date.getDate() + 1);
+        }
+        return workingDays;
+    };
+
+    const summaries = Object.values(summaryMap).map(employee => {
+        for (const [yearMonth, stats] of Object.entries(employee.months)) {
+            const [yearStr, monthStr] = yearMonth.split('-');
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10) - 1; 
+            
+            const workingDays = getWorkingDaysInMonth(year, month);
+            stats.totalWorkingDays = workingDays;
+            
+            const presentDays = (stats.Present || 0) + (stats.Late || 0) + ((stats["Half-day"] || 0) * 0.5);
+            let percentage = 0;
+            if (workingDays > 0) {
+                percentage = Math.round((presentDays / workingDays) * 100);
+            }
+            stats.attendancePercentage = percentage;
+        }
+        return employee;
+    });
 
     return res.status(200).json(new ApiResponse(200, { summaries }, "Attendance summaries retrieved successfully"));
 });

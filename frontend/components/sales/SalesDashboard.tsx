@@ -1430,24 +1430,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const renderFinalPaymentAction = (lead: Lead) => {
-    if (isFinalPaymentCompleted(lead)) return null;
-
-    const isCompleting = completingFinalPaymentId === lead.leadId;
-
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={isCompleting}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleFinalPaymentCompleted(lead);
-        }}
-      >
-        {isCompleting && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-        Final Payment Completed ✓
-      </Button>
-    );
+    return null;
   };
 
   const renderStatusCell = (lead: Lead) => (
@@ -1617,7 +1600,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="verify">Verify Editor Work</TabsTrigger>
         </TabsList>
 
         <TabsContent value="leads" className="mt-4 space-y-4">
@@ -1755,114 +1737,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           <SalesCalendar shoots={shoots} />
         </TabsContent>
 
-        <TabsContent value="verify" className="mt-4 space-y-4">
-          {extraRevisionNeeded.length > 0 && (
-            <Card className="border-amber-500/30 bg-amber-500/5">
-              <CardHeader>
-                <CardTitle className="text-base">Extra Revision Needed</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {extraRevisionNeeded.map((edit) => (
-                  <div key={edit.editId} className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
-                    <div className="grid gap-3 lg:grid-cols-[1fr_150px_180px_auto] lg:items-center">
-                      <div>
-                        <p className="font-medium">{edit.clientName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Revision {edit.revisionCount}/{edit.maxFreeRevisions} used
-                        </p>
-                      </div>
-                      <Badge className="w-fit border-amber-500/40 bg-amber-500/15 text-amber-600">Needs quote</Badge>
-                      <Input
-                        type="number"
-                        min="0"
-                        placeholder="Extra cost"
-                        value={extraCosts[edit.editId] ?? edit.extraRevisionCost}
-                        onChange={(event) =>
-                          setExtraCosts((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                        }
-                      />
-                      <Button size="sm" onClick={() => approveExtraRevision(edit)} disabled={approvingExtraId === edit.editId}>
-                        Confirm Extra Revision
-                      </Button>
-                    </div>
-                    <div className="space-y-1.5 border-t border-amber-500/10 pt-2.5">
-                      <Label htmlFor={`extra-feedback-${edit.editId}`} className="text-xs font-semibold text-muted-foreground">Changes Required (Hand over to Editor)</Label>
-                      <Textarea
-                        id={`extra-feedback-${edit.editId}`}
-                        placeholder="Describe the changes needed..."
-                        rows={2}
-                        value={extraFeedback[edit.editId] ?? ''}
-                        onChange={(event) =>
-                          setExtraFeedback((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                        }
-                        className="text-xs bg-background"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Drafts Ready for Client</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {draftReadyEdits.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No editor drafts ready right now.</p>
-              ) : (
-                draftReadyEdits.map((edit) => (
-                  <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1.2fr_1fr_1fr_auto] lg:items-center">
-                    <div>
-                      <p className="text-sm font-medium">{edit.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Deadline: {edit.deadlineAt || '-'}</p>
-                    <Button variant="outline" size="sm" asChild disabled={!edit.currentDraftLink}>
-                      <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
-                        View Draft <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                      </a>
-                    </Button>
-                    <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
-                      Send to Client
-                    </Button>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Delivered Handover Notes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {deliveredEdits.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No delivered projects awaiting handover notes.</p>
-              ) : (
-                deliveredEdits.map((edit) => (
-                  <div key={edit.editId} className="grid gap-3 rounded-md border border-border p-3 lg:grid-cols-[1fr_2fr_auto] lg:items-center">
-                    <div>
-                      <p className="text-sm font-medium">{edit.clientName}</p>
-                      <p className="text-xs text-muted-foreground">{edit.serviceType || 'Delivered project'}</p>
-                    </div>
-                    <Input
-                      placeholder="Handover notes"
-                      value={handoverNotes[edit.editId] ?? edit.handoverToClient}
-                      onChange={(event) =>
-                        setHandoverNotes((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                      }
-                    />
-                    <Button size="sm" onClick={() => updateHandover(edit)} disabled={handoverId === edit.editId}>
-                      Save Handover
-                    </Button>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>

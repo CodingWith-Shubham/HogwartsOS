@@ -8,19 +8,40 @@ const getEditingData = asyncHandler(async (req, res) => {
     const taskFilter = {};
     if (req.query.editorEmail) taskFilter.assignedToEmail = req.query.editorEmail;
 
-    const editProjects = await EditProject.find({}).sort({ createdAt: -1 });
-    const editingTasks = await EditingTask.find(taskFilter).sort({ createdAt: -1 });
-    const revisions = await Revision.find({}).sort({ createdAt: -1 });
+    let editProjects = await EditProject.find({}).sort({ createdAt: -1 });
+    let editingTasks = await EditingTask.find(taskFilter).sort({ createdAt: -1 });
+    let revisions = await Revision.find({}).sort({ createdAt: -1 });
+
+    const user = req.user;
+    if (user && user.role === 'editor') {
+        const uemail = user.email?.trim().toLowerCase();
+        const uname = user.name?.trim().toLowerCase();
+        
+        editingTasks = editingTasks.filter(task => {
+            const email = (task.assignedToEmail || '').trim().toLowerCase();
+            const name = (task.assignedToName || '').trim().toLowerCase();
+            return email === uemail || name === uname;
+        });
+        
+        editProjects = editProjects.filter(project => {
+            const email = (project.editorEmail || '').trim().toLowerCase();
+            const name = (project.editorName || '').trim().toLowerCase();
+            return email === uemail || name === uname;
+        });
+        
+        const allowedProjectIds = new Set(editProjects.map(p => p.editId));
+        revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
+    }
 
     const formattedProjects = editProjects.map(p => {
-        const obj = p.toObject();
-        obj.id = p._id.toString();
+        const obj = p.toObject ? p.toObject() : p;
+        obj.id = p._id ? p._id.toString() : obj._id;
         return obj;
     });
 
     const formattedTasks = editingTasks.map(t => {
-        const obj = t.toObject();
-        obj.id = t._id.toString();
+        const obj = t.toObject ? t.toObject() : t;
+        obj.id = t._id ? t._id.toString() : obj._id;
         return obj;
     });
 

@@ -39,4 +39,18 @@ const updateUser = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { user: sanitizeUser(user) }, "User updated successfully"));
 });
 
-export { getAllUsers, updateUser };
+const deleteUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    
+    const query = mongoose.isValidObjectId(id) ? { _id: id } : { empId: id };
+    
+    const user = await User.findOneAndDelete(query);
+    
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+    
+    return res.status(200).json(new ApiResponse(200, null, "User deleted successfully"));
+});
+
+export { getAllUsers, updateUser, deleteUser };

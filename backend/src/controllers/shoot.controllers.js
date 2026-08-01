@@ -35,10 +35,25 @@ const getShoots = asyncHandler(async (req, res) => {
     if (req.query.shootId)   filter.shootId   = req.query.shootId;
     if (req.query.shootDate) filter.shootDate = req.query.shootDate;
 
-    const shoots = await Shoot.find(filter).sort({ createdAt: -1 });
+    let shoots = await Shoot.find(filter).sort({ createdAt: -1 });
+
+    const user = req.user;
+    if (user && user.role === 'shoot') {
+        const uemail = user.email?.trim().toLowerCase();
+        const uname = user.name?.trim().toLowerCase();
+        
+        shoots = shoots.filter(shoot => {
+            const memberEmail = (shoot.shootMemberEmail || '').trim().toLowerCase();
+            const memberName = (shoot.shootMemberName || '').trim().toLowerCase();
+            const assignedTo = (shoot.assignedTo || '').trim().toLowerCase();
+            
+            return memberEmail === uemail || memberName === uname || assignedTo === uname || assignedTo === uemail;
+        });
+    }
+
     const formatted = shoots.map(s => {
-        const obj = s.toObject();
-        obj.id = s._id.toString();
+        const obj = s.toObject ? s.toObject() : s;
+        obj.id = s._id ? s._id.toString() : obj._id;
         if (obj.clientEmailId && !obj.emailId) {
             obj.emailId = obj.clientEmailId;
         }

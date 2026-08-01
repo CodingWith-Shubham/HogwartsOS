@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
-import { Loader2, Edit, UserPlus, Info, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Edit, UserPlus, Info, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -157,6 +157,34 @@ export default function SettingsPage() {
     }
   };
 
+  // Handle Employee Deletion
+  const handleDeleteEmployee = async (empId: string, empName: string) => {
+    if (!window.confirm(`Are you sure you want to delete employee ${empName}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const response = await authFetch(`/api/users/${empId}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to delete employee');
+      }
+      
+      toast.success('Employee Deleted', {
+        description: `${empName} has been successfully removed.`,
+      });
+      
+      await fetchEmployees();
+    } catch (err) {
+      toast.error('Delete failed', {
+        description: err instanceof Error ? err.message : 'Unknown error occurred',
+      });
+    }
+  };
+
   // User Management Table Columns
   const employeeColumns: Column<any>[] = [
     {
@@ -206,9 +234,14 @@ export default function SettingsPage() {
       key: 'actions',
       header: 'Actions',
       cell: (emp) => (
-        <Button variant="ghost" size="icon" onClick={() => handleEditEmployee(emp)}>
-          <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => handleEditEmployee(emp)} title="Edit Employee">
+            <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => handleDeleteEmployee(emp.id || emp._id, emp.name)} title="Delete Employee">
+            <Trash2 className="h-4 w-4 text-red-500/70 hover:text-red-500" />
+          </Button>
+        </div>
       ),
     },
   ];

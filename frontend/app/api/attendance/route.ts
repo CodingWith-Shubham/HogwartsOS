@@ -50,10 +50,14 @@ export async function POST(request: Request) {
     const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken(h);
     const body = await request.json();
-    const action = body.action || 'check-in';
+    const proxyAction = body.proxyAction || body.action || 'check-in';
 
-    const endpoint = action === 'check-out'
+    const endpoint = proxyAction === 'check-out'
       ? `${BACKEND_URL}/attendance/check-out`
+      : proxyAction === 'request-full-day'
+      ? `${BACKEND_URL}/attendance/request-full-day`
+      : proxyAction === 'approve-full-day'
+      ? `${BACKEND_URL}/attendance/approve-full-day`
       : `${BACKEND_URL}/attendance/check-in`;
 
     const res = await fetch(endpoint, {

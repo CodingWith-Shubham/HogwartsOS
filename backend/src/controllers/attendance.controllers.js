@@ -78,9 +78,82 @@ const checkOut = asyncHandler(async (req, res) => {
         lat: checkOutLocation.lat ?? null,
         lng: checkOutLocation.lng ?? null
     };
+
+    // 8.5 hours minimum check
+    // Calculate difference in hours
+    const diffMs = attendance.checkOut.getTime() - attendance.checkIn.getTime();
+    const hours = diffMs / (1000 * 60 * 60);
+
+    if (user.role !== "manager") {
+        if (hours >= 8.5) {
+            // Overwrite Late to Present? My proposal was to keep it Late if they were late, but the user didn't specify. 
+            // If they are Half-day they become Present. If they are Late, they stay Late (but full shift). If they are Present, they stay Present.
+            if (attendance.status === "Half-day" || attendance.status === "Absent") {
+                attendance.status = "Present";
+            }
+        } else {
+            // Less than 8.5 hours
+            attendance.status = "Half-day";
+        }
+    } else {
+        // Manager is always Present (or keeps their Late status)
+        if (attendance.status === "Half-day" || attendance.status === "Absent") {
+            attendance.status = "Present";
+        }
+    }
+
     await attendance.save();
 
     return res.status(200).json(new ApiResponse(200, { attendance }, "Checked out successfully"));
+});
+
+const requestFullDay = asyncHandler(async (req, res) => {
+    const user = req.user;
+    if (!user) throw new ApiError(401, "Unauthorized");
+
+    const date = req.body.date || getTodayString();
+    const attendance = await Attendance.findOne({
+        employeeEmail: user.email.toLowerCase(),
+        date
+    });
+
+    if (!attendance) throw new ApiError(404, "Attendance record not found");
+    if (attendance.status !== "Half-day") throw new ApiError(400, "You can only request a full day shift on a half-day record");
+
+    attendance.fullDayRequest = true;
+    attendance.fullDayRequestStatus = "Pending";
+    await attendance.save();
+
+    return res.status(200).json(new ApiResponse(200, { attendance }, "Full day request submitted successfully"));
+});
+
+const approveFullDayRequest = asyncHandler(async (req, res) => {
+    const user = req.user;
+    if (!user || user.role !== "manager") {
+        throw new ApiError(403, "Only Super Admins can approve requests");
+    }
+
+    const { attendanceId, action } = req.body;
+    if (!["approve", "reject"].includes(action)) {
+        throw new ApiError(400, "Invalid action");
+    }
+
+    const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) throw new ApiError(404, "Attendance record not found");
+    if (!attendance.fullDayRequest || attendance.fullDayRequestStatus !== "Pending") {
+        throw new ApiError(400, "No pending request for this record");
+    }
+
+    if (action === "approve") {
+        attendance.fullDayRequestStatus = "Approved";
+        attendance.status = "Present";
+    } else {
+        attendance.fullDayRequestStatus = "Rejected";
+        // Status remains Half-day
+    }
+
+    await attendance.save();
+    return res.status(200).json(new ApiResponse(200, { attendance }, `Request ${action}d successfully`));
 });
 
 const getMyAttendance = asyncHandler(async (req, res) => {
@@ -108,4 +181,4 @@ const getTeamAttendance = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { date, logs }, "Team attendance logs retrieved successfully"));
 });
 
-export { checkIn, checkOut, getMyAttendance, getTeamAttendance };
+export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest };

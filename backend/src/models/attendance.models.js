@@ -40,6 +40,15 @@ const attendanceSchema = new Schema({
         type: String,
         default: ""
     },
+    fullDayRequest: {
+        type: Boolean,
+        default: false
+    },
+    fullDayRequestStatus: {
+        type: String,
+        enum: ["None", "Pending", "Approved", "Rejected"],
+        default: "None"
+    },
     checkInLocation: {
         lat: { type: Number, default: null },
         lng: { type: Number, default: null }

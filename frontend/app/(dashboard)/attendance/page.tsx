@@ -33,6 +33,8 @@ interface AttendanceRecord {
   notes?: string;
   checkInLocation?: LocationCoords;
   checkOutLocation?: LocationCoords;
+  fullDayRequest?: boolean;
+  fullDayRequestStatus?: 'None' | 'Pending' | 'Approved' | 'Rejected';
 }
 
 // ─── Geolocation Helper ───────────────────────────────────────────────────────
@@ -255,6 +257,44 @@ export default function AttendancePage() {
     }
   };
 
+  const handleRequestFullDay = async (date: string) => {
+    try {
+      const res = await authFetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request-full-day', date }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Request submitted!');
+        fetchAttendance();
+      } else {
+        toast.error(data.error || 'Request failed');
+      }
+    } catch (e) {
+      toast.error('Network error submitting request');
+    }
+  };
+
+  const handleApproveFullDay = async (attendanceId: string, action: 'approve' | 'reject') => {
+    try {
+      const res = await authFetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proxyAction: 'approve-full-day', attendanceId, action }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Request ${action}d successfully`);
+        fetchTeamAttendance(selectedDate);
+      } else {
+        toast.error(data.error || `Failed to ${action} request`);
+      }
+    } catch (e) {
+      toast.error(`Network error attempting to ${action} request`);
+    }
+  };
+
   const formatTime = (iso?: string) => {
     if (!iso) return '--:--';
     return new Date(iso).toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
@@ -430,6 +470,7 @@ export default function AttendancePage() {
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>GPS</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -486,6 +527,31 @@ export default function AttendancePage() {
                             </>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {record.status === 'Half-day' && record.checkOut && (
+                            <>
+                              {(!record.fullDayRequest || record.fullDayRequestStatus === 'None') && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 text-xs border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
+                                  onClick={() => handleRequestFullDay(record.date)}
+                                >
+                                  Request Full Day
+                                </Button>
+                              )}
+                              {record.fullDayRequestStatus === 'Pending' && (
+                                <span className="text-xs text-amber-400">Request Pending</span>
+                              )}
+                              {record.fullDayRequestStatus === 'Rejected' && (
+                                <span className="text-xs text-red-400">Request Rejected</span>
+                              )}
+                            </>
+                          )}
+                          {record.fullDayRequestStatus === 'Approved' && (
+                            <span className="text-xs text-emerald-400">Full Day Approved</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -532,6 +598,7 @@ export default function AttendancePage() {
                     <TableHead className="text-purple-400">
                       <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Check-Out GPS</span>
                     </TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -567,6 +634,29 @@ export default function AttendancePage() {
                         </TableCell>
                         <TableCell>
                           <LocationCell loc={log.checkOutLocation} />
+                        </TableCell>
+                        <TableCell>
+                          {log.fullDayRequest && log.fullDayRequestStatus === 'Pending' ? (
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => handleApproveFullDay(log._id!, 'approve')}
+                              >
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                className="h-7 text-xs"
+                                onClick={() => handleApproveFullDay(log._id!, 'reject')}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

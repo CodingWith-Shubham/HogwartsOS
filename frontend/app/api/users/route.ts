@@ -5,15 +5,15 @@ import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const currentUser = getAuthenticatedUser();
+export async function GET(request: Request) {
+  const currentUser = getAuthenticatedUser(request.headers);
   if (!currentUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken();
+    const token = getAccessToken(request.headers);
     const res = await fetch(`${BACKEND_URL}/users`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -34,7 +34,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const currentUser = getAuthenticatedUser();
+    const currentUser = getAuthenticatedUser(request.headers);
     if (!currentUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken();
+    const token = getAccessToken(request.headers);
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/auth/register`, {
       method: 'POST',
@@ -57,7 +57,8 @@ export async function POST(request: Request) {
 
     const data = await res.json();
     if (res.ok && data.success) {
-      return NextResponse.json({ success: true, user: data.data.createdUser }, { status: 201 });
+      const created = data.data?.createdUser || data.data?.user;
+      return NextResponse.json({ success: true, user: created }, { status: 201 });
     }
     return NextResponse.json({ error: data.message || 'Failed to create user' }, { status: res.status });
   } catch (error) {
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const currentUser = getAuthenticatedUser();
+    const currentUser = getAuthenticatedUser(request.headers);
     if (!currentUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -78,7 +79,7 @@ export async function PUT(request: Request) {
     }
 
     const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken();
+    const token = getAccessToken(request.headers);
     const body = await request.json();
     const id = String(body.id ?? body._id ?? '').trim();
 

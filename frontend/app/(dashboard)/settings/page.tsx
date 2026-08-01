@@ -126,7 +126,7 @@ export default function SettingsPage() {
         throw new Error('Password is required for new employees');
       }
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -138,7 +138,7 @@ export default function SettingsPage() {
       }
 
       toast.success(editingEmployee ? 'Employee Updated' : 'Employee Created', {
-        description: editingEmployee ? 'Employee details saved in Google Sheets' : 'New employee profile added to Google Sheets',
+        description: editingEmployee ? 'Employee details saved successfully' : 'New employee profile added successfully',
       });
 
       setSheetOpen(false);

@@ -2,19 +2,27 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Film, Loader2, Sparkles, Lock, Mail } from 'lucide-react';
+import { Film, Loader2, Sparkles, Lock, Mail, ArrowLeft, CheckCircle2, KeyRound } from 'lucide-react';
 import { SESSION_KEY } from '@/lib/auth';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Forgot password modal / view state
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
+  const [forgotSuccessMessage, setForgotSuccessMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +41,42 @@ export default function LoginPage() {
         }
       }
       router.replace('/dashboard');
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+    setIsSubmittingForgot(true);
+    setForgotSuccessMessage('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setForgotSuccessMessage(data.message || 'Password reset link has been sent to your email.');
+        toast.success('Reset Link Sent', {
+          description: 'Check your inbox for password reset instructions.',
+        });
+      } else {
+        toast.error('Request Failed', {
+          description: data.error || 'Failed to send reset link',
+        });
+      }
+    } catch (err) {
+      toast.error('Request Failed', {
+        description: 'Failed to connect to authentication server',
+      });
+    } finally {
+      setIsSubmittingForgot(false);
     }
   };
 
@@ -62,65 +106,179 @@ export default function LoginPage() {
         <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden">
           <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-violet-500 to-indigo-500" />
           <CardContent className="p-6 md:p-8 space-y-6">
-            <div className="space-y-1 text-center">
-              <h2 className="text-xl font-semibold text-slate-100">Welcome back</h2>
-              <p className="text-sm text-slate-400">Sign in with your employee email credentials</p>
-            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  Email Address
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@hogwartsstudios.com"
-                    className="pl-10 bg-slate-950/50 border-slate-800 text-slate-200 focus-visible:ring-violet-500 focus-visible:border-violet-500 placeholder:text-slate-600 rounded-lg h-11"
-                    autoComplete="email"
-                    required
-                  />
+            {!isForgotModalOpen ? (
+              <>
+                <div className="space-y-1 text-center">
+                  <h2 className="text-xl font-semibold text-slate-100">Welcome back</h2>
+                  <p className="text-sm text-slate-400">Sign in with your employee email credentials</p>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="pl-10 bg-slate-950/50 border-slate-800 text-slate-200 focus-visible:ring-violet-500 focus-visible:border-violet-500 placeholder:text-slate-600 rounded-lg h-11"
-                    autoComplete="current-password"
-                    required
-                  />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Email Address
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@hogwartsstudios.com"
+                        className="pl-10 bg-slate-950/50 border-slate-800 text-slate-200 focus-visible:ring-violet-500 focus-visible:border-violet-500 placeholder:text-slate-600 rounded-lg h-11"
+                        autoComplete="email"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Password
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setIsForgotModalOpen(true);
+                          setForgotSuccessMessage('');
+                        }}
+                        className="text-xs font-medium text-amber-400 hover:text-amber-300 hover:underline transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                      <Input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="pl-10 bg-slate-950/50 border-slate-800 text-slate-200 focus-visible:ring-violet-500 focus-visible:border-violet-500 placeholder:text-slate-600 rounded-lg h-11"
+                        autoComplete="current-password"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 rounded-lg bg-gradient-to-r from-amber-500 to-violet-600 hover:from-amber-600 hover:to-violet-700 text-slate-950 hover:text-slate-900 font-semibold shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 transition-all duration-200 mt-2"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
+                        Signing in...
+                      </span>
+                    ) : (
+                      'Sign In'
+                    )}
+                  </Button>
+                </form>
+
+                <div className="text-center pt-2">
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-slate-400 hover:text-slate-300 underline font-medium"
+                  >
+                    Need help resetting your password? Click here
+                  </Link>
                 </div>
-              </div>
+              </>
+            ) : (
+              /* Inline Forgot Password View */
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(false)}
+                    className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-100 flex items-center gap-2">
+                      <KeyRound className="h-5 w-5 text-amber-400" />
+                      Reset Password
+                    </h2>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-400">
+                  Enter your registered employee email address below and we will send you a link to reset your password.
+                </p>
 
-              <Button
-                type="submit"
-                className="w-full h-11 rounded-lg bg-gradient-to-r from-amber-500 to-violet-600 hover:from-amber-600 hover:to-violet-700 text-slate-950 hover:text-slate-900 font-semibold shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 transition-all duration-200 mt-2"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
-                    Signing in...
-                  </span>
+                {forgotSuccessMessage ? (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 space-y-2">
+                    <div className="flex items-center gap-2 font-medium">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                      Reset Email Sent!
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {forgotSuccessMessage}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsForgotModalOpen(false)}
+                      className="w-full mt-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200"
+                    >
+                      Return to Sign In
+                    </Button>
+                  </div>
                 ) : (
-                  'Sign In'
+                  <form onSubmit={handleForgotSubmit} className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Registered Email
+                      </Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder="name@hogwartsstudios.com"
+                          className="pl-10 bg-slate-950/50 border-slate-800 text-slate-200 focus-visible:ring-violet-500 focus-visible:border-violet-500 placeholder:text-slate-600 rounded-lg h-11"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      className="w-full h-11 rounded-lg bg-gradient-to-r from-amber-500 to-violet-600 hover:from-amber-600 hover:to-violet-700 text-slate-950 font-semibold shadow-lg shadow-violet-500/10 hover:shadow-violet-500/20 transition-all duration-200"
+                      disabled={isSubmittingForgot}
+                    >
+                      {isSubmittingForgot ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
+                          Sending Reset Link...
+                        </span>
+                      ) : (
+                        'Send Password Reset Link'
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setIsForgotModalOpen(false)}
+                      className="w-full text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    >
+                      Back to Sign In
+                    </Button>
+                  </form>
                 )}
-              </Button>
-            </form>
+              </div>
+            )}
+
           </CardContent>
         </Card>
       </div>

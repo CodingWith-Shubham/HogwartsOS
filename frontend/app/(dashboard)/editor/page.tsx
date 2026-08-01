@@ -81,9 +81,9 @@ export default function EditorPage() {
   useEffect(() => { refresh(true).finally(() => setLoading(false)); const interval = setInterval(() => refresh(true), 30000); return () => clearInterval(interval); }, [refresh]);
 
   const groups = useMemo(() => ({
-    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status)),
-    drafts: tasks.filter((task) => task.status === 'Draft Sent'),
-    revisions: tasks.filter((task) => task.status === 'In Revision'),
+    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) === 0),
+    drafts: tasks.filter((task) => ['Draft Ready', 'Draft Sent'].includes(task.status)),
+    revisions: tasks.filter((task) => task.status === 'In Revision' || task.status === 'Extra Revision Approved' || (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) > 0)),
     delivered: tasks.filter((task) => task.status === 'Delivered'),
   }), [tasks]);
 
@@ -160,7 +160,7 @@ export default function EditorPage() {
       {task.revisions && task.revisions.length > 0 && (
         <div className="space-y-2 mt-2">
           {task.revisions.map((rev: any, index: number) => (
-            <details key={rev.id || index} className="rounded-md border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10 p-2 text-sm" open={task.status === 'In Revision' && index === 0}>
+            <details key={rev.id || index} className="rounded-md border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10 p-2 text-sm" open={['In Revision', 'In Progress', 'Extra Revision Approved'].includes(task.status) && parseInt(task.revision_count) > 0 && index === 0}>
               <summary className="cursor-pointer font-medium text-orange-700 dark:text-orange-400">
                 Client Feedback (Round {rev.revisionRound})
               </summary>
@@ -172,7 +172,7 @@ export default function EditorPage() {
         </div>
       )}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
-      {['In Progress', 'In Revision'].includes(task.status) && (
+      {['In Progress', 'In Revision', 'Extra Revision Approved'].includes(task.status) && (
         <div className="space-y-2 border-t border-border pt-3">
           <Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." />
           <Button 

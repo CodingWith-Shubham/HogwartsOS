@@ -208,6 +208,19 @@ const getProjectById = asyncHandler(async (req, res) => {
 const updateProject = asyncHandler(async (req, res) => {
     const { edit_id } = req.params;
     const updates = { ...req.body };
+    
+    // Map N8N snake_case fields to Mongoose camelCase
+    if (updates.revision_count !== undefined) updates.revisionCount = Number(updates.revision_count);
+    if (updates.current_draft_link !== undefined) {
+        updates.draftLink = updates.current_draft_link;
+        updates.currentDraftLink = updates.current_draft_link;
+    }
+    if (updates.deadline_notified !== undefined) updates.deadlineNotified = updates.deadline_notified === 'true' || updates.deadline_notified === true;
+    if (updates.final_delivered !== undefined) updates.finalDelivered = updates.final_delivered === 'true' || updates.final_delivered === true;
+    if (updates.extra_revision_approved !== undefined) updates.extraRevisionApproved = updates.extra_revision_approved === 'true' || updates.extra_revision_approved === true;
+    if (updates.extra_revision_cost !== undefined) updates.extraRevisionCost = updates.extra_revision_cost;
+    if (updates.handover_to_client !== undefined) updates.handoverToClient = updates.handover_to_client;
+
     if (updates.managerComment === "" || updates.managerComment === undefined) {
         delete updates.managerComment;
     }
@@ -292,6 +305,18 @@ const updateTaskById = asyncHandler(async (req, res) => {
     const { task_id } = req.params;
     const updates = { ...req.body };
     
+    // Map N8N snake_case fields to Mongoose camelCase
+    if (updates.assigned_to_name !== undefined) updates.assignedToName = updates.assigned_to_name;
+    if (updates.assigned_to_email !== undefined) updates.assignedToEmail = updates.assigned_to_email;
+    if (updates.previous_editor_name !== undefined) updates.previousEditorName = updates.previous_editor_name;
+    if (updates.previous_editor_email !== undefined) updates.previousEditorEmail = updates.previous_editor_email;
+    if (updates.reallocation_reason !== undefined) updates.reallocationReason = updates.reallocation_reason;
+    if (updates.allocation_history !== undefined) {
+        try {
+            updates.allocationHistory = typeof updates.allocation_history === 'string' ? JSON.parse(updates.allocation_history) : updates.allocation_history;
+        } catch(e) {}
+    }
+
     const task = await EditingTask.findOne({ taskId: task_id });
     if (!task) throw new ApiError(404, "Task not found");
 

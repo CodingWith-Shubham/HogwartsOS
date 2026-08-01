@@ -27,12 +27,15 @@ const REDIRECT_PATHS = [
   { label: 'Shoot Calendar (/shoot)', value: '/shoot' },
 ];
 
+import { OrgChart } from '@/components/settings/OrgChart';
+
 export default function SettingsPage() {
   const { user } = useAuth();
 
   // User Management List States
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [userViewMode, setUserViewMode] = useState<'table' | 'tree'>('table');
 
   // Employee Form Sheet States
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -349,12 +352,36 @@ export default function SettingsPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <DataTable
-                  data={employees}
-                  columns={employeeColumns}
-                  searchKeys={['name', 'email', 'username', 'role']}
-                  searchPlaceholder="Search employees..."
-                />
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Organization</h3>
+                    <div className="flex bg-secondary/80 p-1 rounded-lg border border-border">
+                      <button
+                        onClick={() => setUserViewMode('table')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${userViewMode === 'table' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        List View
+                      </button>
+                      <button
+                        onClick={() => setUserViewMode('tree')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${userViewMode === 'tree' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Org Chart
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {userViewMode === 'table' ? (
+                    <DataTable
+                      data={employees}
+                      columns={employeeColumns}
+                      searchKeys={['name', 'email', 'username', 'role']}
+                      searchPlaceholder="Search employees..."
+                    />
+                  ) : (
+                    <OrgChart employees={employees} />
+                  )}
+                </div>
               )}
             </TabsContent>
           </Tabs>

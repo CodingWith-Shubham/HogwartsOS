@@ -20,13 +20,17 @@ const getEditingData = asyncHandler(async (req, res) => {
         editingTasks = editingTasks.filter(task => {
             const email = (task.assignedToEmail || '').trim().toLowerCase();
             const name = (task.assignedToName || '').trim().toLowerCase();
-            return email === uemail || name === uname;
+            const emailMatch = email && uemail && email === uemail;
+            const nameMatch = name && uname && name === uname;
+            return emailMatch || nameMatch;
         });
         
         editProjects = editProjects.filter(project => {
             const email = (project.editorEmail || '').trim().toLowerCase();
             const name = (project.editorName || '').trim().toLowerCase();
-            return email === uemail || name === uname;
+            const emailMatch = email && uemail && email === uemail;
+            const nameMatch = name && uname && name === uname;
+            return emailMatch || nameMatch;
         });
         
         const allowedProjectIds = new Set(editProjects.map(p => p.editId));

@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -289,6 +290,7 @@ export default function ManagerPage() {
   type AssignmentSplit = { quantity: number; editorName: string };
   const [serviceAssignments, setServiceAssignments] = useState<Record<string, AssignmentSplit[]>>({});
   const [assignmentErrors, setAssignmentErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState('assign_editor');
   
   const [assignForm, setAssignForm] = useState({
     serviceType: '',
@@ -659,9 +661,19 @@ export default function ManagerPage() {
         <StatCard title="Available Editors" value={availableEditors} icon={Scissors} />
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Footage Ready for Review</CardTitle>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
+          <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted">Assign Editor</TabsTrigger>
+          <TabsTrigger value="task_board" className="data-[state=active]:bg-muted">Task Board</TabsTrigger>
+          <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted">Editor Workload</TabsTrigger>
+          <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted">Verify Editor Work</TabsTrigger>
+          <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted">Revision Approval</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="assign_editor" className="mt-0">
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-base">Footage Ready for Review</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {footageReady.length === 0 ? (
@@ -708,8 +720,13 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+    </TabsContent>
 
+    <TabsContent value="task_board" className="mt-0">
       <ManagerTaskBoard editors={editors} canReallocate={user?.role === 'manager' || user?.role === 'admin'} />
+    </TabsContent>
+
+    <TabsContent value="editor_workload" className="mt-0">
 
       <Card className="mb-6">
         <CardHeader>
@@ -744,28 +761,9 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+    </TabsContent>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">In Editing</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {inEditing.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No projects in editing.</p>
-          ) : (
-            inEditing.map((edit) => (
-              <div key={edit.editId} className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium">{edit.clientName}</p>
-                  <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
-                </div>
-                <Badge variant="outline">Deadline {edit.deadlineAt || '-'}</Badge>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
+    <TabsContent value="verify_editor_work" className="mt-0">
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-base">Verify Editor Work</CardTitle>
@@ -822,7 +820,9 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+    </TabsContent>
 
+    <TabsContent value="revision_approval" className="mt-0">
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-base">Extra Revision Approval</CardTitle>
@@ -870,8 +870,8 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
-
-
+    </TabsContent>
+  </Tabs>
 
       <Dialog open={Boolean(assignShoot)} onOpenChange={(open) => !open && setAssignShoot(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

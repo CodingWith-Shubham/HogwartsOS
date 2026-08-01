@@ -750,9 +750,17 @@ export default function ManagerPage() {
                             <Button size="sm" variant="secondary" onClick={() => { setFeedbackTask(edit); setFeedbackText(''); }}>
                               Provide Feedback
                             </Button>
-                            <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
-                              Send to Client
-                            </Button>
+                            {edit.status === 'Draft Sent' ? (
+                              <Button size="sm" disabled variant="outline" className="text-green-600 dark:text-green-400 border-green-200 dark:border-green-900/30 bg-green-50 dark:bg-green-900/10">
+                                <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
+                                Sent to Client
+                              </Button>
+                            ) : (
+                              <Button size="sm" onClick={() => sendDraftToClient(edit)} disabled={sendingDraftId === edit.editId}>
+                                {sendingDraftId === edit.editId && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                                Send to Client
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}

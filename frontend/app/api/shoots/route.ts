@@ -4,7 +4,7 @@ import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = getAuthenticatedUser();
     if (!user) {
@@ -13,7 +13,9 @@ export async function GET() {
 
     const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken();
-    const res = await fetch(`${BACKEND_URL}/shoots`, {
+    const { searchParams } = new URL(request.url);
+    const qs = searchParams.toString();
+    const res = await fetch(`${BACKEND_URL}/shoots${qs ? `?${qs}` : ''}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },

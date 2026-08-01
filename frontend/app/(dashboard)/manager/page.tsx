@@ -305,9 +305,9 @@ export default function ManagerPage() {
     async function fetchDashboardData() {
       try {
         const [shootResponse, editingResponse, leadResponse] = await Promise.all([
-          fetch('/api/shoots', { cache: 'no-store' }),
-          fetch('/api/editing', { cache: 'no-store' }),
-          fetch('/api/clients', { cache: 'no-store' }),
+          fetch('/api/shoots?managerView=true', { cache: 'no-store' }),
+          fetch('/api/editing?managerView=true', { cache: 'no-store' }),
+          fetch('/api/clients?managerView=true', { cache: 'no-store' }),
         ]);
         const [shootData, editingData, leadData] = await Promise.all([
           shootResponse.json(),

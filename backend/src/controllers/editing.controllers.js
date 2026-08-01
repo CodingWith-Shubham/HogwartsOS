@@ -36,7 +36,23 @@ const getEditingData = asyncHandler(async (req, res) => {
         
         const allowedProjectIds = new Set(editProjects.map(p => p.editId));
         revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
-    } else if (user && (user.role === 'admin' || user.role === 'sales')) {
+    } else if (user && user.role === 'sales') {
+        const uname = user.name?.trim().toLowerCase();
+        const uemail = user.email?.trim().toLowerCase();
+        const uusername = user.username?.trim().toLowerCase();
+        
+        const allowedLeads = await Client.find({});
+        const myLeadIds = new Set(allowedLeads.filter(lead => {
+            const assigned = (lead.assignedTo || '').trim().toLowerCase();
+            return assigned === uname || assigned === uemail || assigned === uusername;
+        }).map(l => l.leadId));
+        
+        editingTasks = editingTasks.filter(task => myLeadIds.has(task.leadId));
+        editProjects = editProjects.filter(project => myLeadIds.has(project.leadId));
+        
+        const allowedProjectIds = new Set(editProjects.map(p => p.editId));
+        revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
+    } else if (user && user.role === 'admin' && req.query.managerView !== 'true') {
         const uname = user.name?.trim().toLowerCase();
         const uemail = user.email?.trim().toLowerCase();
         const uusername = user.username?.trim().toLowerCase();

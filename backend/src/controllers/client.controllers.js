@@ -15,15 +15,23 @@ const getClients = asyncHandler(async (req, res) => {
     let query = Client.find(filter).sort({ createdAt: -1 });
     if (req.query.limit) query = query.limit(Number(req.query.limit));
 
-    const leads = await query;
+    let leads = await query;
 
     let filteredLeads = leads;
 
-    if (user && (user.role === 'sales' || user.role === 'admin')) {
+    if (user && user.role === 'sales') {
         const uname = user.name?.trim().toLowerCase();
         const uemail = user.email?.trim().toLowerCase();
         const uusername = user.username?.trim().toLowerCase();
 
+        filteredLeads = leads.filter(lead => {
+            const assigned = (lead.assignedTo || '').trim().toLowerCase();
+            return assigned === uname || assigned === uemail || assigned === uusername;
+        });
+    } else if (user && user.role === 'admin' && req.query.managerView !== 'true') {
+        const uname = user.name?.trim().toLowerCase();
+        const uemail = user.email?.trim().toLowerCase();
+        const uusername = user.username?.trim().toLowerCase();
         filteredLeads = leads.filter(lead => {
             const assigned = (lead.assignedTo || '').trim().toLowerCase();
             return assigned === uname || assigned === uemail || assigned === uusername;

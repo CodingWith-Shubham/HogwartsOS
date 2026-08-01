@@ -15,7 +15,9 @@ export async function GET(request: Request) {
 
     BACKEND_URL = await getBackendUrl();
     const token = getAccessToken(h);
-    const res = await fetch(`${BACKEND_URL}/clients`, {
+    const { searchParams } = new URL(request.url);
+    const qs = searchParams.toString();
+    const res = await fetch(`${BACKEND_URL}/clients${qs ? `?${qs}` : ''}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },

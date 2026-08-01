@@ -19,7 +19,7 @@ const getClients = asyncHandler(async (req, res) => {
 
     let filteredLeads = leads;
 
-    if (user && user.role === 'sales') {
+    if (user && (user.role === 'sales' || user.role === 'admin')) {
         const uname = user.name?.trim().toLowerCase();
         const uemail = user.email?.trim().toLowerCase();
         const uusername = user.username?.trim().toLowerCase();

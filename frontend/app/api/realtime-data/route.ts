@@ -112,7 +112,7 @@ export async function GET(request: Request) {
     let shoots = allShoots;
     let editingTasks = allEditingTasks;
 
-    if (user.role === 'sales') {
+    if (user.role === 'sales' || user.role === 'admin') {
       leads = allLeads.filter(
         (lead) =>
           lead.assignedTo.trim().toLowerCase() === user.name.trim().toLowerCase() ||

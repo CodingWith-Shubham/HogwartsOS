@@ -47,7 +47,7 @@ export default function SettingsPage() {
   const [empPassword, setEmpPassword] = useState('');
   const [empSubmitting, setEmpSubmitting] = useState(false);
 
-  const isManager = user?.role === 'manager' || user?.role === 'admin';
+  const isManager = user?.role === 'manager';
 
   // Load Employee List for Managers
   const fetchEmployees = useCallback(async () => {

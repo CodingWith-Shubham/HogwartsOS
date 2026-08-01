@@ -9,10 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import {
   Clock, LogIn, LogOut, MapPin, CheckCircle, AlertCircle, Calendar,
-  UserCheck, Navigation, NavigationOff, ExternalLink, Loader2
+  UserCheck, Navigation, NavigationOff, ExternalLink, Loader2, Users
 } from 'lucide-react';
 
 interface LocationCoords {
@@ -118,6 +121,24 @@ export default function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'acquiring' | 'captured' | 'denied'>('idle');
   const [capturedLocation, setCapturedLocation] = useState<LocationCoords | null>(null);
+  
+  const [employeeSummaries, setEmployeeSummaries] = useState<any[]>([]);
+  const [loadingSummaries, setLoadingSummaries] = useState(false);
+
+  const fetchSummaries = async () => {
+    setLoadingSummaries(true);
+    try {
+      const res = await authFetch('/api/attendance?action=summary');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.summaries)) {
+        setEmployeeSummaries(data.summaries);
+      }
+    } catch (e) {
+      toast.error('Failed to load employee summaries');
+    } finally {
+      setLoadingSummaries(false);
+    }
+  };
 
   // Live Digital Clock
   useEffect(() => {
@@ -320,7 +341,21 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <Tabs defaultValue="my-attendance" className="w-full">
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+          <TabsList className="bg-secondary/40 border border-border h-auto p-1 flex-wrap w-full md:w-auto justify-start">
+            <TabsTrigger value="my-attendance" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">My Attendance</TabsTrigger>
+            {['manager', 'admin'].includes(user?.role || '') && (
+              <TabsTrigger value="team-roster" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Team Roster</TabsTrigger>
+            )}
+            {user?.role === 'manager' && (
+              <TabsTrigger value="employee-summaries" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchSummaries}>Employee Summaries</TabsTrigger>
+            )}
+          </TabsList>
+        </div>
+
+        <TabsContent value="my-attendance" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Check-In / Check-Out Action Widget */}
         <Card className="lg:col-span-1 border-border shadow-lg bg-card">
           <CardHeader>
@@ -560,10 +595,11 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </TabsContent>
 
-      {/* Manager Team View */}
-      {['manager', 'admin'].includes(user?.role || '') && (
+        <TabsContent value="team-roster" className="mt-0">
+          {['manager', 'admin'].includes(user?.role || '') && (
         <Card className="border-border shadow-lg bg-card mt-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -666,7 +702,85 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="employee-summaries" className="mt-0">
+          {user?.role === 'manager' && (
+            <Card className="border-border shadow-lg bg-card">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Users className="h-5 w-5 text-indigo-400" /> Employee Summaries
+                </CardTitle>
+                <CardDescription>Click on an employee to view their month-by-month attendance record.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingSummaries ? (
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                  </div>
+                ) : employeeSummaries.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">No attendance records found.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {employeeSummaries.map((summary) => (
+                      <Dialog key={summary.email}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="h-auto py-4 flex flex-col items-start gap-1 justify-start border-border bg-secondary/20 hover:bg-secondary/50">
+                            <span className="font-semibold">{summary.name}</span>
+                            <span className="text-xs text-muted-foreground font-normal">{summary.email}</span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>{summary.name}'s Attendance</DialogTitle>
+                            <DialogDescription>{summary.email}</DialogDescription>
+                          </DialogHeader>
+                          <div className="mt-4">
+                            {Object.keys(summary.months).length === 0 ? (
+                              <p className="text-muted-foreground text-sm">No monthly records found.</p>
+                            ) : (
+                              <Accordion type="single" collapsible className="w-full">
+                                {Object.entries(summary.months).reverse().map(([month, stats]: [string, any]) => (
+                                  <AccordionItem key={month} value={month}>
+                                    <AccordionTrigger className="text-base font-semibold">
+                                      {new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-2">
+                                        <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-emerald-400 uppercase font-semibold">Present</p>
+                                          <p className="text-2xl font-bold text-emerald-500 mt-1">{stats.Present || 0}</p>
+                                        </div>
+                                        <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-amber-400 uppercase font-semibold">Late</p>
+                                          <p className="text-2xl font-bold text-amber-500 mt-1">{stats.Late || 0}</p>
+                                        </div>
+                                        <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-blue-400 uppercase font-semibold">Half-day</p>
+                                          <p className="text-2xl font-bold text-blue-500 mt-1">{stats['Half-day'] || 0}</p>
+                                        </div>
+                                        <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-red-400 uppercase font-semibold">Absent</p>
+                                          <p className="text-2xl font-bold text-red-500 mt-1">{stats.Absent || 0}</p>
+                                        </div>
+                                      </div>
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                ))}
+                              </Accordion>
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

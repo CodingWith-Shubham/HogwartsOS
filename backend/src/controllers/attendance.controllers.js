@@ -22,10 +22,10 @@ const checkIn = asyncHandler(async (req, res) => {
     }
 
     const now = new Date();
-    // Mark Late if checking in after 10:30 AM
+    // Mark Late if checking in after 10:15 AM
     const hours = now.getHours();
     const minutes = now.getMinutes();
-    const isLate = hours > 10 || (hours === 10 && minutes > 30);
+    const isLate = hours > 10 || (hours === 10 && minutes > 15);
 
     const checkInLocation = req.body.checkInLocation || { lat: null, lng: null };
 
@@ -181,4 +181,51 @@ const getTeamAttendance = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { date, logs }, "Team attendance logs retrieved successfully"));
 });
 
-export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest };
+const getAttendanceSummary = asyncHandler(async (req, res) => {
+    const user = req.user;
+    if (!user || user.role !== "manager") {
+        throw new ApiError(403, "Only Super Admins can access attendance summary");
+    }
+
+    const logs = await Attendance.find({}).sort({ date: 1 }); // Sort chronologically
+
+    // Aggregate by employee and then by month
+    // summaryMap: { [email]: { name, email, months: { '2026-08': { present: 0, late: 0, halfDay: 0, absent: 0 } } } }
+    const summaryMap = {};
+
+    for (const log of logs) {
+        const email = log.employeeEmail.toLowerCase();
+        if (!summaryMap[email]) {
+            summaryMap[email] = {
+                name: log.employeeName,
+                email: email,
+                months: {}
+            };
+        }
+
+        const dateObj = new Date(log.date);
+        const yearMonth = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+
+        if (!summaryMap[email].months[yearMonth]) {
+            summaryMap[email].months[yearMonth] = {
+                Present: 0,
+                Late: 0,
+                "Half-day": 0,
+                Absent: 0
+            };
+        }
+
+        const status = log.status || "Absent";
+        if (summaryMap[email].months[yearMonth][status] !== undefined) {
+            summaryMap[email].months[yearMonth][status]++;
+        } else {
+            summaryMap[email].months[yearMonth][status] = 1;
+        }
+    }
+
+    const summaries = Object.values(summaryMap);
+
+    return res.status(200).json(new ApiResponse(200, { summaries }, "Attendance summaries retrieved successfully"));
+});
+
+export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getAttendanceSummary };

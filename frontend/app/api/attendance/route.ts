@@ -16,8 +16,11 @@ export async function GET(request: Request) {
     const token = getAccessToken(h);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const action = searchParams.get('action');
 
-    const endpoint = date
+    const endpoint = action === 'summary'
+      ? `${BACKEND_URL}/attendance/summary`
+      : date
       ? `${BACKEND_URL}/attendance/team-attendance?date=${date}`
       : `${BACKEND_URL}/attendance/my-attendance`;
 

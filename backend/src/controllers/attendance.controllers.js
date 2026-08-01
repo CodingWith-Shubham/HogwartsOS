@@ -86,14 +86,16 @@ const checkOut = asyncHandler(async (req, res) => {
 
     if (user.role !== "manager") {
         if (hours >= 8.5) {
-            // Overwrite Late to Present? My proposal was to keep it Late if they were late, but the user didn't specify. 
             // If they are Half-day they become Present. If they are Late, they stay Late (but full shift). If they are Present, they stay Present.
             if (attendance.status === "Half-day" || attendance.status === "Absent") {
                 attendance.status = "Present";
             }
-        } else {
-            // Less than 8.5 hours
+        } else if (hours >= 4) {
+            // 4 to 8.5 hours
             attendance.status = "Half-day";
+        } else {
+            // Less than 4 hours
+            attendance.status = "Absent";
         }
     } else {
         // Manager is always Present (or keeps their Late status)

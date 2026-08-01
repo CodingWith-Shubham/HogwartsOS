@@ -3,6 +3,7 @@ import { Revision } from "../models/revision.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { Client } from "../models/client.models.js";
+import { User } from "../models/user.models.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getEditingData = asyncHandler(async (req, res) => {
@@ -331,4 +332,79 @@ const createRevision = asyncHandler(async (req, res) => {
     return res.status(201).json(new ApiResponse(201, { revision }, "Revision created"));
 });
 
-export { getEditingData, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision };
+const getEditorWorkload = asyncHandler(async (req, res) => {
+    const editors = await User.find({ role: 'editor' });
+    
+    const activeProjectStatuses = ['Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready'];
+    const activeTaskStatuses = ['Assigned', 'In Progress', 'Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready'];
+    
+    const activeProjects = await EditProject.find({ status: { $in: activeProjectStatuses } });
+    const activeTasks = await EditingTask.find({ status: { $in: activeTaskStatuses } });
+
+    const workloads = editors.map(editor => {
+        const editorName = (editor.name || "").trim().toLowerCase();
+        
+        const myProjects = activeProjects.filter(p => (p.editorName || "").trim().toLowerCase() === editorName);
+        const myTasks = activeTasks.filter(t => (t.assignedToName || "").trim().toLowerCase() === editorName);
+
+        const values = {
+            podcastDraft: 0,
+            podcastEdit: 0,
+            reelDraft: 0,
+            reelEdit: 0,
+            longFormatVideo: 0,
+            teaserDemo: 0,
+            teaser: 0,
+            thumbnail: 0
+        };
+
+        const normalizeQuantity = (val) => {
+            if (!val) return 0;
+            const parsed = parseInt(String(val).replace(/\D/g, ''), 10);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        myProjects.forEach(p => {
+            values.podcastDraft += normalizeQuantity(p.podcastDraft);
+            values.podcastEdit += normalizeQuantity(p.podcastEdit);
+            values.reelDraft += normalizeQuantity(p.reelDraft);
+            values.reelEdit += normalizeQuantity(p.reel || p.reelDraft);
+            values.longFormatVideo += normalizeQuantity(p.longFormatVideo);
+            values.teaserDemo += normalizeQuantity(p.teaserDemo);
+            values.teaser += normalizeQuantity(p.teaser);
+            values.thumbnail += normalizeQuantity(p.thumbnail);
+        });
+
+        myTasks.forEach(t => {
+            const tType = t.taskType || "";
+            if (tType === 'podcast_edit') values.podcastEdit += 1;
+            else if (tType === 'teaser_edit') values.teaser += 1;
+            else if (tType === 'reel_edit' || tType === 'short_format_video') values.reelEdit += 1;
+            else if (tType === 'thumbnail_edit') values.thumbnail += 1;
+            else if (tType === 'long_format_video') values.longFormatVideo += 1;
+        });
+
+        const mappedTaskTypes = ['podcast_edit', 'teaser_edit', 'reel_edit', 'short_format_video', 'thumbnail_edit', 'long_format_video'];
+        const unmappedTasksCount = myTasks.filter(t => !mappedTaskTypes.includes(t.taskType)).length;
+        
+        const totalDeliverables = Object.values(values).reduce((sum, val) => sum + val, 0) + unmappedTasksCount;
+
+        return {
+            editorName: editor.name,
+            activeProjects: myProjects.length + myTasks.length,
+            totalDeliverables,
+            podcastDraft: String(values.podcastDraft),
+            podcastEdit: String(values.podcastEdit),
+            reelDraft: String(values.reelDraft),
+            reelEdit: String(values.reelEdit),
+            longFormatVideo: String(values.longFormatVideo),
+            teaserDemo: String(values.teaserDemo),
+            teaser: String(values.teaser),
+            thumbnail: String(values.thumbnail)
+        };
+    });
+
+    return res.status(200).json(new ApiResponse(200, { workloads }, "Editor workload fetched successfully"));
+});
+
+export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision };

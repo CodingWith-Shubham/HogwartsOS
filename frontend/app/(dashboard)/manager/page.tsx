@@ -30,8 +30,7 @@ import { toast } from 'sonner';
 import { ManagerTaskBoard } from '@/components/manager/ManagerTaskBoard';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
 
-const EDITOR_WORKLOAD_URL = 'https://n8n.hogwartsstudios.com/webhook/editor-workload';
-
+const EDITOR_WORKLOAD_URL = '/api/editing/workload';
 const DELIVERABLE_FIELDS = [
   { key: 'podcastDraft', payloadKey: 'podcast_draft', label: 'Podcast Draft' },
   { key: 'podcastEdit', payloadKey: 'podcast_edit', label: 'Podcast Edit' },
@@ -97,12 +96,6 @@ function normalizeQuantity(value: unknown) {
   return String(Math.floor(parsed));
 }
 
-function totalDeliverables(values: DeliverableValues) {
-  return DELIVERABLE_FIELDS.reduce(
-    (sum, field) => sum + Number(normalizeQuantity(values[field.key])),
-    0
-  );
-}
 
 function leadDeliverables(lead: Lead | undefined): DeliverableValues {
   if (!lead) return { ...DEFAULT_DELIVERABLES };
@@ -146,29 +139,6 @@ function workloadBadgeClass(level: string) {
   return 'border-red-500/40 bg-red-500/15 text-red-600';
 }
 
-function editorNameFromWorkload(item: Record<string, unknown>) {
-  return String(item.editorName ?? item.editor_name ?? item.name ?? '').trim();
-}
-
-function workloadFromApi(item: Record<string, unknown>): EditorWorkload {
-  const values = {
-    podcastDraft: normalizeQuantity(item.podcastDraft ?? item.podcast_draft),
-    podcastEdit: normalizeQuantity(item.podcastEdit ?? item.podcast_edit),
-    reelDraft: normalizeQuantity(item.reelDraft ?? item.reel_draft),
-    reelEdit: normalizeQuantity(item.reelEdit ?? item.reel_edit ?? item.reel),
-    longFormatVideo: normalizeQuantity(item.longFormatVideo ?? item.long_format_video),
-    teaserDemo: normalizeQuantity(item.teaserDemo ?? item.teaser_demo),
-    teaser: normalizeQuantity(item.teaser),
-    thumbnail: normalizeQuantity(item.thumbnail),
-  };
-
-  return {
-    editorName: editorNameFromWorkload(item),
-    activeProjects: Number(item.activeProjects ?? item.active_projects ?? 0) || 0,
-    totalDeliverables: Number(item.totalDeliverables ?? item.total_deliverables) || totalDeliverables(values),
-    ...values,
-  };
-}
 
 function workloadForEditor(workloads: EditorWorkload[], editorName: string) {
   return workloads.find(
@@ -189,47 +159,7 @@ function editorDropdownLabel(workloads: EditorWorkload[], editorName: string) {
   return level === 'Free' ? `${editorName} (Free)` : `${editorName} (${level} - ${total})`;
 }
 
-function calculateWorkloadFromEditing(editingProjects: EditingProject[], editorsList: { name: string; email: string }[]): EditorWorkload[] {
-  const activeStatuses = ['Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready'];
-  return editorsList.map((editor) => {
-    const editorProjects = editingProjects.filter(
-      (edit) =>
-        edit.editorName.trim().toLowerCase() === editor.name.trim().toLowerCase() &&
-        activeStatuses.includes(edit.status)
-    );
 
-    const values = {
-      podcastDraft: '0',
-      podcastEdit: '0',
-      reelDraft: '0',
-      reelEdit: '0',
-      longFormatVideo: '0',
-      teaserDemo: '0',
-      teaser: '0',
-      thumbnail: '0',
-    };
-
-    editorProjects.forEach((edit) => {
-      values.podcastDraft = String(Number(values.podcastDraft) + Number(normalizeQuantity(edit.podcastDraft)));
-      values.podcastEdit = String(Number(values.podcastEdit) + Number(normalizeQuantity(edit.podcastEdit)));
-      values.reelDraft = String(Number(values.reelDraft) + Number(normalizeQuantity(edit.reelDraft)));
-      values.reelEdit = String(Number(values.reelEdit) + Number(normalizeQuantity(edit.reel || edit.reelDraft)));
-      values.longFormatVideo = String(Number(values.longFormatVideo) + Number(normalizeQuantity(edit.longFormatVideo)));
-      values.teaserDemo = String(Number(values.teaserDemo) + Number(normalizeQuantity(edit.teaserDemo)));
-      values.teaser = String(Number(values.teaser) + Number(normalizeQuantity(edit.teaser)));
-      values.thumbnail = String(Number(values.thumbnail) + Number(normalizeQuantity(edit.thumbnail)));
-    });
-
-    const total = totalDeliverables(values);
-
-    return {
-      editorName: editor.name,
-      activeProjects: editorProjects.length,
-      totalDeliverables: total,
-      ...values,
-    };
-  });
-}
 
 function WorkloadBreakdown({ workload }: { workload: EditorWorkload }) {
   const items = [
@@ -368,24 +298,19 @@ export default function ManagerPage() {
 
     async function fetchEditorWorkload() {
       try {
-        const response = await fetch(EDITOR_WORKLOAD_URL, { cache: 'no-store' });
-        const data = await response.json().catch(() => []);
+        const response = await authFetch(EDITOR_WORKLOAD_URL, { cache: 'no-store' });
+        const data = await response.json();
         if (!mounted) return;
 
-        const rows = Array.isArray(data) ? data : data.workload ?? data.editors ?? [];
-        const apiWorkloads = rows
-          .map((item: Record<string, unknown>) => workloadFromApi(item))
-          .filter((item: EditorWorkload) => item.editorName);
-
-        if (response.ok && apiWorkloads.length > 0) {
-          setEditorWorkload(apiWorkloads);
+        if (response.ok && Array.isArray(data.workloads)) {
+          setEditorWorkload(data.workloads);
         } else {
-          setEditorWorkload(calculateWorkloadFromEditing(editingRef.current, editorsRef.current));
+          setEditorWorkload([]);
         }
       } catch (error) {
-        console.error('Failed to fetch editor workload, using local calculation:', error);
+        console.error('Failed to fetch editor workload:', error);
         if (mounted) {
-          setEditorWorkload(calculateWorkloadFromEditing(editingRef.current, editorsRef.current));
+          setEditorWorkload([]);
         }
       }
     }

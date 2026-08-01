@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { getEditingData, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision } from "../controllers/editing.controllers.js";
+import { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision } from "../controllers/editing.controllers.js";
 import { verifyJWT, verifyN8n, verifyJWTOrN8N } from "../middlewares/auth.middlewares.js";
 
 const router = Router();
 
 // Existing Next.js routes
 router.get("/", verifyJWT, getEditingData);
+router.get("/workload", verifyJWT, getEditorWorkload);
 router.put("/task/:taskId", verifyJWT, updateTask);
 router.post("/revision", verifyJWT, addRevision);
 router.post("/assign-tasks", verifyJWT, assignTasks);

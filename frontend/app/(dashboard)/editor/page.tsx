@@ -58,7 +58,17 @@ export default function EditorPage() {
         task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
         managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0'
-      })).filter((t: any) => user?.role === 'manager' || user?.role === 'admin' || t.assigned_to_email?.toLowerCase() === user?.email?.toLowerCase());
+      })).filter((t: any) => {
+        if (user?.role === 'manager' || user?.role === 'admin') return true;
+        const tEmail = t.assigned_to_email?.trim().toLowerCase();
+        const uEmail = user?.email?.trim().toLowerCase();
+        const tName = t.assigned_to_name?.trim().toLowerCase();
+        const uName = user?.name?.trim().toLowerCase();
+        
+        const emailMatch = tEmail && uEmail && tEmail === uEmail;
+        const nameMatch = tName && uName && tName === uName;
+        return emailMatch || nameMatch;
+      });
       setTasks(mapped);
     } catch (error) { if (!silent) toast.error('Failed to load tasks', { description: error instanceof Error ? error.message : 'Unknown error' }); }
     finally { if (!silent) setRefreshing(false); }

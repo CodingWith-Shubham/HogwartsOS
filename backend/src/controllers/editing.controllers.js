@@ -202,7 +202,14 @@ const getProjectById = asyncHandler(async (req, res) => {
         project = await EditingTask.findOne({ taskId: edit_id });
     }
     if (!project) throw new ApiError(404, "Project or Task not found");
-    return res.status(200).json(new ApiResponse(200, { project }, "Project fetched"));
+    
+    // Attach snake_case aliases for N8N compatibility
+    const projectData = project.toObject();
+    projectData.revision_count = projectData.revisionCount;
+    projectData.max_free_revisions = projectData.maxFreeRevisions;
+    projectData.current_draft_link = projectData.draftLink || projectData.currentDraftLink;
+    
+    return res.status(200).json(new ApiResponse(200, { project: projectData }, "Project fetched"));
 });
 
 const updateProject = asyncHandler(async (req, res) => {
@@ -298,7 +305,12 @@ const getTaskById = asyncHandler(async (req, res) => {
     const { task_id } = req.params;
     const task = await EditingTask.findOne({ taskId: task_id });
     if (!task) throw new ApiError(404, "Task not found");
-    return res.status(200).json(new ApiResponse(200, { task }, "Task fetched"));
+    const taskData = task.toObject();
+    taskData.revision_count = taskData.revisionCount;
+    taskData.max_free_revisions = taskData.maxFreeRevisions;
+    taskData.current_draft_link = taskData.draftLink;
+
+    return res.status(200).json(new ApiResponse(200, { task: taskData }, "Task fetched"));
 });
 
 const updateTaskById = asyncHandler(async (req, res) => {

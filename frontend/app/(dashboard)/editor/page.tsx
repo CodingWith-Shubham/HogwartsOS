@@ -23,6 +23,7 @@ type EditingTask = {
   data_link: string; assigned_to_name: string; status: string; draft_link: string;
   managerComment: string; deadline_at: string; final_delivered: string;
   revision_count?: string;
+  max_free_revisions?: string;
   revisions?: any[];
 };
 
@@ -61,6 +62,7 @@ export default function EditorPage() {
         task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
         managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0',
+        max_free_revisions: t.maxFreeRevisions?.toString() || '2',
         revisions: (data.revisions || []).filter((r: any) => r.projectId === t.editId).sort((a: any, b: any) => b.revisionRound - a.revisionRound)
       })).filter((t: any) => {
         if (user?.role === 'manager' || user?.role === 'admin') return true;
@@ -123,7 +125,17 @@ export default function EditorPage() {
 
   const TaskCard = ({ task }: { task: EditingTask }) => (
     <Card key={task.task_id}><CardContent className="space-y-3 p-4">
-      <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{task.task_label || task.task_type}</h3><p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p></div><Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge></div>
+      <div className="flex items-start justify-between gap-3">
+        <div><h3 className="font-semibold">{task.task_label || task.task_type}</h3><p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p></div>
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge>
+          {parseInt(task.revision_count || '0') > 0 && (
+            <span className="text-[10px] font-semibold tracking-wide text-white bg-red-500 px-1.5 py-0.5 rounded uppercase shadow-sm">
+              {task.revision_count}/{task.max_free_revisions || '2'} Revisions
+            </span>
+          )}
+        </div>
+      </div>
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
       {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>

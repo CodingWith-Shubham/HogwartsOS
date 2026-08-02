@@ -35,7 +35,10 @@ const getEditingData = asyncHandler(async (req, res) => {
             return emailMatch || nameMatch;
         });
         
-        const allowedProjectIds = new Set(editProjects.map(p => p.editId));
+        const allowedProjectIds = new Set([
+            ...editProjects.map(p => p.editId),
+            ...editingTasks.map(t => t.taskId)
+        ]);
         revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
     } else if (user && user.role === 'sales') {
         const uname = user.name?.trim().toLowerCase();
@@ -51,7 +54,10 @@ const getEditingData = asyncHandler(async (req, res) => {
         editingTasks = editingTasks.filter(task => myLeadIds.has(task.leadId));
         editProjects = editProjects.filter(project => myLeadIds.has(project.leadId));
         
-        const allowedProjectIds = new Set(editProjects.map(p => p.editId));
+        const allowedProjectIds = new Set([
+            ...editProjects.map(p => p.editId),
+            ...editingTasks.map(t => t.taskId)
+        ]);
         revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
     } else if (user && user.role === 'admin' && req.query.managerView !== 'true') {
         const uname = user.name?.trim().toLowerCase();
@@ -67,7 +73,10 @@ const getEditingData = asyncHandler(async (req, res) => {
         editingTasks = editingTasks.filter(task => myLeadIds.has(task.leadId));
         editProjects = editProjects.filter(project => myLeadIds.has(project.leadId));
         
-        const allowedProjectIds = new Set(editProjects.map(p => p.editId));
+        const allowedProjectIds = new Set([
+            ...editProjects.map(p => p.editId),
+            ...editingTasks.map(t => t.taskId)
+        ]);
         revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
     }
 

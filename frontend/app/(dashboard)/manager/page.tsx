@@ -18,7 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Briefcase, Camera, Scissors, CheckCircle, ExternalLink, Loader2,
+  Briefcase, Camera, Scissors, CheckCircle, ExternalLink, Loader2, HardDrive, Mail,
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { formatINR, formatDate } from '@/lib/formatter';
@@ -614,7 +614,7 @@ export default function ManagerPage() {
         client_email: edit.emailId,
         service_type: edit.serviceType,
         editor_name: edit.editorName,
-        data_link: edit.dataLink
+        draft_link: edit.currentDraftLink || edit.dataLink
       });
       
       toast.success(type === 'video' ? 'Final video email sent!' : 'Handover email sent!');

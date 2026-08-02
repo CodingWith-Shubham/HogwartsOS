@@ -177,7 +177,13 @@ export default function EditorPage() {
                 Client Feedback (Round {rev.revisionRound})
               </summary>
               <div className="mt-2 space-y-2 text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                {rev.feedback || 'No feedback text provided.'}
+                {rev.feedback ? (
+                  rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => 
+                    part.match(/^https?:\/\//) 
+                      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{part}</a>
+                      : part
+                  )
+                ) : 'No feedback text provided.'}
               </div>
             </details>
           ))}

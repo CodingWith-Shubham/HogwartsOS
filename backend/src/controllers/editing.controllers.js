@@ -103,7 +103,7 @@ const updateTask = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const updateData = req.body;
 
-    if (updateData.managerComment === "" || updateData.managerComment === undefined) {
+    if (updateData.managerComment === undefined) {
         delete updateData.managerComment;
     }
 
@@ -262,7 +262,7 @@ const updateProject = asyncHandler(async (req, res) => {
         updates.extraRevisionApproved = false; // Reset approval
     }
 
-    if (updates.managerComment === "" || updates.managerComment === undefined) {
+    if (updates.managerComment === undefined) {
         delete updates.managerComment;
     }
 
@@ -379,7 +379,7 @@ const updateTaskById = asyncHandler(async (req, res) => {
         updates.allocationHistory = [...currentHistory, historyEntry];
     }
 
-    if (updates.managerComment === "" || updates.managerComment === undefined) {
+    if (updates.managerComment === undefined) {
         delete updates.managerComment;
     }
 

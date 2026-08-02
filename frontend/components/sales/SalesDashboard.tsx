@@ -716,7 +716,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const verifiedPayments = payments.filter(isVerifiedInstallment);
     const totalCollected = verifiedPayments.reduce((sum, payment) => sum + payment.amount, 0);
     const baseCollected = verifiedPayments
-      .filter((p) => p.installment_label !== 'Addon Payment' && p.installment_label !== 'Addon')
+      .filter((p) => p.installment_label !== 'Addon Payment' && p.installment_label !== 'Addon' && p.installment_label !== 'Revision Addon')
       .reduce((sum, payment) => sum + payment.amount, 0);
 
     const remaining = isFinalPaymentCompleted(lead)

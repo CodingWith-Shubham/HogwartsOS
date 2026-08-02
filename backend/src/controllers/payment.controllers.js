@@ -78,14 +78,12 @@ const verifyPayment = asyncHandler(async (req, res) => {
             body.verifiedBy = ""; // Clear out any accidental verifier name
         }
         
-        // Anti-Gmail-Prefetch logic:
-        // n8n sends an email with a 1-click 'Confirm Payment' GET webhook link. 
-        // Gmail aggressively prefetches these links, triggering n8n to send 'Payment Verified'.
-        // We MUST silently ignore this to force the manager to verify via the Dashboard instead.
-        if (newPaymentStatus === "Payment Verified") {
-            const existing = await Payment.findOne({ paymentId });
-            return res.status(200).json(new ApiResponse(200, { payment: existing }, "Ignored n8n auto-verify to prevent Gmail prefetch bug"));
-        }
+        // Anti-Gmail-Prefetch logic removed by user request. 
+        // Be warned: Gmail may auto-click the verification link when it scans emails!
+        // if (newPaymentStatus === "Payment Verified") {
+        //     const existing = await Payment.findOne({ paymentId });
+        //     return res.status(200).json(new ApiResponse(200, { payment: existing }, "Ignored n8n auto-verify to prevent Gmail prefetch bug"));
+        // }
     } else if (!newPaymentStatus) {
         if (body.screenshotUrl) {
             newPaymentStatus = "Screenshot Received";

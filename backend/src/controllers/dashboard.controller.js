@@ -2,6 +2,7 @@ import { Correction } from "../models/correction.model.js";
 import { Revision } from "../models/revision.models.js";
 import { EditProject } from "../models/editing.models.js";
 import { Client } from "../models/client.models.js";
+import { Payment } from "../models/payment.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -124,4 +125,24 @@ export const getCorrectionsVsRevisions = asyncHandler(async (req, res) => {
     });
 
     return res.status(200).json(new ApiResponse(200, { data: combined }, "Corrections vs Revisions data retrieved"));
+});
+
+export const getRevenueMetrics = asyncHandler(async (req, res) => {
+    // Only managers and admins should probably see this
+    if (req.user?.role !== "manager" && req.user?.role !== "admin") {
+        throw new ApiError(403, "Unauthorized access.");
+    }
+
+    const revisionPayments = await Payment.find({
+        installmentLabel: "Revision Addon",
+        paymentStatus: "Payment Verified"
+    });
+
+    const totalRevisionRevenue = revisionPayments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+
+    return res.status(200).json(new ApiResponse(200, {
+        metrics: {
+            revisionAddonRevenue: totalRevisionRevenue
+        }
+    }, "Revenue metrics retrieved"));
 });

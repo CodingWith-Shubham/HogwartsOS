@@ -221,6 +221,7 @@ export default function ManagerPage() {
   type AssignmentSplit = { quantity: number; editorName: string };
   const [serviceAssignments, setServiceAssignments] = useState<Record<string, AssignmentSplit[]>>({});
   const [assignmentErrors, setAssignmentErrors] = useState<Record<string, string>>({});
+  const [revisionRevenue, setRevisionRevenue] = useState(0);
   const [activeTab, setActiveTab] = useState('assign_editor');
   
   const [assignForm, setAssignForm] = useState({
@@ -237,15 +238,17 @@ export default function ManagerPage() {
 
     async function fetchDashboardData() {
       try {
-        const [shootResponse, editingResponse, leadResponse] = await Promise.all([
+        const [shootResponse, editingResponse, leadResponse, revenueResponse] = await Promise.all([
           fetch('/api/shoots?managerView=true', { cache: 'no-store' }),
           fetch('/api/editing?managerView=true', { cache: 'no-store' }),
           fetch('/api/clients?managerView=true', { cache: 'no-store' }),
+          fetch('/api/dashboard/revenue', { cache: 'no-store' }),
         ]);
-        const [shootData, editingData, leadData] = await Promise.all([
+        const [shootData, editingData, leadData, revenueData] = await Promise.all([
           shootResponse.json(),
           editingResponse.json(),
           leadResponse.json(),
+          revenueResponse.ok ? revenueResponse.json() : Promise.resolve(null),
         ]);
         if (!mounted) return;
         if (shootResponse.ok) setShoots(shootData.shoots ?? []);
@@ -273,6 +276,9 @@ export default function ManagerPage() {
           setEditing([...projects, ...mappedTasks]);
         }
         if (leadResponse.ok) setLeads(leadData.leads ?? []);
+        if (revenueData && revenueData.data && revenueData.data.metrics) {
+          setRevisionRevenue(revenueData.data.metrics.revisionAddonRevenue ?? 0);
+        }
       } catch (error) {
         console.error('Failed to fetch manager dashboard data:', error);
       } finally {
@@ -550,9 +556,14 @@ export default function ManagerPage() {
   const approveExtraRevision = async (edit: EditingProject) => {
     setApprovingExtraId(edit.editId);
     try {
-      await postWebhook('/confirm-extra-revision', {
+      const clientEmail = findClientEmail(edit, leads);
+      await postWebhook('/revision-addon', {
         edit_id: edit.editId,
-        extra_revision_cost: extraCosts[edit.editId] ?? edit.extraRevisionCost,
+        lead_id: edit.leadId,
+        client_name: edit.clientName,
+        client_email: clientEmail,
+        manager_email: user?.email,
+        extra_revision_cost: extraCosts[edit.editId] ?? edit.extraRevisionCost ?? 0,
         feedback: extraFeedback[edit.editId] ?? '',
       });
       
@@ -655,11 +666,12 @@ export default function ManagerPage() {
     <div>
       <PageHeader title="Manager" description="Assignments and approvals" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         <StatCard title="Active Projects" value={activeProjects} icon={Briefcase} />
         <StatCard title="Pending Approvals" value={pendingApprovals} icon={CheckCircle} />
         <StatCard title="Scheduled Shoots" value={scheduledShoots} icon={Camera} />
         <StatCard title="Available Editors" value={availableEditors} icon={Scissors} />
+        <StatCard title="Revision Revenue" value={formatINR(revisionRevenue)} icon={Briefcase} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -852,6 +864,19 @@ export default function ManagerPage() {
                   <Button size="sm" onClick={() => approveExtraRevision(edit)} disabled={approvingExtraId === edit.editId}>
                     Approve Extra Revision
                   </Button>
+                </div>
+                <div className="space-y-1.5 border-t border-amber-500/10 pt-2.5">
+                  <Label htmlFor={`extra-cost-${edit.editId}`} className="text-xs font-semibold text-muted-foreground">Additional Cost (INR)</Label>
+                  <Input
+                    id={`extra-cost-${edit.editId}`}
+                    type="number"
+                    placeholder="Enter cost (e.g. 1500) if applicable"
+                    value={extraCosts[edit.editId] ?? ''}
+                    onChange={(event) =>
+                      setExtraCosts((prev) => ({ ...prev, [edit.editId]: event.target.value }))
+                    }
+                    className="text-xs bg-background"
+                  />
                 </div>
                 <div className="space-y-1.5 border-t border-amber-500/10 pt-2.5">
                   <Label htmlFor={`extra-feedback-${edit.editId}`} className="text-xs font-semibold text-muted-foreground">Changes Required (Hand over to Editor)</Label>

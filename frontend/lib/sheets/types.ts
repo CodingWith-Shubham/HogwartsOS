@@ -60,6 +60,7 @@ export interface Lead {
   clientEmail: string;
   proposalSent: string;
   proposalAccepted: boolean;
+  isUpsell?: boolean;
   proposalSentAt: string;
   podcastDraft: string;
   podcastEdit: string;
@@ -88,7 +89,7 @@ export interface Lead {
   payment_status?: string;
 }
 
-export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted';
+export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells';
 
 export interface Shoot {
   id: string;

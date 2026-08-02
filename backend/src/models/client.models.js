@@ -11,6 +11,10 @@ const clientSchema = new Schema({
         type: String,
         default: ""
     },
+    isUpsell: {
+        type: Boolean,
+        default: false
+    },
     date: {
         type: String,
         default: ""

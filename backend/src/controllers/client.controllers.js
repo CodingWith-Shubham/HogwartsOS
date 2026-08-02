@@ -107,6 +107,7 @@ const createClient = asyncHandler(async (req, res) => {
         cost: Number(body.cost || 0),
         status: body.status || "New Lead",
         clientEmail: body.clientEmail || body.email || "",
+        isUpsell: Boolean(body.isUpsell),
         proposalSent: Boolean(body.proposalSent),
         proposalAccepted: Boolean(body.proposalAccepted),
         proposalSentAt: body.proposalSentAt || new Date().toISOString()

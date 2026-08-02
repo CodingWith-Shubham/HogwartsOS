@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2 } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -77,6 +77,7 @@ const FILTER_TABS: { value: LeadFilterTab; label: string }[] = [
   { value: 'proposal_sent', label: 'Proposal Sent' },
   { value: 'revoked', label: 'Revoked' },
   { value: 'accepted', label: 'Accepted' },
+  { value: 'upsells', label: 'Upsells' },
 ];
 
 interface SalesDashboardProps {
@@ -695,13 +696,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const filteredLeads = useMemo(() => {
     switch (filterTab) {
       case 'new_leads':
-        return salesLeads.filter((lead) => lead.status === 'New Lead');
+        return salesLeads.filter((lead) => lead.status === 'New Lead' && !lead.isUpsell);
       case 'proposal_sent':
         return salesLeads.filter((lead) => lead.status === 'Proposal Sent');
       case 'revoked':
         return salesLeads.filter((lead) => lead.status === 'Proposal Revoked');
       case 'accepted':
         return salesLeads.filter((lead) => lead.proposalAccepted);
+      case 'upsells':
+        return salesLeads.filter((lead) => lead.isUpsell);
       default:
         return salesLeads;
     }
@@ -1563,6 +1566,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     .filter((lead) => lead.proposalAccepted)
     .reduce((sum, lead) => sum + parseCost(lead.cost), 0);
 
+  const totalUpsells = salesLeads.filter((l) => l.isUpsell).length;
+  const upsellPercentage = totalLeads > 0 ? ((totalUpsells / totalLeads) * 100).toFixed(1) : 0;
+
   const pipelineStatuses = [
     'New Lead',
     'Proposal Sent',
@@ -1587,11 +1593,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         <StatCard title="Total Leads" value={totalLeads} icon={Users} />
         <StatCard title="Proposals Sent" value={proposalsSent} icon={FileText} />
         <StatCard title="Pipeline Value" value={formatINR(totalPipeline)} icon={TrendingUp} />
         <StatCard title="Collected" value={formatINR(acceptedValue)} icon={Wallet} />
+        <StatCard title="Upsells" value={`${totalUpsells} (${upsellPercentage}%)`} icon={ArrowUpCircle} />
       </div>
 
       <Tabs defaultValue="leads">

@@ -117,6 +117,18 @@ const updateTask = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Editing task or project not found");
     }
 
+    // If a task is marked as Completed, check if all sibling tasks are Completed
+    if (updateData.status === 'Completed' && task.editId && task.taskId) {
+        const siblingTasks = await EditingTask.find({ editId: task.editId });
+        const allCompleted = siblingTasks.every(t => t.status === 'Completed');
+        if (allCompleted) {
+            await EditProject.findOneAndUpdate(
+                { editId: task.editId },
+                { $set: { status: 'Completed' } }
+            );
+        }
+    }
+
     return res.status(200).json(new ApiResponse(200, { task }, "Task updated successfully"));
 });
 

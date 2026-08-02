@@ -86,7 +86,7 @@ export default function EditorPage() {
     assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) === 0),
     drafts: tasks.filter((task) => ['Draft Ready', 'Draft Sent'].includes(task.status)),
     revisions: tasks.filter((task) => task.status === 'In Revision' || task.status === 'Extra Revision Approved' || (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) > 0)),
-    delivered: tasks.filter((task) => task.status === 'Delivered'),
+    delivered: tasks.filter((task) => ['Delivered', 'Client Satisfied', 'Completed'].includes(task.status)),
   }), [tasks]);
 
   const updateStatus = async (task: EditingTask, status: string, includeDraft = false) => {

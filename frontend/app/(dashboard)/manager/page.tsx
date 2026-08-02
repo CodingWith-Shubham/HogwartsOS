@@ -267,6 +267,8 @@ export default function ManagerPage() {
             currentDraftLink: t.draftLink || t.draft_link || '',
             revisionCount: t.revisionCount || 0,
             maxFreeRevisions: t.maxFreeRevisions || 0,
+            extraRevisionApproved: t.extraRevisionApproved || false,
+            extraRevisionCost: t.extraRevisionCost || "0"
           }));
           setEditing([...projects, ...mappedTasks]);
         }
@@ -562,7 +564,8 @@ export default function ManagerPage() {
           taskId: edit.editId, 
           status: 'Extra Revision Approved',
           extraRevisionApproved: true,
-          extraRevisionCost: extraCosts[edit.editId] ?? edit.extraRevisionCost
+          extraRevisionCost: extraCosts[edit.editId] ?? edit.extraRevisionCost,
+          managerComment: extraFeedback[edit.editId] ?? ''
         })
       });
 
@@ -587,6 +590,39 @@ export default function ManagerPage() {
       });
     } finally {
       setApprovingExtraId(null);
+    }
+  };
+
+  const [deliveringId, setDeliveringId] = useState<string | null>(null);
+
+  const sendFinalDelivery = async (edit: EditingProject, type: 'video' | 'hard_drive') => {
+    setDeliveringId(edit.editId);
+    try {
+      await authFetch('/api/editing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: edit.editId,
+          status: 'Completed'
+        })
+      });
+      
+      const endpoint = type === 'video' ? '/send-final-video' : '/hard-drive-handover';
+      await postWebhook(endpoint, {
+        edit_id: edit.editId,
+        client_name: edit.clientName,
+        client_email: edit.emailId,
+        service_type: edit.serviceType,
+        editor_name: edit.editorName,
+        data_link: edit.dataLink
+      });
+      
+      toast.success(type === 'video' ? 'Final video email sent!' : 'Handover email sent!');
+      await refreshEditing();
+    } catch (error) {
+      toast.error('Delivery failed', { description: error instanceof Error ? error.message : 'Unknown error' });
+    } finally {
+      setDeliveringId(null);
     }
   };
 
@@ -633,6 +669,7 @@ export default function ManagerPage() {
           <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted">Editor Workload</TabsTrigger>
           <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted">Verify Editor Work</TabsTrigger>
           <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted">Revision Approval</TabsTrigger>
+          <TabsTrigger value="completed" className="data-[state=active]:bg-muted">Completed</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assign_editor" className="mt-0">
@@ -840,6 +877,59 @@ export default function ManagerPage() {
                 </div>
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+    </TabsContent>
+
+    <TabsContent value="completed" className="mt-0">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Final Delivery & Completed</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No completed tasks pending final delivery.</p>
+          ) : (
+            editing
+              .filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status))
+              .map((edit) => (
+                <div key={edit.editId} className="flex flex-col gap-3 rounded-md border p-3 bg-muted/20">
+                  <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_120px_auto] lg:items-center">
+                    <div>
+                      <p className="text-sm font-medium">{edit.clientName} - {edit.serviceType}</p>
+                      <p className="text-xs text-muted-foreground">Editor: {edit.editorName}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" asChild disabled={!edit.dataLink}>
+                        <a href={edit.dataLink} target="_blank" rel="noreferrer">
+                          <HardDrive className="mr-1.5 h-3.5 w-3.5" />
+                          Data Link
+                        </a>
+                      </Button>
+                      {edit.currentDraftLink && (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                            Final Draft
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                    <Badge className="w-fit">{edit.status}</Badge>
+                    <div className="flex flex-wrap gap-2 justify-end">
+                      <Button size="sm" onClick={() => sendFinalDelivery(edit, 'video')} disabled={deliveringId === edit.editId || edit.status === 'Completed'}>
+                        <Mail className="mr-1.5 h-3.5 w-3.5" />
+                        Send Final Video
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => sendFinalDelivery(edit, 'hard_drive')} disabled={deliveringId === edit.editId || edit.status === 'Completed'}>
+                        <HardDrive className="mr-1.5 h-3.5 w-3.5" />
+                        Handover Hard Drive
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
           )}
         </CardContent>
       </Card>

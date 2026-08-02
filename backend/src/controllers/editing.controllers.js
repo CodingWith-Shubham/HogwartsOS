@@ -465,8 +465,8 @@ const createRevision = asyncHandler(async (req, res) => {
 const getEditorWorkload = asyncHandler(async (req, res) => {
     const editors = await User.find({ role: 'editor' });
     
-    const activeProjectStatuses = ['Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready'];
-    const activeTaskStatuses = ['Assigned', 'In Progress', 'Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready'];
+    const activeProjectStatuses = ['Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready', 'Correction Requested'];
+    const activeTaskStatuses = ['Assigned', 'In Progress', 'Editing', 'Extra Revision Approved', 'Revision Requested', 'Draft Sent', 'Draft Ready', 'Correction Requested'];
     
     const activeProjects = await EditProject.find({ status: { $in: activeProjectStatuses } });
     const activeTasks = await EditingTask.find({ status: { $in: activeTaskStatuses } });

@@ -479,7 +479,7 @@ export default function ManagerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskId: feedbackTask.editId,
-          status: 'In Progress',
+          status: 'Correction Requested',
           managerComment: feedbackText.trim(),
         }),
       });
@@ -654,7 +654,7 @@ export default function ManagerPage() {
     },
     [editing, shoots]
   );
-  const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress'].includes(edit.status));
+  const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress', 'Correction Requested'].includes(edit.status));
   const draftReady = editing.filter((edit) => edit.status === 'Draft Ready');
   const extraRevisionNeeded = editing.filter(isExtraRevisionNeeded);
 

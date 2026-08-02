@@ -31,6 +31,7 @@ const statusClass: Record<string, string> = {
   Assigned: 'border-blue-500/40 bg-blue-500/15 text-blue-600',
   'In Progress': 'border-yellow-500/40 bg-yellow-500/15 text-yellow-600',
   'Draft Sent': 'border-purple-500/40 bg-purple-500/15 text-purple-600',
+  'Correction Requested': 'border-red-500/40 bg-red-500/15 text-red-600',
   'In Revision': 'border-orange-500/40 bg-orange-500/15 text-orange-600',
   Delivered: 'border-green-500/40 bg-green-500/15 text-green-600',
 };
@@ -84,6 +85,7 @@ export default function EditorPage() {
 
   const groups = useMemo(() => ({
     assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') === 0),
+    corrections: tasks.filter((task) => task.status === 'Correction Requested'),
     drafts: tasks.filter((task) => ['Draft Ready', 'Draft Sent'].includes(task.status)),
     revisions: tasks.filter((task) => task.status === 'In Revision' || task.status === 'Extra Revision Approved' || (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') > 0)),
     delivered: tasks.filter((task) => ['Delivered', 'Client Satisfied', 'Completed'].includes(task.status)),
@@ -190,7 +192,7 @@ export default function EditorPage() {
         </div>
       )}
       {task.status === 'Assigned' && <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>Mark In Progress</Button>}
-      {['In Progress', 'In Revision', 'Extra Revision Approved'].includes(task.status) && (
+      {['In Progress', 'In Revision', 'Extra Revision Approved', 'Correction Requested'].includes(task.status) && (
         <div className="space-y-2 border-t border-border pt-3">
           <Input value={draftLinks[task.task_id] ?? ''} onChange={(event) => setDraftLinks((current) => ({ ...current, [task.task_id]: event.target.value }))} placeholder="https://drive.google.com/..." />
           <Button 
@@ -240,7 +242,7 @@ export default function EditorPage() {
     );
   };
   return <div><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks across editors" : "Your individual editing tasks"} actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
-    <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
-    <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
+    <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Corrections" value={groups.corrections.length} icon={AlertCircle} onClick={() => setActiveTab('corrections')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
+    <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="corrections">Corrections</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
   </div>;
 }

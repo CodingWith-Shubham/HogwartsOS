@@ -553,6 +553,19 @@ export default function ManagerPage() {
         extra_revision_cost: extraCosts[edit.editId] ?? edit.extraRevisionCost,
         feedback: extraFeedback[edit.editId] ?? '',
       });
+      
+      // Update the status in the database so it persists across refreshes
+      await authFetch('/api/editing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          taskId: edit.editId, 
+          status: 'Extra Revision Approved',
+          extraRevisionApproved: true,
+          extraRevisionCost: extraCosts[edit.editId] ?? edit.extraRevisionCost
+        })
+      });
+
       toast.success('Extra revision approved, editor notified!');
       setEditing((prev) =>
         prev.map((item) =>

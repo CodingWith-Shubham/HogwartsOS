@@ -228,6 +228,19 @@ const updateProject = asyncHandler(async (req, res) => {
     if (updates.extra_revision_cost !== undefined) updates.extraRevisionCost = updates.extra_revision_cost;
     if (updates.handover_to_client !== undefined) updates.handoverToClient = updates.handover_to_client;
 
+    // Fetch the project first to check maxFreeRevisions
+    let projectToUpdate = await EditProject.findOne({ editId: edit_id });
+    if (!projectToUpdate) {
+        projectToUpdate = await EditingTask.findOne({ taskId: edit_id });
+    }
+    if (!projectToUpdate) throw new ApiError(404, "Project or Task not found");
+
+    // Automatically enforce Revision Requested status if exceeding free revisions
+    if (updates.revisionCount !== undefined && updates.revisionCount > (projectToUpdate.maxFreeRevisions || 2)) {
+        updates.status = 'Revision Requested';
+        updates.extraRevisionApproved = false; // Reset approval
+    }
+
     if (updates.managerComment === "" || updates.managerComment === undefined) {
         delete updates.managerComment;
     }

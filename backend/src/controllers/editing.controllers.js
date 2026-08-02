@@ -171,7 +171,19 @@ const assignTasks = asyncHandler(async (req, res) => {
     }
 
     const createdTasks = [];
+    const typeCounters = {};
     for (const task of tasks) {
+        let label = task.task_label || "";
+        if (label.endsWith('#1')) {
+            if (typeCounters[task.task_type] === undefined) {
+                typeCounters[task.task_type] = await EditingTask.countDocuments({ shootId: shoot_id, taskType: task.task_type });
+            }
+            if (typeCounters[task.task_type] > 0) {
+                label = label.replace(/#1$/, `#${typeCounters[task.task_type] + 1}`);
+            }
+            typeCounters[task.task_type]++;
+        }
+
         const newTask = await EditingTask.create({
             taskId: task.task_id || `TSK_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
             editId: task.edit_id || `EDIT_${shoot_id}_${Math.floor(Math.random() * 1000)}`,
@@ -181,7 +193,7 @@ const assignTasks = asyncHandler(async (req, res) => {
             emailId: email_id || client_email || "",
             serviceType: service_type || task.service_type || "",
             taskType: task.task_type || "",
-            taskLabel: task.task_label || "",
+            taskLabel: label,
             dataLink: data_link,
             assignedToName: task.editor_name || task.assigned_to_name || "",
             assignedToEmail: task.editor_email || task.assigned_to_email || "",
@@ -330,6 +342,17 @@ const createTask = asyncHandler(async (req, res) => {
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    // Fix N8N overriding labels with #1 by appending the correct index
+    if (body.taskLabel && body.taskLabel.endsWith('#1')) {
+        const existingCount = await EditingTask.countDocuments({ 
+            shootId: body.shootId, 
+            taskType: body.taskType 
+        });
+        if (existingCount > 0) {
+            body.taskLabel = body.taskLabel.replace(/#1$/, `#${existingCount + 1}`);
+        }
+    }
 
     const task = await EditingTask.create(body);
     return res.status(201).json(new ApiResponse(201, { task }, "Task created"));

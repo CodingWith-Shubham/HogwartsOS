@@ -843,21 +843,12 @@ export default function ManagerPage() {
           ) : (
             extraRevisionNeeded.map((edit) => (
               <div key={edit.editId} className="flex flex-col gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
-                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_180px_auto] lg:items-center">
+                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
                   <div>
                     <p className="text-sm font-medium">{edit.clientName}</p>
                     <p className="text-xs text-muted-foreground">{edit.editorName} · Revision {edit.revisionCount}/{edit.maxFreeRevisions}</p>
                   </div>
                   <Badge className="w-fit border-amber-500/40 bg-amber-500/15 text-amber-600">Sales confirmation needed</Badge>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="Extra cost"
-                    value={extraCosts[edit.editId] ?? edit.extraRevisionCost}
-                    onChange={(event) =>
-                      setExtraCosts((prev) => ({ ...prev, [edit.editId]: event.target.value }))
-                    }
-                  />
                   <Button size="sm" onClick={() => approveExtraRevision(edit)} disabled={approvingExtraId === edit.editId}>
                     Approve Extra Revision
                   </Button>
@@ -901,12 +892,7 @@ export default function ManagerPage() {
                       <p className="text-xs text-muted-foreground">Editor: {edit.editorName}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" asChild disabled={!edit.dataLink}>
-                        <a href={edit.dataLink} target="_blank" rel="noreferrer">
-                          <HardDrive className="mr-1.5 h-3.5 w-3.5" />
-                          Data Link
-                        </a>
-                      </Button>
+
                       {edit.currentDraftLink && (
                         <Button size="sm" variant="outline" asChild>
                           <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">

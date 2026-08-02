@@ -63,7 +63,7 @@ export default function EditorPage() {
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
         managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0',
         max_free_revisions: t.maxFreeRevisions?.toString() || '2',
-        revisions: (data.revisions || []).filter((r: any) => r.projectId === t.editId).sort((a: any, b: any) => b.revisionRound - a.revisionRound)
+        revisions: (data.revisions || []).filter((r: any) => r.projectId === t.editId || r.projectId === t.taskId || r.projectId === t.task_id).sort((a: any, b: any) => b.revisionRound - a.revisionRound)
       })).filter((t: any) => {
         if (user?.role === 'manager' || user?.role === 'admin') return true;
         const tEmail = t.assigned_to_email?.trim().toLowerCase();
@@ -172,15 +172,15 @@ export default function EditorPage() {
       {task.revisions && task.revisions.length > 0 && (
         <div className="space-y-2 mt-2">
           {task.revisions.map((rev: any, index: number) => (
-            <details key={rev.id || index} className="rounded-md border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10 p-2 text-sm" open={['In Revision', 'In Progress', 'Extra Revision Approved'].includes(task.status) && parseInt(task.revision_count) > 0 && index === 0}>
-              <summary className="cursor-pointer font-medium text-orange-700 dark:text-orange-400">
-                Client Feedback (Round {rev.revisionRound})
+            <details key={rev.id || index} className="rounded-md border border-gray-200 bg-white p-3 text-sm transition-all" open={['In Revision', 'In Progress', 'Extra Revision Approved'].includes(task.status) && parseInt(task.revision_count) > 0 && index === 0}>
+              <summary className="cursor-pointer font-bold text-black flex items-center select-none">
+                <span className="mr-2">📝</span> Client Feedback (Round {rev.revisionRound})
               </summary>
-              <div className="mt-2 space-y-2 text-muted-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="mt-3 space-y-2 text-black whitespace-pre-wrap leading-relaxed border-t border-gray-200 pt-3 font-medium">
                 {rev.feedback ? (
                   rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => 
                     part.match(/^https?:\/\//) 
-                      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{part}</a>
+                      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-black font-semibold hover:underline underline-offset-2 break-all transition-colors">{part}</a>
                       : part
                   )
                 ) : 'No feedback text provided.'}

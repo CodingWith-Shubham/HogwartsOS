@@ -11,9 +11,11 @@ const clientSchema = new Schema({
         type: String,
         default: ""
     },
-    isUpsell: {
-        type: Boolean,
-        default: false
+    leadType: {
+        type: String,
+        enum: ['lead', 'upsell'],
+        default: 'lead',
+        index: true
     },
     date: {
         type: String,

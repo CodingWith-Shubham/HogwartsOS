@@ -14,6 +14,11 @@ const projectSchema = new Schema(
       trim: true,
       maxlength: [500, "Description cannot exceed 500 characters"],
     },
+    leadType: {
+      type: String,
+      enum: ['lead', 'upsell'],
+      default: 'lead'
+    },
     owner: {
       type: Schema.Types.ObjectId,
       ref: "User",

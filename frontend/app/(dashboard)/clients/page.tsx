@@ -12,6 +12,7 @@ import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
+import { UpsellModal } from '@/components/clients/UpsellModal';
 import {
   Sheet,
   SheetContent,
@@ -64,7 +65,8 @@ export default function ClientsPage() {
 
   // Form states
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [upsellSheetOpen, setUpsellSheetOpen] = useState(false);
+  const [upsellModalOpen, setUpsellModalOpen] = useState(false);
+  const [selectedUpsellClient, setSelectedUpsellClient] = useState<any | null>(null);
   const [editingClient, setEditingClient] = useState<any | null>(null);
   const [clientName, setClientName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
@@ -161,22 +163,8 @@ export default function ClientsPage() {
     const lead = leads.find((l) => l.leadId === c.id);
     if (!lead) return;
 
-    setClientName(lead.name || '');
-    setContactNumber(lead.phoneNumber || '');
-    setWhatsapp(lead.whatsapp || '');
-    setClientEmail(lead.clientEmail || '');
-    
-    // Reset other fields for new upsell
-    setService('podcast');
-    setCost('');
-    setStatus('New Lead');
-    if (usersList.length > 0) {
-      setAssignedTo(usersList[0].name);
-    } else {
-      setAssignedTo('');
-    }
-    
-    setUpsellSheetOpen(true);
+    setSelectedUpsellClient(lead);
+    setUpsellModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -220,49 +208,6 @@ export default function ClientsPage() {
       await triggerFetch();
     } catch (err) {
       toast.error('Error saving client', {
-        description: err instanceof Error ? err.message : 'Unknown error occurred',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUpsellSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const payload: any = {
-        name: clientName,
-        phoneNumber: contactNumber,
-        whatsapp,
-        service,
-        assignedTo,
-        clientEmail,
-        cost,
-        isUpsell: true,
-        reachoutDone: "Yes"
-      };
-
-      const response = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to upsell client');
-      }
-
-      toast.success('Upsell Lead Created', {
-        description: 'New upsell lead added to pipeline successfully',
-      });
-
-      setUpsellSheetOpen(false);
-      setLoading(true);
-      await triggerFetch();
-    } catch (err) {
-      toast.error('Error upselling client', {
         description: err instanceof Error ? err.message : 'Unknown error occurred',
       });
     } finally {
@@ -371,7 +316,7 @@ export default function ClientsPage() {
                     handleUpsellClient(c);
                   }}
                 >
-                  <ArrowUpCircle className="h-4 w-4 text-green-500 hover:text-green-600" />
+                  <ArrowUpCircle className="h-4 w-4 text-amber-500 hover:text-amber-600" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -547,110 +492,16 @@ export default function ClientsPage() {
         </SheetContent>
       </Sheet>
 
-      <Sheet open={upsellSheetOpen} onOpenChange={setUpsellSheetOpen}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Upsell Client</SheetTitle>
-            <SheetDescription>
-              Create a new lead for an existing client.
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleUpsellSubmit} className="space-y-4 mt-6">
-            <div className="space-y-2">
-              <Label htmlFor="upsellClientName">Client / Company Name</Label>
-              <Input
-                id="upsellClientName"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upsellContactNumber">Contact Number</Label>
-              <Input
-                id="upsellContactNumber"
-                placeholder="+91 ..."
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upsellWhatsapp">WhatsApp Username</Label>
-              <Input
-                id="upsellWhatsapp"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upsellClientEmail">Client Email</Label>
-              <Input
-                id="upsellClientEmail"
-                type="email"
-                placeholder="client@example.com"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upsellService">Service Required</Label>
-              <Select value={service} onValueChange={setService}>
-                <SelectTrigger id="upsellService">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="podcast">Podcast</SelectItem>
-                  <SelectItem value="reel">Reel</SelectItem>
-                  <SelectItem value="brand_film">Brand Film</SelectItem>
-                  <SelectItem value="product_video">Product Video</SelectItem>
-                  <SelectItem value="event_coverage">Event Coverage</SelectItem>
-                  <SelectItem value="social_media">Social Media</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upsellCost">Cost in ₹</Label>
-              <Input
-                id="upsellCost"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="upsellAssignTo">Assign To</Label>
-              <Select value={assignedTo} onValueChange={setAssignedTo}>
-                <SelectTrigger id="upsellAssignTo">
-                  <SelectValue placeholder="Select sales/team member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {usersList.map((u) => (
-                    <SelectItem key={u.id} value={u.name}>
-                      {u.name} ({u.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button type="submit" disabled={submitting} className="w-full mt-4">
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Create Upsell Lead'
-              )}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+      <UpsellModal 
+        open={upsellModalOpen}
+        onOpenChange={setUpsellModalOpen}
+        client={selectedUpsellClient}
+        salesMembers={usersList.map(u => u.name)}
+        onSuccess={() => {
+          setLoading(true);
+          triggerFetch();
+        }}
+      />
     </div>
   );
 }

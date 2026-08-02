@@ -61,6 +61,7 @@ export interface Lead {
   proposalSent: string;
   proposalAccepted: boolean;
   isUpsell?: boolean;
+  leadType?: 'lead' | 'upsell';
   proposalSentAt: string;
   podcastDraft: string;
   podcastEdit: string;

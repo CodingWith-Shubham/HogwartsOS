@@ -83,9 +83,9 @@ export default function EditorPage() {
   useEffect(() => { refresh(true).finally(() => setLoading(false)); const interval = setInterval(() => refresh(true), 30000); return () => clearInterval(interval); }, [refresh]);
 
   const groups = useMemo(() => ({
-    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) === 0),
+    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') === 0),
     drafts: tasks.filter((task) => ['Draft Ready', 'Draft Sent'].includes(task.status)),
-    revisions: tasks.filter((task) => task.status === 'In Revision' || task.status === 'Extra Revision Approved' || (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count) > 0)),
+    revisions: tasks.filter((task) => task.status === 'In Revision' || task.status === 'Extra Revision Approved' || (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') > 0)),
     delivered: tasks.filter((task) => ['Delivered', 'Client Satisfied', 'Completed'].includes(task.status)),
   }), [tasks]);
 
@@ -172,7 +172,7 @@ export default function EditorPage() {
       {task.revisions && task.revisions.length > 0 && (
         <div className="space-y-2 mt-2">
           {task.revisions.map((rev: any, index: number) => (
-            <details key={rev.id || index} className="rounded-md border border-gray-200 bg-white p-3 text-sm transition-all" open={['In Revision', 'In Progress', 'Extra Revision Approved'].includes(task.status) && parseInt(task.revision_count) > 0 && index === 0}>
+            <details key={rev.id || index} className="rounded-md border border-gray-200 bg-white p-3 text-sm transition-all" open={['In Revision', 'In Progress', 'Extra Revision Approved'].includes(task.status) && parseInt(task.revision_count || '0') > 0 && index === 0}>
               <summary className="cursor-pointer font-bold text-black flex items-center select-none">
                 <span className="mr-2">📝</span> Client Feedback (Round {rev.revisionRound})
               </summary>

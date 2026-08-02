@@ -11,7 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { DashboardShimmer } from '@/components/shared/ShimmerLoader';
 import { Loader2, Plus, Wallet, FileText, CheckCircle, Clock, Video, FileAudio, Users, Briefcase, Handshake, MonitorPlay, Camera, FileCheck, AlertCircle, ArrowRight, TrendingUp, IndianRupee, Zap, Timer, Layers } from 'lucide-react';
 import { CorrectionsVsRevisionsWidget } from '@/components/dashboard/CorrectionsVsRevisionsWidget';
+import { UpsellMetricsWidget } from '@/components/dashboard/UpsellMetricsWidget';
 import { formatINR, formatDate, titleCase } from '@/lib/formatter';
+import { useAuth } from '@/lib/auth-context';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -21,6 +23,7 @@ function isTrue(value: unknown) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [realtimeData, setRealtimeData] = useState<any>(null);
   const [shoots, setShoots] = useState<any[]>([]);
@@ -145,6 +148,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <CorrectionsVsRevisionsWidget />
       </div>
+
+      {/* ── Upsell Metrics (Manager/Admin Only) ─────────────────────────── */}
+      {(user?.role === 'manager' || user?.role === 'admin') && (
+        <div className="mb-6">
+          <UpsellMetricsWidget />
+        </div>
+      )}
 
       {/* ── Revenue chart + Pipeline ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

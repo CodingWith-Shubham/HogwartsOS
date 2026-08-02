@@ -11,6 +11,7 @@ const getClients = asyncHandler(async (req, res) => {
 
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
+    if (req.query.type) filter.leadType = req.query.type;
 
     let query = Client.find(filter).sort({ createdAt: -1 });
     if (req.query.limit) query = query.limit(Number(req.query.limit));
@@ -107,7 +108,6 @@ const createClient = asyncHandler(async (req, res) => {
         cost: Number(body.cost || 0),
         status: body.status || "New Lead",
         clientEmail: body.clientEmail || body.email || "",
-        isUpsell: Boolean(body.isUpsell),
         proposalSent: Boolean(body.proposalSent),
         proposalAccepted: Boolean(body.proposalAccepted),
         proposalSentAt: body.proposalSentAt || new Date().toISOString()

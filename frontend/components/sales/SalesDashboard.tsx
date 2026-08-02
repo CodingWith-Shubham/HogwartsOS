@@ -696,7 +696,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const filteredLeads = useMemo(() => {
     switch (filterTab) {
       case 'new_leads':
-        return salesLeads.filter((lead) => lead.status === 'New Lead' && !lead.isUpsell);
+        return salesLeads.filter((lead) => lead.status === 'New Lead' && lead.leadType !== 'upsell');
       case 'proposal_sent':
         return salesLeads.filter((lead) => lead.status === 'Proposal Sent');
       case 'revoked':
@@ -704,7 +704,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       case 'accepted':
         return salesLeads.filter((lead) => lead.proposalAccepted);
       case 'upsells':
-        return salesLeads.filter((lead) => lead.isUpsell);
+        return salesLeads.filter((lead) => lead.leadType === 'upsell');
       default:
         return salesLeads;
     }
@@ -1566,7 +1566,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     .filter((lead) => lead.proposalAccepted)
     .reduce((sum, lead) => sum + parseCost(lead.cost), 0);
 
-  const totalUpsells = salesLeads.filter((l) => l.isUpsell).length;
+  const totalUpsells = salesLeads.filter((l) => l.leadType === 'upsell').length;
   const upsellPercentage = totalLeads > 0 ? ((totalUpsells / totalLeads) * 100).toFixed(1) : 0;
 
   const pipelineStatuses = [
@@ -1598,7 +1598,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         <StatCard title="Proposals Sent" value={proposalsSent} icon={FileText} />
         <StatCard title="Pipeline Value" value={formatINR(totalPipeline)} icon={TrendingUp} />
         <StatCard title="Collected" value={formatINR(acceptedValue)} icon={Wallet} />
-        <StatCard title="Upsells" value={`${totalUpsells} (${upsellPercentage}%)`} icon={ArrowUpCircle} />
       </div>
 
       <Tabs defaultValue="leads">

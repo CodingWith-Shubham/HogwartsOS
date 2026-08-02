@@ -58,7 +58,19 @@ const editProjectSchema = new Schema({
     deadlineNotified: { type: String, default: "false" },
     finalDelivered: { type: Boolean, default: false },
     reelEdit: { type: String, default: "0" },
-    managerComment: { type: String, default: "" }
+    managerComment: { type: String, default: "" },
+
+    // TAT Reminder tracking timestamps
+    dataLinkSharedAt: { type: String, default: "" },
+    draftSentToClientAt: { type: String, default: "" },
+    clientReviewedAt: { type: String, default: "" },
+    clientSatisfiedAt: { type: String, default: "" },
+
+    // TAT Reminder level tracking (0=no reminder sent, 1-4=reminder level sent)
+    managerAllocationReminderLevel: { type: Number, default: 0 },
+    editorStartReminderLevel: { type: Number, default: 0 },
+    clientResponseReminderLevel: { type: Number, default: 0 },
+    clientApprovalReminderLevel: { type: Number, default: 0 }
 }, { timestamps: true });
 
 const editingTaskSchema = new Schema({
@@ -173,7 +185,19 @@ const editingTaskSchema = new Schema({
     previousEditorEmail: {
         type: String,
         default: ""
-    }
+    },
+
+    // TAT Reminder tracking timestamps
+    dataLinkSharedAt: { type: String, default: "" },
+    draftSentToClientAt: { type: String, default: "" },
+    clientReviewedAt: { type: String, default: "" },
+    clientSatisfiedAt: { type: String, default: "" },
+
+    // TAT Reminder level tracking (0=no reminder sent, 1-4=reminder level sent)
+    managerAllocationReminderLevel: { type: Number, default: 0 },
+    editorStartReminderLevel: { type: Number, default: 0 },
+    clientResponseReminderLevel: { type: Number, default: 0 },
+    clientApprovalReminderLevel: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const EditProject = mongoose.model("EditProject", editProjectSchema);

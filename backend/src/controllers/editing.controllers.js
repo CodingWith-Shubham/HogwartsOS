@@ -261,6 +261,20 @@ const updateProject = asyncHandler(async (req, res) => {
     if (updates.extra_revision_cost !== undefined) updates.extraRevisionCost = updates.extra_revision_cost;
     if (updates.handover_to_client !== undefined) updates.handoverToClient = updates.handover_to_client;
 
+    // TAT Reminder: Auto-set timestamps on status transitions
+    if (updates.status === 'Draft Sent' && !updates.draftSentToClientAt) {
+        updates.draftSentToClientAt = new Date().toISOString();
+        updates.clientResponseReminderLevel = 0; // Reset reminders for new draft
+        updates.clientApprovalReminderLevel = 0;
+    }
+    if (updates.status === 'Client Satisfied') {
+        updates.clientSatisfiedAt = new Date().toISOString();
+    }
+    if (updates.status === 'In Progress' && updates.revisionCount !== undefined) {
+        // Client requested revision — mark the review timestamp
+        updates.clientReviewedAt = new Date().toISOString();
+    }
+
     // Fetch the project first to check maxFreeRevisions
     let projectToUpdate = await EditProject.findOne({ editId: edit_id });
     if (!projectToUpdate) {
@@ -406,6 +420,28 @@ const updateTaskById = asyncHandler(async (req, res) => {
         delete updates.managerComment;
     }
 
+    // TAT Reminder: Auto-set timestamps on status transitions
+    if (updates.status === 'Draft Sent' && !task.draftSentToClientAt) {
+        updates.draftSentToClientAt = new Date().toISOString();
+        updates.clientResponseReminderLevel = 0;
+        updates.clientApprovalReminderLevel = 0;
+    } else if (updates.status === 'Draft Sent' && task.draftSentToClientAt) {
+        // Re-sending draft (after corrections) — update timestamp and reset client response reminders
+        updates.draftSentToClientAt = new Date().toISOString();
+        updates.clientResponseReminderLevel = 0;
+    }
+    if (updates.status === 'Client Satisfied') {
+        updates.clientSatisfiedAt = new Date().toISOString();
+    }
+    if (updates.status === 'In Progress' && task.status === 'Draft Sent') {
+        // Client requested revision — mark the review timestamp
+        updates.clientReviewedAt = new Date().toISOString();
+    }
+    // When editor starts work (status changes from Assigned to In Progress), reset editor start reminders
+    if (updates.status === 'In Progress' && task.status === 'Assigned') {
+        updates.editorStartReminderLevel = 0;
+    }
+
     const updated = await EditingTask.findOneAndUpdate(
         { taskId: task_id },
         { $set: updates },
@@ -501,4 +537,304 @@ const getEditorWorkload = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { workloads }, "Editor workload fetched successfully"));
 });
 
-export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision };
+// --- TAT Reminder System ---
+
+/**
+ * GET /api/v1/editing/reminder-candidates?type=manager_allocation|editor_start|client_response|client_approval
+ * Returns tasks/projects that are eligible for reminders based on elapsed time.
+ * n8n calls this hourly to find items that need reminder emails.
+ */
+const getReminderCandidates = asyncHandler(async (req, res) => {
+    const { type } = req.query;
+    if (!type) throw new ApiError(400, "Query parameter 'type' is required");
+
+    const now = new Date();
+    let candidates = [];
+
+    if (type === 'manager_allocation') {
+        // R1: Shoots where dataLink is uploaded but no editing tasks have been assigned yet.
+        // We look for shoots with driveLinkUploaded=true that have NO corresponding EditingTask.
+        const { Shoot } = await import("../models/shoot.models.js");
+        const shoots = await Shoot.find({ driveLinkUploaded: true });
+        
+        for (const shoot of shoots) {
+            // Check if any editing tasks exist for this shoot
+            const taskCount = await EditingTask.countDocuments({ shootId: shoot.shootId });
+            if (taskCount > 0) continue; // Editor already allocated
+
+            // Check the EditProject for reminder level
+            let project = await EditProject.findOne({ shootId: shoot.shootId });
+            
+            // Calculate hours since the shoot's dataLink was shared (use shoot.updatedAt or dataLinkSharedAt on project)
+            const sharedAt = project?.dataLinkSharedAt 
+                ? new Date(project.dataLinkSharedAt) 
+                : shoot.updatedAt || shoot.createdAt;
+            const hoursElapsed = (now - sharedAt) / (1000 * 60 * 60);
+            const currentLevel = project?.managerAllocationReminderLevel || 0;
+
+            // Determine which reminder level should fire
+            let targetLevel = 0;
+            if (hoursElapsed >= 48) targetLevel = 4;
+            else if (hoursElapsed >= 32) targetLevel = 3;
+            else if (hoursElapsed >= 28) targetLevel = 2;
+            else if (hoursElapsed >= 24) targetLevel = 1;
+
+            if (targetLevel > currentLevel) {
+                // Look up client info for the email
+                const client = await Client.findOne({ leadId: shoot.leadId });
+                candidates.push({
+                    shootId: shoot.shootId,
+                    leadId: shoot.leadId,
+                    clientName: shoot.clientName || client?.name || '',
+                    clientEmail: shoot.clientEmailId || client?.clientEmail || '',
+                    dataLink: shoot.dataLink || '',
+                    assignedTo: shoot.assignedTo || client?.assignedTo || '',
+                    hoursElapsed: Math.round(hoursElapsed * 10) / 10,
+                    currentLevel,
+                    targetLevel,
+                    projectId: project?.editId || '',
+                    projectMongoId: project?._id?.toString() || ''
+                });
+            }
+        }
+    }
+
+    else if (type === 'editor_start') {
+        // R2: Editor assigned but status still "Assigned" (hasn't started working)
+        const tasks = await EditingTask.find({ 
+            status: 'Assigned',
+            finalDelivered: false
+        });
+
+        for (const task of tasks) {
+            const assignedAt = task.assignedAt ? new Date(task.assignedAt) : task.createdAt;
+            const hoursElapsed = (now - assignedAt) / (1000 * 60 * 60);
+            const currentLevel = task.editorStartReminderLevel || 0;
+
+            let targetLevel = 0;
+            if (hoursElapsed >= 72) targetLevel = 4;
+            else if (hoursElapsed >= 60) targetLevel = 3;
+            else if (hoursElapsed >= 48) targetLevel = 2;
+            else if (hoursElapsed >= 32) targetLevel = 1;
+
+            if (targetLevel > currentLevel) {
+                candidates.push({
+                    taskId: task.taskId,
+                    editId: task.editId,
+                    shootId: task.shootId,
+                    leadId: task.leadId,
+                    clientName: task.clientName,
+                    taskLabel: task.taskLabel,
+                    serviceType: task.serviceType,
+                    assignedToName: task.assignedToName,
+                    assignedToEmail: task.assignedToEmail,
+                    assignedAt: task.assignedAt,
+                    hoursElapsed: Math.round(hoursElapsed * 10) / 10,
+                    currentLevel,
+                    targetLevel
+                });
+            }
+        }
+    }
+
+    else if (type === 'client_response') {
+        // R3: Draft sent to client but no response (no "Satisfied" or "Not Satisfied" click)
+        // Look for tasks/projects with status "Draft Sent" and draftSentToClientAt set
+        const tasks = await EditingTask.find({ 
+            status: 'Draft Sent',
+            finalDelivered: false,
+            draftSentToClientAt: { $ne: '' }
+        });
+
+        for (const task of tasks) {
+            const sentAt = new Date(task.draftSentToClientAt);
+            const hoursElapsed = (now - sentAt) / (1000 * 60 * 60);
+            const currentLevel = task.clientResponseReminderLevel || 0;
+
+            let targetLevel = 0;
+            if (hoursElapsed >= 72) targetLevel = 3;
+            else if (hoursElapsed >= 48) targetLevel = 2;
+            else if (hoursElapsed >= 24) targetLevel = 1;
+
+            if (targetLevel > currentLevel) {
+                // Look up assigned salesperson from client record
+                const client = await Client.findOne({ leadId: task.leadId });
+                candidates.push({
+                    taskId: task.taskId,
+                    editId: task.editId,
+                    leadId: task.leadId,
+                    clientName: task.clientName,
+                    clientEmail: task.emailId || client?.clientEmail || '',
+                    taskLabel: task.taskLabel,
+                    serviceType: task.serviceType,
+                    assignedToName: task.assignedToName,
+                    assignedSalesperson: client?.assignedTo || '',
+                    draftSentToClientAt: task.draftSentToClientAt,
+                    hoursElapsed: Math.round(hoursElapsed * 10) / 10,
+                    currentLevel,
+                    targetLevel
+                });
+            }
+        }
+
+        // Also check EditProject (legacy)
+        const projects = await EditProject.find({
+            status: 'Draft Sent',
+            finalDelivered: false,
+            draftSentToClientAt: { $ne: '' }
+        });
+
+        for (const project of projects) {
+            const sentAt = new Date(project.draftSentToClientAt);
+            const hoursElapsed = (now - sentAt) / (1000 * 60 * 60);
+            const currentLevel = project.clientResponseReminderLevel || 0;
+
+            let targetLevel = 0;
+            if (hoursElapsed >= 72) targetLevel = 3;
+            else if (hoursElapsed >= 48) targetLevel = 2;
+            else if (hoursElapsed >= 24) targetLevel = 1;
+
+            if (targetLevel > currentLevel) {
+                const client = await Client.findOne({ leadId: project.leadId });
+                candidates.push({
+                    editId: project.editId,
+                    leadId: project.leadId,
+                    clientName: project.clientName,
+                    clientEmail: project.emailId || client?.clientEmail || '',
+                    serviceType: project.serviceType,
+                    editorName: project.editorName,
+                    assignedSalesperson: client?.assignedTo || '',
+                    draftSentToClientAt: project.draftSentToClientAt,
+                    hoursElapsed: Math.round(hoursElapsed * 10) / 10,
+                    currentLevel,
+                    targetLevel,
+                    isProject: true
+                });
+            }
+        }
+    }
+
+    else if (type === 'client_approval') {
+        // R4: Client has reviewed (clicked Not Satisfied, corrections were made and sent back)
+        // but client hasn't confirmed final OK yet.
+        // Look for tasks with status "Draft Sent" and clientReviewedAt set (meaning this is a re-sent draft after corrections)
+        const tasks = await EditingTask.find({
+            status: 'Draft Sent',
+            finalDelivered: false,
+            clientReviewedAt: { $ne: '' },
+            clientSatisfiedAt: ''
+        });
+
+        for (const task of tasks) {
+            const reviewedAt = new Date(task.clientReviewedAt);
+            const hoursElapsed = (now - reviewedAt) / (1000 * 60 * 60);
+            const currentLevel = task.clientApprovalReminderLevel || 0;
+
+            let targetLevel = 0;
+            if (hoursElapsed >= 48) targetLevel = 2;
+            else if (hoursElapsed >= 24) targetLevel = 1;
+
+            if (targetLevel > currentLevel) {
+                const client = await Client.findOne({ leadId: task.leadId });
+                candidates.push({
+                    taskId: task.taskId,
+                    editId: task.editId,
+                    leadId: task.leadId,
+                    clientName: task.clientName,
+                    clientEmail: task.emailId || client?.clientEmail || '',
+                    taskLabel: task.taskLabel,
+                    serviceType: task.serviceType,
+                    assignedSalesperson: client?.assignedTo || '',
+                    clientReviewedAt: task.clientReviewedAt,
+                    hoursElapsed: Math.round(hoursElapsed * 10) / 10,
+                    currentLevel,
+                    targetLevel
+                });
+            }
+        }
+    }
+
+    else {
+        throw new ApiError(400, "Invalid reminder type. Use: manager_allocation, editor_start, client_response, client_approval");
+    }
+
+    return res.status(200).json(new ApiResponse(200, { candidates, type }, `Reminder candidates fetched for type: ${type}`));
+});
+
+/**
+ * PUT /api/v1/editing/reminder-level
+ * Updates the reminder level for a task/project after n8n sends the reminder email.
+ * Body: { id, field, level, idType: "taskId"|"editId"|"shootId" }
+ */
+const updateReminderLevel = asyncHandler(async (req, res) => {
+    const { id, field, level, idType } = req.body;
+    
+    if (!id || !field || level === undefined) {
+        throw new ApiError(400, "id, field, and level are required");
+    }
+
+    const validFields = [
+        'managerAllocationReminderLevel',
+        'editorStartReminderLevel', 
+        'clientResponseReminderLevel',
+        'clientApprovalReminderLevel'
+    ];
+    if (!validFields.includes(field)) {
+        throw new ApiError(400, `Invalid field. Use: ${validFields.join(', ')}`);
+    }
+
+    let updated = null;
+
+    if (idType === 'shootId') {
+        // For R1, we update/create an EditProject placeholder
+        updated = await EditProject.findOneAndUpdate(
+            { shootId: id },
+            { $set: { [field]: level } },
+            { new: true }
+        );
+        // If no EditProject exists yet, try updating by editId
+        if (!updated) {
+            updated = await EditProject.findOneAndUpdate(
+                { editId: id },
+                { $set: { [field]: level } },
+                { new: true }
+            );
+        }
+    } else if (idType === 'editId') {
+        // Try EditProject first, then EditingTask
+        updated = await EditProject.findOneAndUpdate(
+            { editId: id },
+            { $set: { [field]: level } },
+            { new: true }
+        );
+        if (!updated) {
+            updated = await EditingTask.findOneAndUpdate(
+                { editId: id },
+                { $set: { [field]: level } },
+                { new: true }
+            );
+        }
+    } else {
+        // Default: try taskId first, then editId
+        updated = await EditingTask.findOneAndUpdate(
+            { taskId: id },
+            { $set: { [field]: level } },
+            { new: true }
+        );
+        if (!updated) {
+            updated = await EditProject.findOneAndUpdate(
+                { editId: id },
+                { $set: { [field]: level } },
+                { new: true }
+            );
+        }
+    }
+
+    if (!updated) {
+        throw new ApiError(404, "Task or Project not found for reminder update");
+    }
+
+    return res.status(200).json(new ApiResponse(200, { updated }, "Reminder level updated"));
+});
+
+export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel };

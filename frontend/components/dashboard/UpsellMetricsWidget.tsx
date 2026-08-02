@@ -31,7 +31,7 @@ export function UpsellMetricsWidget() {
   useEffect(() => {
     async function fetchMetrics() {
       try {
-        const response = await authFetch('/api/v1/analytics/upsell-metrics');
+        const response = await authFetch('/api/upsell');
         if (response.ok) {
           const data = await response.json();
           setMetrics(data.data);

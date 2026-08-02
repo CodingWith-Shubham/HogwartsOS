@@ -43,7 +43,7 @@ export function UpsellModal({ open, onOpenChange, client, salesMembers, onSucces
     const notes = formData.get('notes') as string;
 
     try {
-      const res = await authFetch('/api/v1/leads/upsell', {
+      const res = await authFetch('/api/upsell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

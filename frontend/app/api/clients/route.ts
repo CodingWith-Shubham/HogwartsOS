@@ -56,6 +56,10 @@ export async function POST(request: Request) {
     const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken(h);
     const body = await request.json();
+    
+    console.log(`[DEBUG clients POST] BACKEND_URL=${BACKEND_URL}`);
+    console.log(`[DEBUG clients POST] Token starts with: ${token?.substring(0, 15)}...`);
+    
     const res = await fetch(`${BACKEND_URL}/clients`, {
       method: 'POST',
       headers: {
@@ -66,6 +70,7 @@ export async function POST(request: Request) {
     });
 
     const data = await res.json();
+    console.log(`[DEBUG clients POST] Response status: ${res.status}, data:`, data);
     if (res.ok && data.success) {
       return NextResponse.json({ lead: data.data.lead }, { status: 201 });
     }

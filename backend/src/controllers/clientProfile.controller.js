@@ -56,7 +56,7 @@ const checkUniqueness = async ({ email, phone, excludeId }) => {
  * Check if a client profile already exists based on email or phone.
  * (Narrowed from the old version that also matched name/company.)
  */
-const findDuplicateClientProfile = async ({ email, phone }) => {
+const findDuplicateClientProfile = async ({ email, phone, name }) => {
   if (email && email.trim()) {
     const byEmail = await ClientProfile.findOne({ email: email.trim().toLowerCase() });
     if (byEmail) return byEmail;
@@ -65,6 +65,13 @@ const findDuplicateClientProfile = async ({ email, phone }) => {
   if (phone && phone.trim()) {
     const byPhone = await ClientProfile.findOne({ phone: phone.trim() });
     if (byPhone) return byPhone;
+  }
+
+  // Fallback to name if email and phone are not present or didn't match
+  if (name && name.trim()) {
+    // Case-insensitive exact match for name
+    const byName = await ClientProfile.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } });
+    if (byName) return byName;
   }
 
   return null;
@@ -76,8 +83,8 @@ const findDuplicateClientProfile = async ({ email, phone }) => {
  * Check for duplicate client profile (API Endpoint)
  */
 export const checkDuplicateProfile = asyncHandler(async (req, res) => {
-  const { email, phone } = req.body;
-  const duplicate = await findDuplicateClientProfile({ email, phone });
+  const { email, phone, name } = req.body;
+  const duplicate = await findDuplicateClientProfile({ email, phone, name });
 
   return res.status(200).json(
     new ApiResponse(200, {
@@ -142,7 +149,7 @@ export const createClientProfile = asyncHandler(async (req, res) => {
 
   // Automatic duplicate check (broader — also returns the profile)
   if (!allowDuplicate) {
-    const existing = await findDuplicateClientProfile({ email, phone });
+    const existing = await findDuplicateClientProfile({ email, phone, name });
     if (existing) {
       return res.status(409).json({
         success: false,

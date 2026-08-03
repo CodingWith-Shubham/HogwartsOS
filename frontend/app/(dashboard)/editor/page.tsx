@@ -20,8 +20,8 @@ import { toast } from 'sonner';
 import { ClientProfileModal } from '@/components/client-profile/ClientProfileModal';
 
 type EditingTask = {
-  task_id: string; edit_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
-  data_link: string; assigned_to_name: string; status: string; draft_link: string;
+  task_id: string; edit_id: string; client_name: string; client_email?: string; service_type: string; task_type: string; task_label: string;
+  data_link: string; assigned_to_name: string; assigned_to_email?: string; status: string; draft_link: string;
   managerComment: string; deadline_at: string; final_delivered: string;
   revision_count?: string;
   max_free_revisions?: string;
@@ -63,7 +63,7 @@ export default function EditorPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to load tasks');
       const mapped = (data.tasks || []).map((t: any) => ({
-        task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
+        task_id: t.taskId, edit_id: t.editId, client_name: t.clientName, client_email: t.emailId, service_type: t.serviceType, task_type: t.taskType, task_label: t.taskLabel,
         data_link: t.dataLink, assigned_to_name: t.assignedToName, assigned_to_email: t.assignedToEmail, status: t.status, draft_link: t.draftLink,
         managerComment: t.managerComment, deadline_at: t.deadlineAt, final_delivered: t.finalDelivered, revision_count: t.revisionCount?.toString() || '0',
         max_free_revisions: t.maxFreeRevisions?.toString() || '2',
@@ -144,7 +144,7 @@ export default function EditorPage() {
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
       {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => { setProfileClientInfo({ name: task.client_name }); setProfileModalOpen(true); }}>
+        <Button size="sm" variant="outline" onClick={() => { setProfileClientInfo({ name: task.client_name, email: task.client_email }); setProfileModalOpen(true); }}>
           <UserCheck className="mr-1.5 h-3.5 w-3.5" />
           Client Profile
         </Button>

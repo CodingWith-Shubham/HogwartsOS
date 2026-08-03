@@ -636,7 +636,7 @@ export function ClientProfileModal({
                   Editor Prefs ✨
                 </TabsTrigger>
                 <TabsTrigger value="history" className="text-xs md:text-sm">
-                  History ({projectHistory.length + previousProjects.length})
+                  History ({previousProjects.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -1031,39 +1031,7 @@ export function ClientProfileModal({
 
               {/* SECTION 5: PROJECT HISTORY & PREVIOUS PROJECTS */}
               <TabsContent value="history" className="space-y-6 pt-4">
-                {/* Auto-linked Project History */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <History className="h-4 w-4 text-primary" /> Auto-Linked Projects ({projectHistory.length})
-                  </h4>
-                  {projectHistory.length === 0 ? (
-                    <div className="py-6 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-                      No automatically linked projects found.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {projectHistory.map((proj) => (
-                        <div
-                          key={proj.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30 text-sm"
-                        >
-                          <div className="space-y-1">
-                            <p className="font-medium">{proj.clientName} — {proj.serviceType}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Editor: <span className="font-medium text-foreground">{proj.assignedEditor}</span> · Revisions: {proj.revisionCount}
-                            </p>
-                          </div>
-                          <div className="text-right space-y-1">
-                            <Badge variant="secondary">{proj.status}</Badge>
-                            <p className="text-[11px] text-muted-foreground">
-                              {proj.deliveryDate ? new Date(proj.deliveryDate).toLocaleDateString() : 'Active'}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
 
                 {/* Manually-linked Previous Projects */}
                 <div className="space-y-3">

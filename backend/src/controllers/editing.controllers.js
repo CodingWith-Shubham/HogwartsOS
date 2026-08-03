@@ -562,15 +562,10 @@ const getReminderCandidates = asyncHandler(async (req, res) => {
             const taskCount = await EditingTask.countDocuments({ shootId: shoot.shootId });
             if (taskCount > 0) continue; // Editor already allocated
 
-            // Check the EditProject for reminder level
-            let project = await EditProject.findOne({ shootId: shoot.shootId });
-            
-            // Calculate hours since the shoot's dataLink was shared (use shoot.updatedAt or dataLinkSharedAt on project)
-            const sharedAt = project?.dataLinkSharedAt 
-                ? new Date(project.dataLinkSharedAt) 
-                : shoot.updatedAt || shoot.createdAt;
+            // Calculate hours since the shoot's dataLink was shared
+            const sharedAt = shoot.updatedAt || shoot.createdAt;
             const hoursElapsed = (now - sharedAt) / (1000 * 60 * 60);
-            const currentLevel = project?.managerAllocationReminderLevel || 0;
+            const currentLevel = shoot.managerAllocationReminderLevel || 0;
 
             // Determine which reminder level should fire
             let targetLevel = 0;
@@ -591,9 +586,7 @@ const getReminderCandidates = asyncHandler(async (req, res) => {
                     assignedTo: shoot.assignedTo || client?.assignedTo || '',
                     hoursElapsed: Math.round(hoursElapsed * 10) / 10,
                     currentLevel,
-                    targetLevel,
-                    projectId: project?.editId || '',
-                    projectMongoId: project?._id?.toString() || ''
+                    targetLevel
                 });
             }
         }
@@ -786,20 +779,13 @@ const updateReminderLevel = asyncHandler(async (req, res) => {
     let updated = null;
 
     if (idType === 'shootId') {
-        // For R1, we update/create an EditProject placeholder
-        updated = await EditProject.findOneAndUpdate(
+        // R1: Update the Shoot document directly (EditProject may not exist yet)
+        const { Shoot } = await import("../models/shoot.models.js");
+        updated = await Shoot.findOneAndUpdate(
             { shootId: id },
             { $set: { [field]: level } },
             { new: true }
         );
-        // If no EditProject exists yet, try updating by editId
-        if (!updated) {
-            updated = await EditProject.findOneAndUpdate(
-                { editId: id },
-                { $set: { [field]: level } },
-                { new: true }
-            );
-        }
     } else if (idType === 'editId') {
         // Try EditProject first, then EditingTask
         updated = await EditProject.findOneAndUpdate(

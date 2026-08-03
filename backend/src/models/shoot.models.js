@@ -143,7 +143,9 @@ const shootSchema = new Schema({
     addonVerifiedAt: {
         type: String,
         default: ""
-    }
+    },
+    // TAT Reminder: R1 level tracked on Shoot since EditProject may not exist yet
+    managerAllocationReminderLevel: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const Shoot = mongoose.model("Shoot", shootSchema);

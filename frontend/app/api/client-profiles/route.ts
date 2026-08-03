@@ -44,9 +44,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (user.role === 'editor') {
-      return NextResponse.json({ error: 'Editors cannot create client profiles' }, { status: 403 });
-    }
 
     const BACKEND_URL = await getBackendUrl();
     const token = getAccessToken(h);
@@ -65,7 +62,7 @@ export async function POST(request: Request) {
     if (res.status === 409) {
       return NextResponse.json({
         isDuplicate: true,
-        message: data.message || 'A matching client profile already exists',
+        message:  `${data.message} A matching client profile already exists`,
         existingProfile: data.existingProfile,
       }, { status: 409 });
     }

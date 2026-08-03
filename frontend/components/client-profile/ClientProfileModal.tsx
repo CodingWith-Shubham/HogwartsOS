@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,10 @@ import {
   AlertCircle,
   Plus,
   Trash2,
+  Search,
+  Link2,
+  Unlink,
+  X,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -56,6 +60,12 @@ import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import { toast } from 'sonner';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface ClientProfileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,6 +79,21 @@ interface ClientProfileModalProps {
   onSuccess?: () => void;
 }
 
+interface ProjectResult {
+  id: string;
+  editId: string;
+  clientName: string;
+  serviceType: string;
+  assignedEditor: string;
+  status: string;
+  deliveryDate?: string;
+  revisionCount?: number;
+  createdAt?: string;
+  alreadyLinked?: boolean;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function ClientProfileModal({
   open,
   onOpenChange,
@@ -78,9 +103,10 @@ export function ClientProfileModal({
 }: ClientProfileModalProps) {
   const { user } = useAuth();
   const userRole = user?.role || 'sales';
-  const isEditor = userRole === 'editor';
-  const canEditSalesInfo = ['sales', 'manager', 'admin'].includes(userRole);
-  const canCreate = canEditSalesInfo;
+
+  // All three roles (editor, sales, manager) + admin can create and edit everything
+  const canEditAllFields = ['sales', 'manager', 'admin', 'editor'].includes(userRole);
+  const canCreate = canEditAllFields;
   const canDelete = ['manager', 'admin'].includes(userRole);
 
   const [loading, setLoading] = useState(false);
@@ -89,6 +115,10 @@ export function ClientProfileModal({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
+
+  // Resolved profile ID (for when we load an existing profile via duplicate check)
+  const [resolvedProfileId, setResolvedProfileId] = useState<string | null>(null);
+  const effectiveProfileId = profileId || resolvedProfileId;
 
   // Form State
   const [formData, setFormData] = useState({
@@ -141,10 +171,23 @@ export function ClientProfileModal({
     },
   });
 
-  const [projectHistory, setProjectHistory] = useState<any[]>([]);
+  const [projectHistory, setProjectHistory] = useState<ProjectResult[]>([]);
+  const [previousProjects, setPreviousProjects] = useState<ProjectResult[]>([]);
+
+  // Search Projects State
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [projectSearchResults, setProjectSearchResults] = useState<ProjectResult[]>([]);
+  const [projectSearchLoading, setProjectSearchLoading] = useState(false);
+  const [linkingProjectId, setLinkingProjectId] = useState<string | null>(null);
+  const [unlinkingProjectId, setUnlinkingProjectId] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setResolvedProfileId(null);
+      return;
+    }
 
     if (profileId) {
       fetchProfile(profileId);
@@ -160,6 +203,7 @@ export function ClientProfileModal({
     if (!keepNotFound) {
       setNotFound(false);
     }
+    setResolvedProfileId(null);
     setFormData({
       name: clientInfo?.name || '',
       email: clientInfo?.email || '',
@@ -203,6 +247,7 @@ export function ClientProfileModal({
       },
     });
     setProjectHistory([]);
+    setPreviousProjects([]);
   };
 
   const checkMatchingProfile = async (info: { email?: string; phone?: string; name?: string }) => {
@@ -216,8 +261,10 @@ export function ClientProfileModal({
       const data = await res.json();
       if (data.exists && data.profile) {
         setNotFound(false);
-        populateForm(data.profile, []);
+        setResolvedProfileId(data.profile._id);
+        populateForm(data.profile, [], []);
         fetchProfileDetails(data.profile._id);
+        toast.info('Existing client profile loaded — editing in place.');
       } else {
         resetForm(true);
         setNotFound(true);
@@ -235,7 +282,8 @@ export function ClientProfileModal({
       const res = await authFetch(`/api/client-profiles/${id}`);
       const data = await res.json();
       if (res.ok && data.profile) {
-        populateForm(data.profile, data.projectHistory || []);
+        setResolvedProfileId(data.profile._id);
+        populateForm(data.profile, data.projectHistory || [], data.previousProjects || []);
         setNotFound(false);
       } else {
         setNotFound(true);
@@ -251,7 +299,7 @@ export function ClientProfileModal({
     setLoading(false);
   };
 
-  const populateForm = (p: any, history: any[]) => {
+  const populateForm = (p: any, history: any[], prevProjects: any[]) => {
     setFormData({
       name: p.name || '',
       email: p.email || '',
@@ -295,6 +343,7 @@ export function ClientProfileModal({
       },
     });
     setProjectHistory(history);
+    setPreviousProjects(prevProjects);
   };
 
   const handleChange = (field: string, val: string) => {
@@ -311,13 +360,43 @@ export function ClientProfileModal({
     }));
   };
 
+  // ─── Client-side validation ───────────────────────────────────────────────
+
+  const validateForm = (): string | null => {
+    if (!formData.name || !formData.name.trim()) {
+      return 'Client name is required.';
+    }
+    if (formData.email && formData.email.trim() && !EMAIL_REGEX.test(formData.email.trim())) {
+      return 'Invalid email format.';
+    }
+    if (formData.phone && formData.phone.trim()) {
+      const digits = formData.phone.replace(/\D/g, '');
+      if (digits.length < 10) {
+        return 'Mobile number must contain at least 10 digits.';
+      }
+    }
+    return null;
+  };
+
+  // ─── Save Handler ─────────────────────────────────────────────────────────
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Client-side validation
+    const validationError = validateForm();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
     setSaving(true);
     try {
-      const isExisting = profileId || (notFound === false && formData.name);
-      const url = isExisting && profileId ? `/api/client-profiles/${profileId}` : '/api/client-profiles';
-      const method = isExisting && profileId ? 'PATCH' : 'POST';
+      const isExisting = Boolean(effectiveProfileId);
+      const url = isExisting
+        ? `/api/client-profiles/${effectiveProfileId}`
+        : '/api/client-profiles';
+      const method = isExisting ? 'PATCH' : 'POST';
 
       const response = await authFetch(url, {
         method,
@@ -326,45 +405,150 @@ export function ClientProfileModal({
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save client profile');
+
+      if (response.status === 409 && data.isDuplicate) {
+        // Duplicate found — load it instead
+        toast.info(data.message || 'A matching client profile already exists. Loading it now.');
+        if (data.existingProfile?._id) {
+          setResolvedProfileId(data.existingProfile._id);
+          fetchProfileDetails(data.existingProfile._id);
+        }
+        return;
       }
 
-      toast.success(isExisting ? 'Profile Updated' : 'Profile Created');
+      if (!response.ok) {
+        // Show the specific error from backend
+        toast.error(data.error || data.message || 'Save failed');
+        return;
+      }
+
+      toast.success(isExisting ? 'Profile updated successfully' : 'Profile created successfully');
       onSuccess?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error('Save failed', {
-        description: err instanceof Error ? err.message : 'Unknown error',
-      });
+      toast.error(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setSaving(false);
     }
   };
 
+  // ─── Delete Handler ───────────────────────────────────────────────────────
+
   const handleDelete = async () => {
-    if (!profileId) return;
+    if (!effectiveProfileId) return;
     setDeleting(true);
     try {
-      const response = await authFetch(`/api/client-profiles/${profileId}`, {
+      const response = await authFetch(`/api/client-profiles/${effectiveProfileId}`, {
         method: 'DELETE',
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete client profile');
+        toast.error(data.error || 'Failed to delete client profile');
+        return;
       }
       toast.success('Client profile deleted');
       setDeleteDialogOpen(false);
       onSuccess?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error('Delete failed', {
-        description: err instanceof Error ? err.message : 'Unknown error',
-      });
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
     } finally {
       setDeleting(false);
     }
   };
+
+  // ─── Previous Projects Management ─────────────────────────────────────────
+
+  const searchForProjects = useCallback(
+    async (query: string) => {
+      if (!effectiveProfileId) return;
+      setProjectSearchLoading(true);
+      try {
+        const res = await authFetch(
+          `/api/client-profiles/${effectiveProfileId}/previous-projects?q=${encodeURIComponent(query)}`
+        );
+        const data = await res.json();
+        if (res.ok && data.projects) {
+          setProjectSearchResults(data.projects);
+        } else {
+          setProjectSearchResults([]);
+        }
+      } catch {
+        setProjectSearchResults([]);
+      } finally {
+        setProjectSearchLoading(false);
+      }
+    },
+    [effectiveProfileId]
+  );
+
+  const handleProjectSearchChange = (value: string) => {
+    setProjectSearchQuery(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      searchForProjects(value);
+    }, 300);
+  };
+
+  const handleLinkProject = async (projectId: string) => {
+    if (!effectiveProfileId) return;
+    setLinkingProjectId(projectId);
+    try {
+      const res = await authFetch(
+        `/api/client-profiles/${effectiveProfileId}/previous-projects`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to link project');
+        return;
+      }
+      toast.success('Project linked successfully');
+      if (data.project) {
+        setPreviousProjects((prev) => [...prev, data.project]);
+      }
+      // Update search results to mark as linked
+      setProjectSearchResults((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, alreadyLinked: true } : p))
+      );
+    } catch {
+      toast.error('Failed to link project');
+    } finally {
+      setLinkingProjectId(null);
+    }
+  };
+
+  const handleUnlinkProject = async (projectId: string) => {
+    if (!effectiveProfileId) return;
+    setUnlinkingProjectId(projectId);
+    try {
+      const res = await authFetch(
+        `/api/client-profiles/${effectiveProfileId}/previous-projects/${projectId}`,
+        { method: 'DELETE' }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to unlink project');
+        return;
+      }
+      toast.success('Project removed from profile');
+      setPreviousProjects((prev) => prev.filter((p) => p.id !== projectId));
+      // Update search results to mark as unlinked
+      setProjectSearchResults((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, alreadyLinked: false } : p))
+      );
+    } catch {
+      toast.error('Failed to unlink project');
+    } finally {
+      setUnlinkingProjectId(null);
+    }
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -428,7 +612,7 @@ export function ClientProfileModal({
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground italic">
-                Only Sales Members and Managers can create client profiles.
+                You do not have permission to create client profiles.
               </p>
             )}
           </div>
@@ -452,7 +636,7 @@ export function ClientProfileModal({
                   Editor Prefs ✨
                 </TabsTrigger>
                 <TabsTrigger value="history" className="text-xs md:text-sm">
-                  History ({projectHistory.length})
+                  History ({projectHistory.length + previousProjects.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -466,7 +650,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.name}
                       onChange={(e) => handleChange('name', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="e.g. John Doe"
                       required
                     />
@@ -479,7 +663,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.companyName}
                       onChange={(e) => handleChange('companyName', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="e.g. Acme Corp"
                     />
                   </div>
@@ -492,7 +676,7 @@ export function ClientProfileModal({
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleChange('email', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="client@company.com"
                     />
                   </div>
@@ -504,7 +688,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.phone}
                       onChange={(e) => handleChange('phone', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="+91 9876543210"
                     />
                   </div>
@@ -516,7 +700,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.country}
                       onChange={(e) => handleChange('country', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="India / USA / UK"
                     />
                   </div>
@@ -528,7 +712,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.timezone}
                       onChange={(e) => handleChange('timezone', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="IST (UTC+5:30) / EST"
                     />
                   </div>
@@ -540,7 +724,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.preferredCommunication}
                       onChange={(e) => handleChange('preferredCommunication', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="WhatsApp / Email / Slack"
                     />
                   </div>
@@ -552,7 +736,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.alternateContact}
                       onChange={(e) => handleChange('alternateContact', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Assistant / Manager phone"
                     />
                   </div>
@@ -569,7 +753,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.budgetRange}
                       onChange={(e) => handleChange('budgetRange', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="₹50k - ₹2L / $1,000 - $5,000"
                     />
                   </div>
@@ -579,7 +763,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.paymentMethod}
                       onChange={(e) => handleChange('paymentMethod', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Bank Transfer / UPI / Stripe"
                     />
                   </div>
@@ -589,7 +773,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.leadSource}
                       onChange={(e) => handleChange('leadSource', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Website / Meta Ads / Referral"
                     />
                   </div>
@@ -599,7 +783,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.businessType}
                       onChange={(e) => handleChange('businessType', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="EdTech / E-Commerce / Creator"
                     />
                   </div>
@@ -609,7 +793,7 @@ export function ClientProfileModal({
                     <Select
                       value={formData.clientStatus}
                       onValueChange={(v) => handleChange('clientStatus', v)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -628,7 +812,7 @@ export function ClientProfileModal({
                   <Textarea
                     value={formData.internalNotes}
                     onChange={(e) => handleChange('internalNotes', e.target.value)}
-                    disabled={!canEditSalesInfo}
+                    disabled={!canEditAllFields}
                     rows={3}
                     placeholder="Key sales insights, negotiation notes, decision maker contacts..."
                   />
@@ -639,7 +823,7 @@ export function ClientProfileModal({
                   <Textarea
                     value={formData.specialInstructions}
                     onChange={(e) => handleChange('specialInstructions', e.target.value)}
-                    disabled={!canEditSalesInfo}
+                    disabled={!canEditAllFields}
                     rows={2}
                     placeholder="NDA constraints, billing instructions, non-standard terms..."
                   />
@@ -654,7 +838,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.preferredEditingStyle}
                       onChange={(e) => handleChange('preferredEditingStyle', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Fast-paced, Minimal, Cinematic, Hormozi"
                     />
                   </div>
@@ -664,7 +848,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.preferredLanguage}
                       onChange={(e) => handleChange('preferredLanguage', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="English / Hindi / Hinglish"
                     />
                   </div>
@@ -674,7 +858,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.brandingGuidelines}
                       onChange={(e) => handleChange('brandingGuidelines', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Drive link to brand kit"
                     />
                   </div>
@@ -684,7 +868,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.colorPreferences}
                       onChange={(e) => handleChange('colorPreferences', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Hex codes (#FF0000) or Moody/Vibrant"
                     />
                   </div>
@@ -694,7 +878,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.fontPreferences}
                       onChange={(e) => handleChange('fontPreferences', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Inter / Montserrat / Futura"
                     />
                   </div>
@@ -704,7 +888,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.musicPreferences}
                       onChange={(e) => handleChange('musicPreferences', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Upbeat Lofi / Tech House / Instrumental"
                     />
                   </div>
@@ -714,7 +898,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.subtitlePreferences}
                       onChange={(e) => handleChange('subtitlePreferences', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="Yellow highlight / Word-by-word / Standard captions"
                     />
                   </div>
@@ -724,7 +908,7 @@ export function ClientProfileModal({
                     <Input
                       value={formData.deliveryFormat}
                       onChange={(e) => handleChange('deliveryFormat', e.target.value)}
-                      disabled={!canEditSalesInfo}
+                      disabled={!canEditAllFields}
                       placeholder="4K MP4 (16:9), 1080p Vertical (9:16)"
                     />
                   </div>
@@ -735,14 +919,14 @@ export function ClientProfileModal({
                   <Textarea
                     value={formData.revisionExpectations}
                     onChange={(e) => handleChange('revisionExpectations', e.target.value)}
-                    disabled={!canEditSalesInfo}
+                    disabled={!canEditAllFields}
                     rows={2}
                     placeholder="Requires 24h turnaround for drafts; expects precise timestamps..."
                   />
                 </div>
               </TabsContent>
 
-              {/* SECTION 4: EDITOR PREFERENCES (SEPARATE CARD) */}
+              {/* SECTION 4: EDITOR PREFERENCES */}
               <TabsContent value="editor" className="space-y-4 pt-4">
                 <Card className="border-2 border-purple-500/30 bg-purple-950/10 dark:bg-purple-950/20 shadow-md">
                   <CardHeader className="pb-3 border-b border-purple-500/20">
@@ -751,13 +935,7 @@ export function ClientProfileModal({
                         <Scissors className="h-5 w-5" />
                         Editor Knowledge Base & Technical Preferences
                       </CardTitle>
-                      {isEditor ? (
-                        <Badge className="bg-purple-600 text-white">Editable by You (Editor)</Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-purple-400 text-purple-400">
-                          Read-Only (Editor Managed)
-                        </Badge>
-                      )}
+                      <Badge className="bg-purple-600 text-white">Editable</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Living knowledge base built from previous projects to guide present and future editors.
@@ -770,7 +948,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.editingStyleNotes}
                           onChange={(e) => handleEditorPrefChange('editingStyleNotes', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="Prefers quick jump cuts, sound effects on text popups"
                         />
                       </div>
@@ -780,7 +958,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.transitionPreferences}
                           onChange={(e) => handleEditorPrefChange('transitionPreferences', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="Whip pans, light leaks, clean whip cuts"
                         />
                       </div>
@@ -790,7 +968,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.motionGraphicsPreferences}
                           onChange={(e) => handleEditorPrefChange('motionGraphicsPreferences', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="Minimal lower thirds, animated chart overlays"
                         />
                       </div>
@@ -800,7 +978,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.thumbnailNotes}
                           onChange={(e) => handleEditorPrefChange('thumbnailNotes', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="High contrast, bold 2-word hook, cutout glow"
                         />
                       </div>
@@ -810,7 +988,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.commonlyUsedAssets}
                           onChange={(e) => handleEditorPrefChange('commonlyUsedAssets', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="Drive link to intro/outro assets, logos, sound fx pack"
                         />
                       </div>
@@ -820,7 +998,7 @@ export function ClientProfileModal({
                         <Input
                           value={formData.editorPreferences.audioPreferences}
                           onChange={(e) => handleEditorPrefChange('audioPreferences', e.target.value)}
-                          disabled={!isEditor}
+                          disabled={!canEditAllFields}
                           placeholder="-14 LUFS, warm skin tones, LUT preset X"
                         />
                       </div>
@@ -831,7 +1009,7 @@ export function ClientProfileModal({
                       <Textarea
                         value={formData.editorPreferences.feedbackSummary}
                         onChange={(e) => handleEditorPrefChange('feedbackSummary', e.target.value)}
-                        disabled={!isEditor}
+                        disabled={!canEditAllFields}
                         rows={3}
                         placeholder="Client frequently requests quieter background music (-24dB max). Always double check spellings of technical terms."
                       />
@@ -842,7 +1020,7 @@ export function ClientProfileModal({
                       <Textarea
                         value={formData.editorPreferences.futureRecommendations}
                         onChange={(e) => handleEditorPrefChange('futureRecommendations', e.target.value)}
-                        disabled={!isEditor}
+                        disabled={!canEditAllFields}
                         rows={3}
                         placeholder="Render out prores 422 proxy first. Use project template 'Acme_V2.prproj' located in shared drive."
                       />
@@ -851,15 +1029,16 @@ export function ClientProfileModal({
                 </Card>
               </TabsContent>
 
-              {/* SECTION 5: PROJECT HISTORY */}
-              <TabsContent value="history" className="space-y-4 pt-4">
+              {/* SECTION 5: PROJECT HISTORY & PREVIOUS PROJECTS */}
+              <TabsContent value="history" className="space-y-6 pt-4">
+                {/* Auto-linked Project History */}
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <History className="h-4 w-4 text-primary" /> Past & Active Projects ({projectHistory.length})
+                    <History className="h-4 w-4 text-primary" /> Auto-Linked Projects ({projectHistory.length})
                   </h4>
                   {projectHistory.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-                      No project history linked to this client yet.
+                    <div className="py-6 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                      No automatically linked projects found.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -885,12 +1064,168 @@ export function ClientProfileModal({
                     </div>
                   )}
                 </div>
+
+                {/* Manually-linked Previous Projects */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Link2 className="h-4 w-4 text-blue-500" /> Previous Projects ({previousProjects.length})
+                    </h4>
+                    {effectiveProfileId && canEditAllFields && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setProjectSearchOpen(!projectSearchOpen);
+                          if (!projectSearchOpen) {
+                            searchForProjects('');
+                          }
+                        }}
+                        className="h-8 text-xs"
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        Add Project
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Project Search Panel */}
+                  {projectSearchOpen && effectiveProfileId && (
+                    <Card className="border-blue-500/30 bg-blue-950/5 dark:bg-blue-950/10">
+                      <CardContent className="pt-4 space-y-3">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search by Edit ID, client name, service type..."
+                            value={projectSearchQuery}
+                            onChange={(e) => handleProjectSearchChange(e.target.value)}
+                            className="pl-9 pr-8"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-1 top-1 h-7 w-7 p-0"
+                            onClick={() => {
+                              setProjectSearchOpen(false);
+                              setProjectSearchQuery('');
+                              setProjectSearchResults([]);
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {projectSearchLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : projectSearchResults.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-3">
+                            {projectSearchQuery ? 'No projects found.' : 'Type to search for projects...'}
+                          </p>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto space-y-1.5">
+                            {projectSearchResults.map((proj) => (
+                              <div
+                                key={proj.id}
+                                className="flex items-center justify-between p-2.5 rounded-md border border-border bg-card text-sm hover:bg-muted/40 transition-colors"
+                              >
+                                <div className="space-y-0.5 min-w-0 flex-1">
+                                  <p className="font-medium text-xs truncate">
+                                    <span className="text-blue-500 font-mono">{proj.editId}</span>
+                                    {' — '}{proj.clientName || 'Unknown'}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {proj.serviceType} · {proj.assignedEditor} · {proj.status}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant={proj.alreadyLinked ? 'secondary' : 'default'}
+                                  size="sm"
+                                  disabled={proj.alreadyLinked || linkingProjectId === proj.id}
+                                  onClick={() => handleLinkProject(proj.id)}
+                                  className="ml-2 h-7 text-[11px] shrink-0"
+                                >
+                                  {linkingProjectId === proj.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : proj.alreadyLinked ? (
+                                    <>
+                                      <CheckCircle className="mr-1 h-3 w-3" /> Linked
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Link2 className="mr-1 h-3 w-3" /> Link
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Previously Linked Projects List */}
+                  {previousProjects.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                      No previous projects manually linked yet.
+                      {effectiveProfileId && canEditAllFields && (
+                        <span className="block mt-1 text-xs">
+                          Click &quot;Add Project&quot; above to link existing projects.
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {previousProjects.map((proj) => (
+                        <div
+                          key={proj.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-blue-500/20 bg-blue-950/5 dark:bg-blue-950/10 text-sm"
+                        >
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <p className="font-medium">
+                              <span className="text-blue-500 font-mono text-xs">{proj.editId}</span>
+                              {' — '}{proj.clientName} — {proj.serviceType}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Editor: <span className="font-medium text-foreground">{proj.assignedEditor}</span>
+                              {proj.revisionCount !== undefined && ` · Revisions: ${proj.revisionCount}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className="text-[11px]">{proj.status}</Badge>
+                            {canEditAllFields && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                disabled={unlinkingProjectId === proj.id}
+                                onClick={() => handleUnlinkProject(proj.id)}
+                              >
+                                {unlinkingProjectId === proj.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Unlink className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
 
             <div className="flex items-center justify-between pt-4 border-t border-border">
               <div>
-                {canDelete && profileId && (
+                {canDelete && effectiveProfileId && (
                   <Button
                     type="button"
                     variant="destructive"
@@ -907,7 +1242,7 @@ export function ClientProfileModal({
                   Cancel
                 </Button>
 
-                {(canEditSalesInfo || isEditor) && (
+                {canEditAllFields && (
                   <Button type="submit" disabled={saving}>
                     {saving ? (
                       <>

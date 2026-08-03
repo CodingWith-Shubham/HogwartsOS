@@ -6,13 +6,14 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck } from 'lucide-react';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { UpsellModal } from '@/components/clients/UpsellModal';
+import { ClientProfileModal } from '@/components/client-profile/ClientProfileModal';
 import {
   Sheet,
   SheetContent,
@@ -77,6 +78,8 @@ export default function ClientsPage() {
   const [assignedTo, setAssignedTo] = useState('');
   const [status, setStatus] = useState('New Lead');
   const [submitting, setSubmitting] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [selectedProfileClient, setSelectedProfileClient] = useState<any>(null);
 
   const triggerFetch = useCallback(async () => {
     try {
@@ -310,6 +313,18 @@ export default function ClientsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  title="View Client Profile"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedProfileClient({ name: c.name, email: c.email, phone: c.contact });
+                    setProfileModalOpen(true);
+                  }}
+                >
+                  <UserCheck className="h-4 w-4 text-purple-500 hover:text-purple-600" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   title="Upsell Client"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -501,6 +516,12 @@ export default function ClientsPage() {
           setLoading(true);
           triggerFetch();
         }}
+      />
+
+      <ClientProfileModal
+        open={profileModalOpen}
+        onOpenChange={setProfileModalOpen}
+        clientInfo={selectedProfileClient}
       />
     </div>
   );

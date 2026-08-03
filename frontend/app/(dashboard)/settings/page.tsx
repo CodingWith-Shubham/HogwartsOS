@@ -16,6 +16,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
 const USER_ROLES = ['manager', 'sales', 'editor', 'shoot', 'admin'];
@@ -27,7 +37,8 @@ const REDIRECT_PATHS = [
   { label: 'Shoot Calendar (/shoot)', value: '/shoot' },
 ];
 
-import { OrgChart } from '@/components/settings/OrgChart';
+import dynamic from 'next/dynamic';
+const OrgChart = dynamic(() => import('@/components/settings/OrgChart').then((mod) => mod.OrgChart), { ssr: false });
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -49,6 +60,11 @@ export default function SettingsPage() {
   const [empRedirect, setEmpRedirect] = useState('/sales');
   const [empPassword, setEmpPassword] = useState('');
   const [empSubmitting, setEmpSubmitting] = useState(false);
+
+  // Delete Employee Confirmation Dialog States
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingEmp, setIsDeletingEmp] = useState(false);
 
   const isManager = user?.role === 'manager';
 
@@ -160,14 +176,19 @@ export default function SettingsPage() {
     }
   };
 
+  // Open Delete Confirmation Modal
+  const confirmDeleteEmployee = (empId: string, empName: string) => {
+    setEmployeeToDelete({ id: empId, name: empName });
+    setDeleteDialogOpen(true);
+  };
+
   // Handle Employee Deletion
-  const handleDeleteEmployee = async (empId: string, empName: string) => {
-    if (!window.confirm(`Are you sure you want to delete employee ${empName}? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteEmployee = async () => {
+    if (!employeeToDelete) return;
     
+    setIsDeletingEmp(true);
     try {
-      const response = await authFetch(`/api/users/${empId}`, {
+      const response = await authFetch(`/api/users/${employeeToDelete.id}`, {
         method: 'DELETE',
       });
       
@@ -177,14 +198,18 @@ export default function SettingsPage() {
       }
       
       toast.success('Employee Deleted', {
-        description: `${empName} has been successfully removed.`,
+        description: `${employeeToDelete.name} has been successfully removed.`,
       });
       
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
       await fetchEmployees();
     } catch (err) {
       toast.error('Delete failed', {
         description: err instanceof Error ? err.message : 'Unknown error occurred',
       });
+    } finally {
+      setIsDeletingEmp(false);
     }
   };
 
@@ -241,7 +266,7 @@ export default function SettingsPage() {
           <Button variant="ghost" size="icon" onClick={() => handleEditEmployee(emp)} title="Edit Employee">
             <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDeleteEmployee(emp.id || emp._id, emp.name)} title="Delete Employee">
+          <Button variant="ghost" size="icon" onClick={() => confirmDeleteEmployee(emp.id || emp._id, emp.name)} title="Delete Employee">
             <Trash2 className="h-4 w-4 text-red-500/70 hover:text-red-500" />
           </Button>
         </div>
@@ -499,6 +524,41 @@ export default function SettingsPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      {/* Delete Employee Confirmation Modal */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-background border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Delete Employee Profile
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-semibold text-foreground">{employeeToDelete?.name}</span>? This action cannot be undone and will permanently remove their access to Hogwarts Studio CRM.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingEmp}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteEmployee();
+              }}
+              disabled={isDeletingEmp}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingEmp ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Employee'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

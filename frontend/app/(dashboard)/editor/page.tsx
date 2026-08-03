@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, ExternalLink, FileText, HardDrive, Scissors, Send } from 'lucide-react';
+import { AlertCircle, CheckCircle, ExternalLink, FileText, HardDrive, Scissors, Send, UserCheck } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { TableShimmer } from '@/components/shared/ShimmerLoader';
@@ -17,6 +17,7 @@ import { authFetch } from '@/lib/auth-fetch';
 import { postWebhook } from '@/lib/editing';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ClientProfileModal } from '@/components/client-profile/ClientProfileModal';
 
 type EditingTask = {
   task_id: string; edit_id: string; client_name: string; service_type: string; task_type: string; task_label: string;
@@ -51,6 +52,8 @@ export default function EditorPage() {
   const [draftLinks, setDraftLinks] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [checkedFeedback, setCheckedFeedback] = useState<Record<string, Set<number>>>({});
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileClientInfo, setProfileClientInfo] = useState<any>(null);
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.email) return;
@@ -140,7 +143,20 @@ export default function EditorPage() {
       </div>
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
       {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
-      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" asChild disabled={!task.data_link}><a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a></Button>{task.draft_link && <Button size="sm" variant="outline" asChild><a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a></Button>}</div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setProfileClientInfo({ name: task.client_name }); setProfileModalOpen(true); }}>
+          <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+          Client Profile
+        </Button>
+        <Button size="sm" variant="outline" asChild disabled={!task.data_link}>
+          <a href={task.data_link} target="_blank" rel="noreferrer"><HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link</a>
+        </Button>
+        {task.draft_link && (
+          <Button size="sm" variant="outline" asChild>
+            <a href={task.draft_link} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View Draft</a>
+          </Button>
+        )}
+      </div>
       {task.managerComment && (
         <details className="rounded-md border border-border p-2 text-sm" open={task.status === 'In Revision'}>
           <summary className="cursor-pointer font-medium">Manager feedback</summary>
@@ -244,5 +260,10 @@ export default function EditorPage() {
   return <div><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks across editors" : "Your individual editing tasks"} actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
     <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Corrections" value={groups.corrections.length} icon={AlertCircle} onClick={() => setActiveTab('corrections')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
     <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="corrections">Corrections</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
+    <ClientProfileModal
+      open={profileModalOpen}
+      onOpenChange={setProfileModalOpen}
+      clientInfo={profileClientInfo}
+    />
   </div>;
 }

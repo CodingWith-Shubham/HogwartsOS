@@ -14,6 +14,7 @@ import attendanceRouter from './routes/attendance.routes.js';
 import correctionRouter from './routes/correction.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import upsellRouter from './routes/upsell.routes.js';
+import clientProfileRouter from './routes/clientProfile.routes.js';
 
 import errorHandler from './utils/error-handler.js';
 import { ApiError } from './utils/api-error.js';
@@ -36,6 +37,7 @@ app.use('/api/v1/healthcheck', healthCheckRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/clients', clientRouter);
+app.use('/api/v1/client-profiles', clientProfileRouter);
 app.use('/api/v1/shoots', shootRouter);
 app.use('/api/v1/payments', paymentRouter);
 app.use('/api/v1/editing', editingRouter);
@@ -55,4 +57,5 @@ app.use((req, res, next) => {
 
 app.use(errorHandler);
 
+// Hogwarts Studio CRM Express Backend API (Refreshed)
 export default app;

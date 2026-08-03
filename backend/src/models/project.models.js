@@ -42,6 +42,10 @@ const projectSchema = new Schema(
         },
       },
     ],
+    clientProfile: {
+      type: Schema.Types.ObjectId,
+      ref: "ClientProfile",
+    },
   },
   {
     timestamps: true,

@@ -66,6 +66,9 @@ const editProjectSchema = new Schema({
     clientReviewedAt: { type: String, default: "" },
     clientSatisfiedAt: { type: String, default: "" },
 
+    // Client Profile reference
+    clientProfile: { type: Schema.Types.ObjectId, ref: "ClientProfile" },
+
     // TAT Reminder level tracking (0=no reminder sent, 1-4=reminder level sent)
     managerAllocationReminderLevel: { type: Number, default: 0 },
     editorStartReminderLevel: { type: Number, default: 0 },

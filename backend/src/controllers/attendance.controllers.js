@@ -196,11 +196,17 @@ const getTeamAttendance = asyncHandler(async (req, res) => {
 
 const getAttendanceSummary = asyncHandler(async (req, res) => {
     const user = req.user;
-    if (!user || user.role !== "manager") {
+    if (!user || user.role !== "super_admin") {
         throw new ApiError(403, "Only Super Admins can access attendance summary");
     }
 
-    const logs = await Attendance.find({}).sort({ date: 1 }); // Sort chronologically
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+    if ((startDate && !endDate) || (!startDate && endDate) || (startDate && endDate && startDate > endDate)) {
+        throw new ApiError(400, "Provide a valid startDate and endDate range");
+    }
+    const dateQuery = startDate ? { date: { $gte: startDate, $lte: endDate } } : {};
+    const logs = await Attendance.find(dateQuery).sort({ date: 1 });
 
     // Aggregate by employee and then by month
     // summaryMap: { [email]: { name, email, months: { '2026-08': { present: 0, late: 0, halfDay: 0, absent: 0 } } } }
@@ -237,11 +243,16 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
     }
 
     const getWorkingDaysInMonth = (year, month) => {
-        let date = new Date(year, month, 1);
+        const monthStart = new Date(Date.UTC(year, month, 1));
+        const monthEnd = new Date(Date.UTC(year, month + 1, 0));
+        const rangeStart = startDate ? new Date(`${startDate}T00:00:00.000Z`) : monthStart;
+        const rangeEnd = endDate ? new Date(`${endDate}T00:00:00.000Z`) : monthEnd;
+        let date = new Date(Math.max(monthStart.getTime(), rangeStart.getTime()));
+        const lastDate = new Date(Math.min(monthEnd.getTime(), rangeEnd.getTime()));
         let workingDays = 0;
-        while (date.getMonth() === month) {
-            if (date.getDay() !== 0) workingDays++; // excluding Sunday
-            date.setDate(date.getDate() + 1);
+        while (date <= lastDate) {
+            if (date.getUTCDay() !== 0) workingDays++; // excluding Sunday
+            date.setUTCDate(date.getUTCDate() + 1);
         }
         return workingDays;
     };
@@ -265,7 +276,7 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
         return employee;
     });
 
-    return res.status(200).json(new ApiResponse(200, { summaries }, "Attendance summaries retrieved successfully"));
+    return res.status(200).json(new ApiResponse(200, { summaries, startDate: startDate || null, endDate: endDate || null }, "Attendance summaries retrieved successfully"));
 });
 
 export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getAttendanceSummary };

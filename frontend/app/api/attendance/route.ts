@@ -4,10 +4,10 @@ import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-const getEndpoint = (backendUrl: string, action?: string, date?: string | null, leaveId?: string | null) => {
+const getEndpoint = (backendUrl: string, action?: string, date?: string | null, leaveId?: string | null, startDate?: string | null, endDate?: string | null) => {
   const base = `${backendUrl}/attendance`;
   const endpoints: Record<string, string> = {
-    summary: '/summary', 'team-attendance': `/team-attendance${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    summary: `/summary${startDate && endDate ? `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}` : ''}`, 'team-attendance': `/team-attendance${date ? `?date=${encodeURIComponent(date)}` : ''}`,
     'my-attendance': '/my-attendance', 'my-leaves': '/my-leaves', 'leave-balance': '/leave-balance',
     'team-leaves': '/team-leaves?status=Pending', 'weekly-off-status': '/weekly-off-status',
     'lop-overrides': '/lop-overrides', 'leave-certificate': `/leave-certificate/${leaveId}`,
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const headers = request.headers; if (!getAuthenticatedUser(headers)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const url = new URL(request.url); const action = url.searchParams.get('action') || (url.searchParams.get('date') ? 'team-attendance' : 'my-attendance');
     const backendUrl = await getBackendUrl(); const token = getAccessToken(headers);
-    const res = await fetch(getEndpoint(backendUrl, action, url.searchParams.get('date'), url.searchParams.get('leaveId')), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
+    const res = await fetch(getEndpoint(backendUrl, action, url.searchParams.get('date'), url.searchParams.get('leaveId'), url.searchParams.get('startDate'), url.searchParams.get('endDate')), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
     if (action === 'leave-certificate') {
       if (!res.ok) return NextResponse.json({ error: 'Certificate not found' }, { status: res.status });
       return new NextResponse(await res.arrayBuffer(), { headers: { 'Content-Type': res.headers.get('content-type') || 'application/octet-stream', 'Content-Disposition': res.headers.get('content-disposition') || 'inline' } });
@@ -42,7 +42,14 @@ export async function POST(request: Request) {
     const body = isMultipart ? await request.formData() : await request.json();
     const action = isMultipart ? String(body.get('proxyAction') || 'apply-leave') : (body.proxyAction || body.action || 'check-in');
     if (isMultipart) body.delete('proxyAction');
-    const res = await fetch(getEndpoint(backendUrl, action), { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: isMultipart ? body : JSON.stringify(body) });
+    const res = await fetch(getEndpoint(backendUrl, action), {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(!isMultipart ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: isMultipart ? body : JSON.stringify(body),
+    });
     const data = await res.json();
     if (!res.ok || !data.success) return NextResponse.json({ error: data.message || 'Attendance action failed' }, { status: res.status });
     return NextResponse.json({ success: true, ...data.data });

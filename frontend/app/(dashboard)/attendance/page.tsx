@@ -130,6 +130,8 @@ export default function AttendancePage() {
   
   const [employeeSummaries, setEmployeeSummaries] = useState<any[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(false);
+  const [summaryStartDate, setSummaryStartDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+  const [summaryEndDate, setSummaryEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
   const [teamLeaves, setTeamLeaves] = useState<LeaveRecord[]>([]);
@@ -167,7 +169,7 @@ export default function AttendancePage() {
   const fetchSummaries = useCallback(async () => {
     setLoadingSummaries(true);
     try {
-      const res = await authFetch('/api/attendance?action=summary');
+      const res = await authFetch(`/api/attendance?action=summary&startDate=${summaryStartDate}&endDate=${summaryEndDate}`);
       const data = await res.json();
       if (res.ok && Array.isArray(data.summaries)) {
         setEmployeeSummaries(data.summaries);
@@ -179,10 +181,10 @@ export default function AttendancePage() {
     } finally {
       setLoadingSummaries(false);
     }
-  }, []);
+  }, [summaryStartDate, summaryEndDate]);
 
   useEffect(() => {
-    if (user?.role === 'manager') {
+    if (user?.role === 'super_admin') {
       fetchSummaries();
     }
   }, [user, fetchSummaries]);
@@ -421,7 +423,7 @@ export default function AttendancePage() {
             {['manager', 'admin'].includes(user?.role || '') && (
               <TabsTrigger value="team-roster" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Team Roster</TabsTrigger>
             )}
-            {user?.role === 'manager' && (
+            {user?.role === 'super_admin' && (
               <TabsTrigger value="employee-summaries" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchSummaries}>Employee Summaries</TabsTrigger>
             )}
           </TabsList>
@@ -819,15 +821,20 @@ export default function AttendancePage() {
         </Dialog>
 
         <TabsContent value="employee-summaries" className="mt-0">
-          {user?.role === 'manager' && (
+          {user?.role === 'super_admin' && (
             <Card className="border-border shadow-lg bg-card">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Users className="h-5 w-5 text-indigo-400" /> Employee Summaries
                 </CardTitle>
-                <CardDescription>Click on an employee to view their month-by-month attendance record.</CardDescription>
+                <CardDescription>Attendance percentage and month-by-month detail for the selected date range.</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-wrap items-end gap-3 mb-6">
+                  <label className="text-sm">From<input type="date" value={summaryStartDate} onChange={(e) => setSummaryStartDate(e.target.value)} className="block mt-1 bg-background border border-border rounded-md px-3 py-2" /></label>
+                  <label className="text-sm">To<input type="date" value={summaryEndDate} onChange={(e) => setSummaryEndDate(e.target.value)} className="block mt-1 bg-background border border-border rounded-md px-3 py-2" /></label>
+                  <Button onClick={fetchSummaries} disabled={loadingSummaries || !summaryStartDate || !summaryEndDate}>Apply Range</Button>
+                </div>
                 {loadingSummaries ? (
                   <div className="flex justify-center p-8">
                     <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />

@@ -705,17 +705,7 @@ export function ClientProfileModal({
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Timezone
-                    </Label>
-                    <Input
-                      value={formData.timezone}
-                      onChange={(e) => handleChange('timezone', e.target.value)}
-                      disabled={!canEditAllFields}
-                      placeholder="IST (UTC+5:30) / EST"
-                    />
-                  </div>
+
 
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">

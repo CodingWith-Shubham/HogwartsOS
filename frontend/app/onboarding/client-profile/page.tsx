@@ -20,6 +20,7 @@ function OnboardingForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
+  const [lockedFields, setLockedFields] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,7 +28,6 @@ function OnboardingForm() {
     phone: '',
     companyName: '',
     country: '',
-    timezone: '',
     preferredCommunication: '',
     alternateContact: '',
 
@@ -40,6 +40,7 @@ function OnboardingForm() {
     subtitlePreferences: '',
     deliveryFormat: '',
     turnaroundPreference: '',
+    revisionExpectations: '',
     additionalPreferences: '',
   });
 
@@ -60,6 +61,12 @@ function OnboardingForm() {
             ...prev,
             ...data
           }));
+          setLockedFields({
+            name: !!data.name,
+            email: !!data.email,
+            phone: !!data.phone,
+            companyName: !!data.companyName
+          });
         } else {
           setError(data.error || 'This link has expired or is invalid.');
         }
@@ -199,28 +206,28 @@ function OnboardingForm() {
                       <Label htmlFor="name" className="text-muted-foreground">Full Name *</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="name" name="name" value={formData.name} onChange={handleChange} required className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="John Doe" />
+                        <Input id="name" name="name" value={formData.name} onChange={handleChange} readOnly={lockedFields.name} required className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.name ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="John Doe" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-muted-foreground">Email Address</Label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="john@example.com" />
+                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} readOnly={lockedFields.email} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.email ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="john@example.com" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="text-muted-foreground">Phone Number</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="+1 234 567 890" />
+                        <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} readOnly={lockedFields.phone} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.phone ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="+1 234 567 890" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="companyName" className="text-muted-foreground">Company / Channel Name</Label>
                       <div className="relative">
                         <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="companyName" name="companyName" value={formData.companyName} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="My Awesome Channel" />
+                        <Input id="companyName" name="companyName" value={formData.companyName} onChange={handleChange} readOnly={lockedFields.companyName} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.companyName ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="My Awesome Channel" />
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -228,13 +235,6 @@ function OnboardingForm() {
                       <div className="relative">
                         <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
                         <Input id="country" name="country" value={formData.country} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="United States" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="timezone" className="text-muted-foreground">Timezone</Label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="timezone" name="timezone" value={formData.timezone} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="EST, PST, GMT..." />
                       </div>
                     </div>
                   </div>
@@ -264,18 +264,38 @@ function OnboardingForm() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="musicPreferences" className="text-muted-foreground">Music & Audio Vibe</Label>
+                      <Label htmlFor="preferredLanguage" className="text-muted-foreground">Preferred Language</Label>
+                      <Input id="preferredLanguage" name="preferredLanguage" value={formData.preferredLanguage} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="English, Hindi, etc..." />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="colorPreferences" className="text-muted-foreground">Color Preferences</Label>
+                      <Input id="colorPreferences" name="colorPreferences" value={formData.colorPreferences} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="Hex codes (#FF0000) or Moody/Vibrant..." />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="fontPreferences" className="text-muted-foreground">Font Preferences</Label>
+                      <Input id="fontPreferences" name="fontPreferences" value={formData.fontPreferences} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="Inter, Montserrat, Futura..." />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPreferences" className="text-muted-foreground">Music Preferences</Label>
                       <Input id="musicPreferences" name="musicPreferences" value={formData.musicPreferences} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="Upbeat, lofi, dramatic, corporate..." />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="subtitlePreferences" className="text-muted-foreground">Subtitle Style</Label>
-                      <Input id="subtitlePreferences" name="subtitlePreferences" value={formData.subtitlePreferences} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="Alex Hormozi style, clean, no subtitles..." />
+                      <Label htmlFor="subtitlePreferences" className="text-muted-foreground">Subtitle Preferences</Label>
+                      <Input id="subtitlePreferences" name="subtitlePreferences" value={formData.subtitlePreferences} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="Alex Hormozi style, clean, captions..." />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="turnaroundPreference" className="text-muted-foreground">Expected Turnaround</Label>
-                      <Input id="turnaroundPreference" name="turnaroundPreference" value={formData.turnaroundPreference} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="48 hours, 1 week, flexible..." />
+                      <Label htmlFor="deliveryFormat" className="text-muted-foreground">Delivery Format</Label>
+                      <Input id="deliveryFormat" name="deliveryFormat" value={formData.deliveryFormat} onChange={handleChange} className="bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="4K MP4 (16:9), 1080p Vertical (9:16)..." />
+                    </div>
+                    
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="revisionExpectations" className="text-muted-foreground">Revision Expectations & Turnaround</Label>
+                      <Textarea id="revisionExpectations" name="revisionExpectations" value={formData.revisionExpectations} onChange={handleChange} className="min-h-[80px] bg-black/20 border-border/50 resize-y focus-visible:ring-primary/30" placeholder="Requires 24h turnaround for drafts; expects precise timestamps..." />
                     </div>
 
                     <div className="space-y-2 md:col-span-2">

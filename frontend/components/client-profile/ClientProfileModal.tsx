@@ -619,7 +619,7 @@ export function ClientProfileModal({
         ) : (
           <form onSubmit={handleSave} className="space-y-6 pt-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-5 bg-muted/60 p-1 rounded-lg">
+              <TabsList className="grid grid-cols-6 bg-muted/60 p-1 rounded-lg">
                 <TabsTrigger value="basic" className="text-xs md:text-sm">
                   Basic Info
                 </TabsTrigger>
@@ -634,6 +634,9 @@ export function ClientProfileModal({
                   className="text-xs md:text-sm bg-purple-500/10 data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium"
                 >
                   Editor Prefs ✨
+                </TabsTrigger>
+                <TabsTrigger value="status" className="text-xs md:text-sm">
+                  Status
                 </TabsTrigger>
                 <TabsTrigger value="history" className="text-xs md:text-sm">
                   History ({previousProjects.length})
@@ -1019,7 +1022,48 @@ export function ClientProfileModal({
                 </Card>
               </TabsContent>
 
-              {/* SECTION 5: PROJECT HISTORY & PREVIOUS PROJECTS */}
+              {/* SECTION 5: STATUS */}
+              <TabsContent value="status" className="space-y-4 pt-4">
+                <Card className="border-border/50 bg-card/50 shadow-sm">
+                  <CardHeader className="pb-3 border-b border-border/50">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <History className="h-5 w-5 text-primary" />
+                      Client Project Status Overview
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Overview of all associated projects for this client across the platform.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="flex flex-col bg-muted/30 p-4 rounded-xl border border-border/50">
+                        <span className="text-sm text-muted-foreground">Total Projects</span>
+                        <span className="text-2xl font-bold">{projectHistory.length}</span>
+                      </div>
+                      <div className="flex flex-col bg-muted/30 p-4 rounded-xl border border-border/50">
+                        <span className="text-sm text-muted-foreground">Completed</span>
+                        <span className="text-2xl font-bold text-green-500">
+                          {projectHistory.filter(p => ['Completed', 'Delivered', 'Approved'].includes(p.status)).length}
+                        </span>
+                      </div>
+                      <div className="flex flex-col bg-muted/30 p-4 rounded-xl border border-border/50">
+                        <span className="text-sm text-muted-foreground">In Progress / Pending</span>
+                        <span className="text-2xl font-bold text-amber-500">
+                          {projectHistory.filter(p => !['Completed', 'Delivered', 'Approved', 'Cancelled'].includes(p.status)).length}
+                        </span>
+                      </div>
+                      <div className="flex flex-col bg-muted/30 p-4 rounded-xl border border-border/50">
+                        <span className="text-sm text-muted-foreground">Cancelled</span>
+                        <span className="text-2xl font-bold text-red-500">
+                          {projectHistory.filter(p => p.status === 'Cancelled').length}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* SECTION 6: PROJECT HISTORY & PREVIOUS PROJECTS */}
               <TabsContent value="history" className="space-y-6 pt-4">
 
 

@@ -97,7 +97,10 @@ export const applyLeave = asyncHandler(async (req, res) => {
     if (leaveType === "Sick" && !req.file) { throw new ApiError(400, "A medical certificate is required for Sick Leave"); }
     const currentUser = await User.findById(req.user._id);
     if (!currentUser) { cleanup(req.file); throw new ApiError(401, "Unauthorized"); }
-    if (!isLockInComplete(currentUser?.joiningDate || currentUser?.createdAt)) { cleanup(req.file); throw new ApiError(400, "Leave can be applied for after completing three months"); }
+    if (leaveType === "Paid" && !isLockInComplete(currentUser?.joiningDate || currentUser?.createdAt)) {
+        cleanup(req.file);
+        throw new ApiError(400, "Paid Leave can be applied for after completing three months");
+    }
     const dates = datesInRange(start, end);
     const duplicate = await Leave.exists({ employeeEmail: req.user.email.toLowerCase(), status: { $in: ["Pending", "Approved"] }, startDate: { $lte: end }, endDate: { $gte: start } });
     if (duplicate) { cleanup(req.file); throw new ApiError(409, "An overlapping pending or approved leave request already exists"); }
@@ -131,7 +134,10 @@ export const reviewLeave = asyncHandler(async (req, res) => {
     if (leave.status !== "Pending") throw new ApiError(400, "Leave request has already been reviewed");
     if (action === "Approved") {
         const user = await User.findOne({ email: leave.employeeEmail });
-        if (!user || !isLockInComplete(user.joiningDate || user.createdAt)) throw new ApiError(400, "Employee is not eligible for leave yet");
+        if (!user) throw new ApiError(404, "Employee not found");
+        if (leave.leaveType === "Paid" && !isLockInComplete(user.joiningDate || user.createdAt)) {
+            throw new ApiError(400, "Employee is not eligible for Paid Leave yet");
+        }
         const balance = await getOrCreateBalance(user); const field = leave.leaveType === "Paid" ? "remainingPL" : "remainingSL";
         if (balance[field] < leave.totalDays) throw new ApiError(400, `Insufficient ${leave.leaveType} Leave balance`);
         balance[field] -= leave.totalDays; leave.leaveType === "Paid" ? balance.usedPL += leave.totalDays : balance.usedSL += leave.totalDays;

@@ -249,62 +249,6 @@ export default function AttendancePage() {
     }
   }, [user]);
 
-      fetchSummaries();
-    }
-  }, [user, fetchSummaries]);
-
-  // Live Digital Clock
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Pre-fetch location when page loads (so it's ready when they punch)
-  useEffect(() => {
-    const roles = ['sales', 'shoot', 'editor', 'manager', 'admin'];
-    if (!user?.role || !roles.includes(user.role)) return;
-    setLocationStatus('acquiring');
-    getCurrentLocation().then((loc) => {
-      if (loc.lat && loc.lng) {
-        setCapturedLocation(loc);
-        setLocationStatus('captured');
-      } else {
-        setLocationStatus('denied');
-      }
-    });
-  }, [user?.role]);
-
-  const fetchAttendance = useCallback(async () => {
-    try {
-      const res = await authFetch('/api/attendance');
-      const data = await res.json();
-      if (res.ok) {
-        setTodayRecord(data.today || null);
-        setHistory(data.history || []);
-      }
-    } catch (e) {
-      console.error('Failed to load attendance:', e);
-    }
-  }, []);
-
-  const fetchTeamAttendance = useCallback(async (date: string) => {
-    if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
-    try {
-      const res = await fetch(`/api/attendance?date=${date}`);
-      const data = await res.json();
-      if (res.ok) {
-        setTeamLogs(data.logs || []);
-      }
-    } catch (e) {
-      console.error('Failed to load team attendance:', e);
-    }
-  }, [user]);
-
   useEffect(() => {
     fetchAttendance();
     fetchLeaveData();

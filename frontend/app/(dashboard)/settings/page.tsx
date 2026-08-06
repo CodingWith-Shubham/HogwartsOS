@@ -66,7 +66,7 @@ export default function SettingsPage() {
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingEmp, setIsDeletingEmp] = useState(false);
 
-  const isManager = user?.role === 'manager';
+  const isManager = user?.role === 'manager' || user?.role === 'super_admin';
 
   // Load Employee List for Managers
   const fetchEmployees = useCallback(async () => {

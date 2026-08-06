@@ -89,17 +89,18 @@ const checkOut = asyncHandler(async (req, res) => {
 
     if (!["manager", "super_admin"].includes(user.role)) {
         if (hours >= 8.5) {
-            // If they are Half-day they become Present. If they are Late, they stay Late (but full shift). If they are Present, they stay Present.
+            // Full shift: if they were marked Half-day/Absent on check-in, upgrade to Present.
+            // Late stays Late (they completed the full shift).
             if (attendance.status === "Half-day" || attendance.status === "Absent") {
                 attendance.status = "Present";
             }
         } else if (hours >= 4) {
-            // 4 to 8.5 hours
+            // 4 to 8.5 hours -> Half-day
             attendance.status = "Half-day";
-            attendance.lopApplied = true;
+            attendance.lopApplied = false;
             attendance.halfDayType = "second_half";
         } else {
-            // Less than 4 hours
+            // Less than 4 hours -> LOP
             attendance.status = "LOP";
             attendance.lopApplied = true;
         }

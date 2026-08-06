@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getAttendanceSummary } from "../controllers/attendance.controllers.js";
+import { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary } from "../controllers/attendance.controllers.js";
 import { applyLeave, approveLopOverride, getLeaveBalance, getLopOverrides, getMyLeaves, getTeamLeaves, getWeeklyOffStatus, initializeLeaveBalance, leaveCertificateUpload, processWeeklyOff, requestLopOverride, reviewLeave, sendLeaveCertificate } from "../controllers/leave.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 
@@ -12,6 +12,7 @@ router.get("/team-attendance", verifyJWT, getTeamAttendance);
 router.get("/summary", verifyJWT, getAttendanceSummary);
 router.post("/request-full-day", verifyJWT, requestFullDay);
 router.post("/approve-full-day", verifyJWT, approveFullDayRequest);
+router.get("/full-day-requests", verifyJWT, getFullDayRequests);
 router.post("/apply-leave", verifyJWT, leaveCertificateUpload, applyLeave);
 router.get("/my-leaves", verifyJWT, getMyLeaves);
 router.get("/leave-balance", verifyJWT, getLeaveBalance);

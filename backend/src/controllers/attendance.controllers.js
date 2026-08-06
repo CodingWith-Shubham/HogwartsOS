@@ -137,8 +137,8 @@ const requestFullDay = asyncHandler(async (req, res) => {
 
 const approveFullDayRequest = asyncHandler(async (req, res) => {
     const user = req.user;
-    if (!user || user.role !== "manager") {
-        throw new ApiError(403, "Only Super Admins can approve requests");
+    if (!user || !["manager", "admin", "super_admin"].includes(user.role)) {
+        throw new ApiError(403, "Only managers, admins, or super admins can approve full-day requests");
     }
 
     const { attendanceId, action } = req.body;
@@ -164,6 +164,19 @@ const approveFullDayRequest = asyncHandler(async (req, res) => {
 
     await attendance.save();
     return res.status(200).json(new ApiResponse(200, { attendance }, `Request ${action}d successfully`));
+});
+
+// Returns all attendance records with a pending full-day request.
+// Accessible by manager, admin, and super_admin.
+const getFullDayRequests = asyncHandler(async (req, res) => {
+    if (!req.user || !["manager", "admin", "super_admin"].includes(req.user.role)) {
+        throw new ApiError(403, "Manager access required");
+    }
+    const records = await Attendance.find({
+        fullDayRequest: true,
+        fullDayRequestStatus: "Pending"
+    }).sort({ date: -1 });
+    return res.status(200).json(new ApiResponse(200, { records }, "Full day requests retrieved successfully"));
 });
 
 const getMyAttendance = asyncHandler(async (req, res) => {
@@ -271,11 +284,11 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
         for (const [yearMonth, stats] of Object.entries(employee.months)) {
             const [yearStr, monthStr] = yearMonth.split('-');
             const year = parseInt(yearStr, 10);
-            const month = parseInt(monthStr, 10) - 1; 
-            
+            const month = parseInt(monthStr, 10) - 1;
+
             const workingDays = getWorkingDaysInMonth(year, month);
             stats.totalWorkingDays = workingDays;
-            
+
             const presentDays = (stats.Present || 0) + (stats.Late || 0) + ((stats["Half-day"] || 0) * 0.5);
             let percentage = 0;
             if (workingDays > 0) {
@@ -289,4 +302,4 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { summaries, startDate: startDate || null, endDate: endDate || null }, "Attendance summaries retrieved successfully"));
 });
 
-export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getAttendanceSummary };
+export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary };

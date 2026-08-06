@@ -144,6 +144,13 @@ export default function AttendancePage() {
   const [lopNote, setLopNote] = useState('');
   const [lopTarget, setLopTarget] = useState<AttendanceRecord | null>(null);
   const [lopOverrides, setLopOverrides] = useState<AttendanceRecord[]>([]);
+  const [fullDayRequests, setFullDayRequests] = useState<AttendanceRecord[]>([]);
+
+  const fetchFullDayRequests = useCallback(async () => {
+    if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
+    const res = await authFetch('/api/attendance?action=full-day-requests');
+    if (res.ok) setFullDayRequests((await res.json()).records || []);
+  }, [user?.role]);
 
   const fetchLeaveData = useCallback(async () => {
     if (user?.role === 'super_admin') return;
@@ -242,15 +249,72 @@ export default function AttendancePage() {
     }
   }, [user]);
 
+      fetchSummaries();
+    }
+  }, [user, fetchSummaries]);
+
+  // Live Digital Clock
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Pre-fetch location when page loads (so it's ready when they punch)
+  useEffect(() => {
+    const roles = ['sales', 'shoot', 'editor', 'manager', 'admin'];
+    if (!user?.role || !roles.includes(user.role)) return;
+    setLocationStatus('acquiring');
+    getCurrentLocation().then((loc) => {
+      if (loc.lat && loc.lng) {
+        setCapturedLocation(loc);
+        setLocationStatus('captured');
+      } else {
+        setLocationStatus('denied');
+      }
+    });
+  }, [user?.role]);
+
+  const fetchAttendance = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/attendance');
+      const data = await res.json();
+      if (res.ok) {
+        setTodayRecord(data.today || null);
+        setHistory(data.history || []);
+      }
+    } catch (e) {
+      console.error('Failed to load attendance:', e);
+    }
+  }, []);
+
+  const fetchTeamAttendance = useCallback(async (date: string) => {
+    if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
+    try {
+      const res = await fetch(`/api/attendance?date=${date}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTeamLogs(data.logs || []);
+      }
+    } catch (e) {
+      console.error('Failed to load team attendance:', e);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchAttendance();
     fetchLeaveData();
     fetchTeamLeaves();
     fetchLopOverrides();
+    fetchFullDayRequests();
     if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
       fetchTeamAttendance(selectedDate);
     }
-  }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, selectedDate, user]);
+  }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, fetchFullDayRequests, selectedDate, user]);
 
   const submitLeave = async () => {
     if (!leaveStart || !leaveEnd || !leaveReason.trim()) return toast.error('Complete all leave details');
@@ -384,6 +448,7 @@ export default function AttendancePage() {
       if (res.ok && data.success) {
         toast.success(`Request ${action}d successfully`);
         fetchTeamAttendance(selectedDate);
+        fetchFullDayRequests();
       } else {
         toast.error(data.error || `Failed to ${action} request`);
       }
@@ -423,6 +488,14 @@ export default function AttendancePage() {
             <TabsTrigger value="my-attendance" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">My Attendance</TabsTrigger>
             {['manager', 'admin', 'super_admin'].includes(user?.role || '') && (
               <TabsTrigger value="team-roster" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Team Roster</TabsTrigger>
+            )}
+            {user?.role === 'super_admin' && (
+              <TabsTrigger value="full-day-requests" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchFullDayRequests}>
+                Full Day Requests
+                {fullDayRequests.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold">{fullDayRequests.length}</span>
+                )}
+              </TabsTrigger>
             )}
             {user?.role === 'super_admin' && (
               <TabsTrigger value="lop-overrides" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchLopOverrides}>LOP Overrides</TabsTrigger>
@@ -642,7 +715,7 @@ export default function AttendancePage() {
                           )}
                         </TableCell>
                         {user?.role !== 'super_admin' && <TableCell>
-                          {record.status === 'Half-day' && record.checkOut && (
+                          {(record.status === 'Half-day' || record.status === 'Half Day') && record.checkOut && (
                             <>
                               {(!record.fullDayRequest || record.fullDayRequestStatus === 'None') && (
                                 <Button 
@@ -655,15 +728,15 @@ export default function AttendancePage() {
                                 </Button>
                               )}
                               {record.fullDayRequestStatus === 'Pending' && (
-                                <span className="text-xs text-amber-400">Request Pending</span>
+                                <span className="text-xs text-amber-400">⏳ Request Pending</span>
                               )}
                               {record.fullDayRequestStatus === 'Rejected' && (
-                                <span className="text-xs text-red-400">Request Rejected</span>
+                                <span className="text-xs text-red-400">✕ Request Rejected</span>
                               )}
                             </>
                           )}
                           {record.fullDayRequestStatus === 'Approved' && (
-                            <span className="text-xs text-emerald-400">Full Day Approved</span>
+                            <span className="text-xs text-emerald-400">✓ Full Day Approved</span>
                           )}
                           {(record.status === 'LOP' || record.lopApplied) && (
                             <Button variant="outline" size="sm" className="h-7 text-xs ml-1" onClick={() => setLopTarget(record)}>Request LOP → Present</Button>
@@ -704,6 +777,69 @@ export default function AttendancePage() {
             <CardContent><Table><TableHeader><TableRow><TableHead>Dates</TableHead><TableHead>Type</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Certificate</TableHead></TableRow></TableHeader><TableBody>{leaves.length ? leaves.map(leave => <TableRow key={leave._id}><TableCell>{leave.startDate} – {leave.endDate}</TableCell><TableCell>{leave.leaveType}</TableCell><TableCell>{leave.totalDays}</TableCell><TableCell>{leave.reason}</TableCell><TableCell><Badge>{leave.status}</Badge></TableCell><TableCell>{leave.certificateFileName ? <a className="text-indigo-400 hover:underline" href={`/api/attendance?action=leave-certificate&leaveId=${leave._id}`} target="_blank">View</a> : '—'}</TableCell></TableRow>) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No leave applications yet.</TableCell></TableRow>}</TableBody></Table></CardContent>
           </Card>
           </>}
+        </TabsContent>
+
+        <TabsContent value="full-day-requests" className="mt-0">
+          {user?.role === 'super_admin' && (
+            <Card className="border-border shadow-lg bg-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-indigo-400" /> Full Day Requests
+                </CardTitle>
+                <CardDescription>Employees who checked out early (Half-day) and have requested their shift be counted as a full day.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader className="bg-secondary/40">
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Check-In</TableHead>
+                      <TableHead>Check-Out</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {fullDayRequests.length ? fullDayRequests.map(record => (
+                      <TableRow key={record._id}>
+                        <TableCell className="font-medium">{record.employeeName}</TableCell>
+                        <TableCell>{record.date}</TableCell>
+                        <TableCell className="font-mono text-sm">{formatTime(record.checkIn)}</TableCell>
+                        <TableCell className="font-mono text-sm">{formatTime(record.checkOut)}</TableCell>
+                        <TableCell className="text-sm">{record.workLocation}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => handleApproveFullDay(record._id!, 'approve')}
+                            >
+                              Approve Full Day
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs"
+                              onClick={() => handleApproveFullDay(record._id!, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          No pending full-day requests.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="lop-overrides" className="mt-0">

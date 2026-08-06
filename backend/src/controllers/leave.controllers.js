@@ -64,6 +64,8 @@ const cleanup = (file) => { if (file?.path) fs.unlink(file.path, () => {}); };
 // Mon-Sun week consumes the weekly off; every later missed day becomes LOP.
 // Today is intentionally excluded because an employee may still check in.
 export const classifyMissedDaysForUser = async (user, throughDate = new Date()) => {
+    // Super admins are exempt from employee attendance, Weekly Off, and LOP policy.
+    if (user.role === "super_admin") return 0;
     const last = parseDate(throughDate);
     const today = parseDate(new Date());
     if (last >= today) last.setUTCDate(last.getUTCDate() - 1);
@@ -87,6 +89,7 @@ export const classifyMissedDaysForUser = async (user, throughDate = new Date()) 
 };
 
 export const applyLeave = asyncHandler(async (req, res) => {
+    if (req.user.role === "super_admin") throw new ApiError(403, "Super admins do not use the employee leave workflow");
     const { leaveType, startDate, endDate, reason } = req.body;
     const start = dateString(startDate); const end = dateString(endDate); const today = dateString();
     if (!["Paid", "Sick"].includes(leaveType) || !reason?.trim() || !startDate || !endDate || start > end) { cleanup(req.file); throw new ApiError(400, "Provide a valid leave type, date range, and reason"); }
@@ -145,6 +148,7 @@ export const reviewLeave = asyncHandler(async (req, res) => {
 });
 
 export const requestLopOverride = asyncHandler(async (req, res) => {
+    if (req.user.role === "super_admin") throw new ApiError(403, "Super admins do not use the LOP override workflow");
     const attendance = await Attendance.findOne({ _id: req.body.attendanceId, employeeEmail: req.user.email.toLowerCase() });
     if (!attendance) throw new ApiError(404, "Attendance record not found");
     if (!["LOP", "Absent", "Half Day", "Half-day"].includes(attendance.status) && !attendance.lopApplied) throw new ApiError(400, "This record has no LOP to override");

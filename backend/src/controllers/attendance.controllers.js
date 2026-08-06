@@ -87,7 +87,7 @@ const checkOut = asyncHandler(async (req, res) => {
     const diffMs = attendance.checkOut.getTime() - attendance.checkIn.getTime();
     const hours = diffMs / (1000 * 60 * 60);
 
-    if (user.role !== "manager") {
+    if (!["manager", "super_admin"].includes(user.role)) {
         if (hours >= 8.5) {
             // If they are Half-day they become Present. If they are Late, they stay Late (but full shift). If they are Present, they stay Present.
             if (attendance.status === "Half-day" || attendance.status === "Absent") {
@@ -104,7 +104,7 @@ const checkOut = asyncHandler(async (req, res) => {
             attendance.lopApplied = true;
         }
     } else {
-        // Manager is always Present (or keeps their Late status)
+        // Managers and super admins are always Present (or keep Late status).
         if (attendance.status === "Half-day" || attendance.status === "Absent") {
             attendance.status = "Present";
         }

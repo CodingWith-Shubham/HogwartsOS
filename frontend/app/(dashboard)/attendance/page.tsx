@@ -146,6 +146,7 @@ export default function AttendancePage() {
   const [lopOverrides, setLopOverrides] = useState<AttendanceRecord[]>([]);
 
   const fetchLeaveData = useCallback(async () => {
+    if (user?.role === 'super_admin') return;
     try {
       const [balanceRes, leavesRes, weeklyRes] = await Promise.all([
         authFetch('/api/attendance?action=leave-balance'), authFetch('/api/attendance?action=my-leaves'), authFetch('/api/attendance?action=weekly-off-status')
@@ -154,7 +155,7 @@ export default function AttendancePage() {
       if (leavesRes.ok) setLeaves((await leavesRes.json()).leaves || []);
       if (weeklyRes.ok) setWeeklyOff(await weeklyRes.json());
     } catch { toast.error('Failed to load leave information'); }
-  }, []);
+  }, [user?.role]);
   const fetchTeamLeaves = useCallback(async () => {
     if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
     const res = await authFetch('/api/attendance?action=team-leaves');
@@ -583,7 +584,7 @@ export default function AttendancePage() {
                     <TableHead>Location</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>GPS</TableHead>
-                    <TableHead>Actions</TableHead>
+                    {user?.role !== 'super_admin' && <TableHead>Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -640,7 +641,7 @@ export default function AttendancePage() {
                             </>
                           )}
                         </TableCell>
-                        <TableCell>
+                        {user?.role !== 'super_admin' && <TableCell>
                           {record.status === 'Half-day' && record.checkOut && (
                             <>
                               {(!record.fullDayRequest || record.fullDayRequestStatus === 'None') && (
@@ -667,7 +668,7 @@ export default function AttendancePage() {
                           {(record.status === 'LOP' || record.lopApplied) && (
                             <Button variant="outline" size="sm" className="h-7 text-xs ml-1" onClick={() => setLopTarget(record)}>Request LOP → Present</Button>
                           )}
-                        </TableCell>
+                        </TableCell>}
                       </TableRow>
                     ))
                   )}
@@ -677,6 +678,7 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
           </div>
+          {user?.role !== 'super_admin' && <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
             <Card>
               <CardHeader><CardTitle className="text-lg">Leave Balance</CardTitle><CardDescription>Financial year {leaveBalance?.financialYear || '—'}</CardDescription></CardHeader>
@@ -701,6 +703,7 @@ export default function AttendancePage() {
             <CardHeader><CardTitle className="text-lg">Leave History</CardTitle></CardHeader>
             <CardContent><Table><TableHeader><TableRow><TableHead>Dates</TableHead><TableHead>Type</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Certificate</TableHead></TableRow></TableHeader><TableBody>{leaves.length ? leaves.map(leave => <TableRow key={leave._id}><TableCell>{leave.startDate} – {leave.endDate}</TableCell><TableCell>{leave.leaveType}</TableCell><TableCell>{leave.totalDays}</TableCell><TableCell>{leave.reason}</TableCell><TableCell><Badge>{leave.status}</Badge></TableCell><TableCell>{leave.certificateFileName ? <a className="text-indigo-400 hover:underline" href={`/api/attendance?action=leave-certificate&leaveId=${leave._id}`} target="_blank">View</a> : '—'}</TableCell></TableRow>) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No leave applications yet.</TableCell></TableRow>}</TableBody></Table></CardContent>
           </Card>
+          </>}
         </TabsContent>
 
         <TabsContent value="lop-overrides" className="mt-0">
@@ -782,9 +785,9 @@ export default function AttendancePage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{log.leaveBalance ? `PL: ${log.leaveBalance.remainingPL}/${log.leaveBalance.totalPL} | SL: ${log.leaveBalance.remainingSL}/${log.leaveBalance.totalSL}` : '—'}</TableCell>
-                        <TableCell>
+                        {user?.role !== 'super_admin' && <TableCell>
                           <LocationCell loc={log.checkInLocation} />
-                        </TableCell>
+                        </TableCell>}
                         <TableCell>
                           <LocationCell loc={log.checkOutLocation} />
                         </TableCell>

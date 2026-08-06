@@ -1,4 +1,5 @@
 import { Attendance } from "../models/attendance.models.js";
+import { LeaveBalance } from "../models/leaveBalance.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -93,9 +94,12 @@ const checkOut = asyncHandler(async (req, res) => {
         } else if (hours >= 4) {
             // 4 to 8.5 hours
             attendance.status = "Half-day";
+            attendance.lopApplied = true;
+            attendance.halfDayType = "second_half";
         } else {
             // Less than 4 hours
-            attendance.status = "Absent";
+            attendance.status = "LOP";
+            attendance.lopApplied = true;
         }
     } else {
         // Manager is always Present (or keeps their Late status)
@@ -149,6 +153,8 @@ const approveFullDayRequest = asyncHandler(async (req, res) => {
     if (action === "approve") {
         attendance.fullDayRequestStatus = "Approved";
         attendance.status = "Present";
+        attendance.lopApplied = false;
+        attendance.halfDayType = null;
     } else {
         attendance.fullDayRequestStatus = "Rejected";
         // Status remains Half-day
@@ -177,8 +183,13 @@ const getMyAttendance = asyncHandler(async (req, res) => {
 });
 
 const getTeamAttendance = asyncHandler(async (req, res) => {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) throw new ApiError(403, "Manager access required");
     const date = req.query.date || getTodayString();
-    const logs = await Attendance.find({ date }).sort({ createdAt: -1 });
+    const records = await Attendance.find({ date }).sort({ createdAt: -1 });
+    const fyStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+    const balances = await LeaveBalance.find({ employeeEmail: { $in: records.map(record => record.employeeEmail) }, financialYear: `${fyStart}-${String(fyStart + 1).slice(-2)}` });
+    const balanceByEmail = new Map(balances.map(balance => [balance.employeeEmail, { remainingPL: balance.remainingPL, totalPL: balance.totalPL, remainingSL: balance.remainingSL, totalSL: balance.totalSL }]));
+    const logs = records.map(record => ({ ...record.toObject(), leaveBalance: balanceByEmail.get(record.employeeEmail) || null }));
 
     return res.status(200).json(new ApiResponse(200, { date, logs }, "Team attendance logs retrieved successfully"));
 });

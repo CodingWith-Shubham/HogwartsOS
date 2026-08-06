@@ -4,82 +4,47 @@ import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
+const getEndpoint = (backendUrl: string, action?: string, date?: string | null, leaveId?: string | null) => {
+  const base = `${backendUrl}/attendance`;
+  const endpoints: Record<string, string> = {
+    summary: '/summary', 'team-attendance': `/team-attendance${date ? `?date=${encodeURIComponent(date)}` : ''}`,
+    'my-attendance': '/my-attendance', 'my-leaves': '/my-leaves', 'leave-balance': '/leave-balance',
+    'team-leaves': '/team-leaves?status=Pending', 'weekly-off-status': '/weekly-off-status',
+    'lop-overrides': '/lop-overrides', 'leave-certificate': `/leave-certificate/${leaveId}`,
+    'check-in': '/check-in', 'check-out': '/check-out', 'request-full-day': '/request-full-day',
+    'approve-full-day': '/approve-full-day', 'apply-leave': '/apply-leave', 'review-leave': '/review-leave',
+    'request-lop-override': '/request-lop-override', 'approve-lop-override': '/approve-lop-override',
+    'process-weekly-off': '/process-weekly-off', 'initialize-leave-balance': '/initialize-leave-balance',
+  };
+  return `${base}${endpoints[action || 'my-attendance'] || '/my-attendance'}`;
+};
+
 export async function GET(request: Request) {
-  const h = request.headers;
   try {
-    const user = getAuthenticatedUser(h);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const headers = request.headers; if (!getAuthenticatedUser(headers)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const url = new URL(request.url); const action = url.searchParams.get('action') || (url.searchParams.get('date') ? 'team-attendance' : 'my-attendance');
+    const backendUrl = await getBackendUrl(); const token = getAccessToken(headers);
+    const res = await fetch(getEndpoint(backendUrl, action, url.searchParams.get('date'), url.searchParams.get('leaveId')), { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
+    if (action === 'leave-certificate') {
+      if (!res.ok) return NextResponse.json({ error: 'Certificate not found' }, { status: res.status });
+      return new NextResponse(await res.arrayBuffer(), { headers: { 'Content-Type': res.headers.get('content-type') || 'application/octet-stream', 'Content-Disposition': res.headers.get('content-disposition') || 'inline' } });
     }
-
-    const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken(h);
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
-    const action = searchParams.get('action');
-
-    const endpoint = action === 'summary'
-      ? `${BACKEND_URL}/attendance/summary`
-      : date
-      ? `${BACKEND_URL}/attendance/team-attendance?date=${date}`
-      : `${BACKEND_URL}/attendance/my-attendance`;
-
-    const res = await fetch(endpoint, {
-      headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      },
-      cache: 'no-store'
-    });
-
     const data = await res.json();
-    if (res.ok && data.success) {
-      return NextResponse.json(data.data);
-    }
-    return NextResponse.json({ today: null, history: [], logs: [] });
-  } catch (error) {
-    console.error('Failed to fetch attendance data:', error);
-    return NextResponse.json({ error: 'Failed to fetch attendance data' }, { status: 500 });
-  }
+    return NextResponse.json(res.ok && data.success ? data.data : { error: data.message || 'Attendance request failed' }, { status: res.ok ? 200 : res.status });
+  } catch (error) { console.error('Attendance GET proxy failed:', error); return NextResponse.json({ error: 'Failed to fetch attendance data' }, { status: 500 }); }
 }
 
 export async function POST(request: Request) {
-  const h = request.headers;
   try {
-    const user = getAuthenticatedUser(h);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken(h);
-    const body = await request.json();
-    const proxyAction = body.proxyAction || body.action || 'check-in';
-
-    const endpoint = proxyAction === 'check-out'
-      ? `${BACKEND_URL}/attendance/check-out`
-      : proxyAction === 'request-full-day'
-      ? `${BACKEND_URL}/attendance/request-full-day`
-      : proxyAction === 'approve-full-day'
-      ? `${BACKEND_URL}/attendance/approve-full-day`
-      : `${BACKEND_URL}/attendance/check-in`;
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-
+    const headers = request.headers; if (!getAuthenticatedUser(headers)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const backendUrl = await getBackendUrl(); const token = getAccessToken(headers); const contentType = headers.get('content-type') || '';
+    const isMultipart = contentType.includes('multipart/form-data');
+    const body = isMultipart ? await request.formData() : await request.json();
+    const action = isMultipart ? String(body.get('proxyAction') || 'apply-leave') : (body.proxyAction || body.action || 'check-in');
+    if (isMultipart) body.delete('proxyAction');
+    const res = await fetch(getEndpoint(backendUrl, action), { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: isMultipart ? body : JSON.stringify(body) });
     const data = await res.json();
-    if (res.ok && data.success) {
-      return NextResponse.json({ success: true, attendance: data.data.attendance });
-    }
-
-    return NextResponse.json({ error: data.message || 'Attendance action failed' }, { status: res.status });
-  } catch (error) {
-    console.error('Failed to process attendance action:', error);
-    return NextResponse.json({ error: 'Failed to process attendance action' }, { status: 500 });
-  }
+    if (!res.ok || !data.success) return NextResponse.json({ error: data.message || 'Attendance action failed' }, { status: res.status });
+    return NextResponse.json({ success: true, ...data.data });
+  } catch (error) { console.error('Attendance POST proxy failed:', error); return NextResponse.json({ error: 'Failed to process attendance action' }, { status: 500 }); }
 }

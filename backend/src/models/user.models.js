@@ -37,9 +37,13 @@ const userSchema = new Schema({
         type: String,
         default: ""
     },
+    joiningDate: {
+        type: Date,
+        default: null
+    },
     role: {
         type: String,
-        enum: ["manager", "sales", "editor", "shoot", "admin"],
+        enum: ["manager", "sales", "editor", "shoot", "admin", "super_admin"],
         default: "sales"
     },
     initials: {

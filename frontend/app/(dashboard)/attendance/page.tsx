@@ -31,14 +31,20 @@ interface AttendanceRecord {
   date: string;
   checkIn?: string;
   checkOut?: string;
-  status: 'Present' | 'Late' | 'Half-day' | 'Absent';
+  status: 'Present' | 'Late' | 'Half-day' | 'Half Day' | 'Absent' | 'Weekly Off' | 'Leave' | 'LOP';
   workLocation: 'Office' | 'Remote' | 'On-site Shoot';
   notes?: string;
   checkInLocation?: LocationCoords;
   checkOutLocation?: LocationCoords;
   fullDayRequest?: boolean;
   fullDayRequestStatus?: 'None' | 'Pending' | 'Approved' | 'Rejected';
+  lopApplied?: boolean;
+  leaveBalance?: { remainingPL: number; totalPL: number; remainingSL: number; totalSL: number } | null;
+  lopOverrideRequest?: { note?: string; status?: string };
 }
+
+interface LeaveRecord { _id: string; leaveType: 'Paid' | 'Sick'; startDate: string; endDate: string; totalDays: number; reason: string; status: 'Pending' | 'Approved' | 'Rejected'; certificateFileName?: string; }
+interface LeaveBalance { financialYear: string; totalPL: number; usedPL: number; remainingPL: number; totalSL: number; usedSL: number; remainingSL: number; }
 
 // ─── Geolocation Helper ───────────────────────────────────────────────────────
 const getCurrentLocation = (): Promise<LocationCoords> => {
@@ -124,6 +130,39 @@ export default function AttendancePage() {
   
   const [employeeSummaries, setEmployeeSummaries] = useState<any[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
+  const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
+  const [teamLeaves, setTeamLeaves] = useState<LeaveRecord[]>([]);
+  const [weeklyOff, setWeeklyOff] = useState<{ used: boolean; date: string | null }>({ used: false, date: null });
+  const [leaveType, setLeaveType] = useState<'Paid' | 'Sick'>('Paid');
+  const [leaveStart, setLeaveStart] = useState('');
+  const [leaveEnd, setLeaveEnd] = useState('');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [certificate, setCertificate] = useState<File | null>(null);
+  const [lopNote, setLopNote] = useState('');
+  const [lopTarget, setLopTarget] = useState<AttendanceRecord | null>(null);
+  const [lopOverrides, setLopOverrides] = useState<AttendanceRecord[]>([]);
+
+  const fetchLeaveData = useCallback(async () => {
+    try {
+      const [balanceRes, leavesRes, weeklyRes] = await Promise.all([
+        authFetch('/api/attendance?action=leave-balance'), authFetch('/api/attendance?action=my-leaves'), authFetch('/api/attendance?action=weekly-off-status')
+      ]);
+      if (balanceRes.ok) setLeaveBalance((await balanceRes.json()).balance || null);
+      if (leavesRes.ok) setLeaves((await leavesRes.json()).leaves || []);
+      if (weeklyRes.ok) setWeeklyOff(await weeklyRes.json());
+    } catch { toast.error('Failed to load leave information'); }
+  }, []);
+  const fetchTeamLeaves = useCallback(async () => {
+    if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
+    const res = await authFetch('/api/attendance?action=team-leaves');
+    if (res.ok) setTeamLeaves((await res.json()).leaves || []);
+  }, [user?.role]);
+  const fetchLopOverrides = useCallback(async () => {
+    if (user?.role !== 'super_admin') return;
+    const res = await authFetch('/api/attendance?action=lop-overrides');
+    if (res.ok) setLopOverrides((await res.json()).records || []);
+  }, [user?.role]);
 
   const fetchSummaries = useCallback(async () => {
     setLoadingSummaries(true);
@@ -202,10 +241,36 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
+    fetchLeaveData();
+    fetchTeamLeaves();
+    fetchLopOverrides();
     if (['manager', 'admin'].includes(user?.role || '')) {
       fetchTeamAttendance(selectedDate);
     }
-  }, [fetchAttendance, fetchTeamAttendance, selectedDate, user]);
+  }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, selectedDate, user]);
+
+  const submitLeave = async () => {
+    if (!leaveStart || !leaveEnd || !leaveReason.trim()) return toast.error('Complete all leave details');
+    if (leaveType === 'Sick' && !certificate) return toast.error('A medical certificate is required for Sick Leave');
+    if (certificate && (!['application/pdf', 'image/jpeg', 'image/png'].includes(certificate.type) || certificate.size > 5 * 1024 * 1024)) return toast.error('Certificate must be PDF, JPG, or PNG up to 5MB');
+    const form = new FormData(); form.set('proxyAction', 'apply-leave'); form.set('leaveType', leaveType); form.set('startDate', leaveStart); form.set('endDate', leaveEnd); form.set('reason', leaveReason); if (certificate) form.set('certificate', certificate);
+    const res = await authFetch('/api/attendance', { method: 'POST', body: form }); const data = await res.json();
+    if (!res.ok) return toast.error(data.error || 'Could not submit leave');
+    toast.success('Leave request submitted'); setLeaveStart(''); setLeaveEnd(''); setLeaveReason(''); setCertificate(null); fetchLeaveData(); fetchTeamLeaves();
+  };
+  const reviewLeave = async (leaveId: string, action: 'Approved' | 'Rejected') => {
+    const res = await authFetch('/api/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proxyAction: 'review-leave', leaveId, action }) });
+    const data = await res.json(); if (!res.ok) return toast.error(data.error || 'Could not review leave'); toast.success(`Leave ${action.toLowerCase()}`); fetchTeamLeaves(); fetchTeamAttendance(selectedDate);
+  };
+  const submitLopOverride = async () => {
+    if (!lopTarget?._id || !lopNote.trim()) return;
+    const res = await authFetch('/api/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proxyAction: 'request-lop-override', attendanceId: lopTarget._id, note: lopNote }) });
+    const data = await res.json(); if (!res.ok) return toast.error(data.error || 'Could not submit request'); toast.success('LOP override request submitted'); setLopTarget(null); setLopNote(''); fetchAttendance();
+  };
+  const reviewLopOverride = async (attendanceId: string, action: 'Approved' | 'Rejected') => {
+    const res = await authFetch('/api/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proxyAction: 'approve-lop-override', attendanceId, action }) });
+    const data = await res.json(); if (!res.ok) return toast.error(data.error || 'Could not review LOP request'); toast.success(`LOP request ${action.toLowerCase()}`); fetchLopOverrides(); fetchTeamAttendance(selectedDate);
+  };
 
   // ── Get fresh location before punch ───────────────────────────────────────
   const acquireLocation = async (): Promise<LocationCoords> => {
@@ -594,6 +659,9 @@ export default function AttendancePage() {
                           {record.fullDayRequestStatus === 'Approved' && (
                             <span className="text-xs text-emerald-400">Full Day Approved</span>
                           )}
+                          {(record.status === 'LOP' || record.lopApplied) && (
+                            <Button variant="outline" size="sm" className="h-7 text-xs ml-1" onClick={() => setLopTarget(record)}>Request LOP → Present</Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -604,10 +672,35 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Leave Balance</CardTitle><CardDescription>Financial year {leaveBalance?.financialYear || '—'}</CardDescription></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-lg bg-indigo-500/10 p-3 text-sm">Paid Leave <strong className="float-right">{leaveBalance ? `${leaveBalance.remainingPL} / ${leaveBalance.totalPL}` : '—'}</strong><p className="text-xs text-muted-foreground mt-1">{leaveBalance?.usedPL || 0} used</p></div>
+                <div className="rounded-lg bg-emerald-500/10 p-3 text-sm">Sick Leave <strong className="float-right">{leaveBalance ? `${leaveBalance.remainingSL} / ${leaveBalance.totalSL}` : '—'}</strong><p className="text-xs text-muted-foreground mt-1">{leaveBalance?.usedSL || 0} used</p></div>
+                <p className="text-xs text-muted-foreground">Weekly off: {weeklyOff.used ? `used on ${weeklyOff.date}` : 'not yet assigned this week'}.</p>
+              </CardContent>
+            </Card>
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle className="text-lg">Apply for Leave</CardTitle><CardDescription>Balance is deducted only after manager approval.</CardDescription></CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Select value={leaveType} onValueChange={(value: 'Paid' | 'Sick') => setLeaveType(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Paid">Paid Leave</SelectItem><SelectItem value="Sick">Sick Leave</SelectItem></SelectContent></Select>
+                <div className="grid grid-cols-2 gap-2"><input className="border rounded-md px-3 bg-background" type="date" value={leaveStart} onChange={e => setLeaveStart(e.target.value)} /><input className="border rounded-md px-3 bg-background" type="date" value={leaveEnd} onChange={e => setLeaveEnd(e.target.value)} /></div>
+                <textarea className="border rounded-md p-3 bg-background min-h-[80px] md:col-span-2" placeholder="Reason for leave" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
+                {leaveType === 'Sick' && <div className="md:col-span-2"><label className="text-sm font-medium">Medical certificate (PDF, JPG, PNG; max 5MB)</label><input className="block mt-1 text-sm" type="file" accept=".pdf,image/jpeg,image/png" onChange={e => setCertificate(e.target.files?.[0] || null)} /></div>}
+                <Button onClick={submitLeave} className="md:col-span-2">Submit Leave Request</Button>
+              </CardContent>
+            </Card>
+          </div>
+          <Card className="mt-6">
+            <CardHeader><CardTitle className="text-lg">Leave History</CardTitle></CardHeader>
+            <CardContent><Table><TableHeader><TableRow><TableHead>Dates</TableHead><TableHead>Type</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Certificate</TableHead></TableRow></TableHeader><TableBody>{leaves.length ? leaves.map(leave => <TableRow key={leave._id}><TableCell>{leave.startDate} – {leave.endDate}</TableCell><TableCell>{leave.leaveType}</TableCell><TableCell>{leave.totalDays}</TableCell><TableCell>{leave.reason}</TableCell><TableCell><Badge>{leave.status}</Badge></TableCell><TableCell>{leave.certificateFileName ? <a className="text-indigo-400 hover:underline" href={`/api/attendance?action=leave-certificate&leaveId=${leave._id}`} target="_blank">View</a> : '—'}</TableCell></TableRow>) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No leave applications yet.</TableCell></TableRow>}</TableBody></Table></CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="team-roster" className="mt-0">
-          {['manager', 'admin'].includes(user?.role || '') && (
+          {['manager', 'admin', 'super_admin'].includes(user?.role || '') && (
+        <>
         <Card className="border-border shadow-lg bg-card mt-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -636,6 +729,7 @@ export default function AttendancePage() {
                     <TableHead>Check-Out</TableHead>
                     <TableHead>Work Location</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Leave Balance</TableHead>
                     <TableHead className="text-indigo-400">
                       <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Check-In GPS</span>
                     </TableHead>
@@ -673,6 +767,7 @@ export default function AttendancePage() {
                             {log.status}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{log.leaveBalance ? `PL: ${log.leaveBalance.remainingPL}/${log.leaveBalance.totalPL} | SL: ${log.leaveBalance.remainingSL}/${log.leaveBalance.totalSL}` : '—'}</TableCell>
                         <TableCell>
                           <LocationCell loc={log.checkInLocation} />
                         </TableCell>
@@ -710,8 +805,18 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
+        <Card className="border-border shadow-lg bg-card mt-6">
+          <CardHeader><CardTitle className="text-lg">Pending Leave Approvals</CardTitle><CardDescription>Approve requests after reviewing certificates and available balance.</CardDescription></CardHeader>
+          <CardContent><Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Dates</TableHead><TableHead>Type</TableHead><TableHead>Reason</TableHead><TableHead>Certificate</TableHead><TableHead>Action</TableHead></TableRow></TableHeader><TableBody>{teamLeaves.length ? teamLeaves.map((leave: any) => <TableRow key={leave._id}><TableCell>{leave.employeeName || leave.employeeEmail}</TableCell><TableCell>{leave.startDate} – {leave.endDate}</TableCell><TableCell>{leave.leaveType} ({leave.totalDays})</TableCell><TableCell>{leave.reason}</TableCell><TableCell>{leave.certificateFileName ? <a className="text-indigo-400 hover:underline" target="_blank" href={`/api/attendance?action=leave-certificate&leaveId=${leave._id}`}>View</a> : '—'}</TableCell><TableCell className="flex gap-2"><Button size="sm" onClick={() => reviewLeave(leave._id, 'Approved')}>Approve</Button><Button size="sm" variant="destructive" onClick={() => reviewLeave(leave._id, 'Rejected')}>Reject</Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No pending leave requests.</TableCell></TableRow>}</TableBody></Table></CardContent>
+        </Card>
+        {user?.role === 'super_admin' && <Card className="border-border shadow-lg bg-card mt-6"><CardHeader><CardTitle className="text-lg">LOP Override Queue</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Explanation</TableHead><TableHead>Action</TableHead></TableRow></TableHeader><TableBody>{lopOverrides.length ? lopOverrides.map(record => <TableRow key={record._id}><TableCell>{record.employeeName}</TableCell><TableCell>{record.date}</TableCell><TableCell>{record.lopOverrideRequest?.note}</TableCell><TableCell className="flex gap-2"><Button size="sm" onClick={() => reviewLopOverride(record._id!, 'Approved')}>Approve</Button><Button size="sm" variant="destructive" onClick={() => reviewLopOverride(record._id!, 'Rejected')}>Reject</Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No pending LOP override requests.</TableCell></TableRow>}</TableBody></Table></CardContent></Card>}
+        </>
           )}
         </TabsContent>
+
+        <Dialog open={Boolean(lopTarget)} onOpenChange={(open) => !open && setLopTarget(null)}>
+          <DialogContent><DialogHeader><DialogTitle>Request LOP conversion</DialogTitle><DialogDescription>Explain why this attendance record should be converted to Present. Only a super admin can approve it.</DialogDescription></DialogHeader><textarea className="border rounded-md p-3 bg-background min-h-[100px]" value={lopNote} onChange={e => setLopNote(e.target.value)} placeholder="Explanation" /><Button onClick={submitLopOverride}>Submit Request</Button></DialogContent>
+        </Dialog>
 
         <TabsContent value="employee-summaries" className="mt-0">
           {user?.role === 'manager' && (

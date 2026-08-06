@@ -28,7 +28,7 @@ const attendanceSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ["Present", "Late", "Half-day", "Absent"],
+        enum: ["Present", "Late", "Half-day", "Half Day", "Absent", "Weekly Off", "Leave", "LOP"],
         default: "Present"
     },
     workLocation: {
@@ -48,6 +48,17 @@ const attendanceSchema = new Schema({
         type: String,
         enum: ["None", "Pending", "Approved", "Rejected"],
         default: "None"
+    },
+    weeklyOffUsed: { type: Boolean, default: false },
+    lopApplied: { type: Boolean, default: false },
+    halfDayType: { type: String, enum: ["first_half", "second_half", null], default: null },
+    lopOverrideRequest: {
+        requested: { type: Boolean, default: false },
+        note: { type: String, default: "" },
+        status: { type: String, enum: ["Pending", "Approved", "Rejected", null], default: null },
+        requestedOn: Date,
+        reviewedBy: String,
+        reviewedOn: Date
     },
     checkInLocation: {
         lat: { type: Number, default: null },

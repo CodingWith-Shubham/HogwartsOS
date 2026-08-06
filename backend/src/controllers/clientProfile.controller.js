@@ -340,7 +340,7 @@ export const updateClientProfile = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const userRole = req.user?.role;
 
-  if (!["sales", "manager", "admin", "editor"].includes(userRole)) {
+  if (!["sales", "manager", "admin", "editor", "super_admin"].includes(userRole)) {
     throw new ApiError(403, "Unauthorized to edit this client profile");
   }
 
@@ -426,8 +426,8 @@ export const updateClientProfile = asyncHandler(async (req, res) => {
  */
 export const deleteClientProfile = asyncHandler(async (req, res) => {
   const userRole = req.user?.role;
-  if (!["manager", "admin"].includes(userRole)) {
-    throw new ApiError(403, "Access denied: Only Managers can delete client profiles");
+  if (!["manager", "admin", "super_admin"].includes(userRole)) {
+    throw new ApiError(403, "Access denied: Only Managers and Admins can delete client profiles");
   }
 
   const { id } = req.params;

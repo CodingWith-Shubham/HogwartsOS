@@ -84,8 +84,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!['manager', 'admin'].includes(user.role)) {
-      return NextResponse.json({ error: 'Only Managers can delete client profiles' }, { status: 403 });
+    if (!['manager', 'admin', 'super_admin'].includes(user.role)) {
+      return NextResponse.json({ error: 'Only Managers and Admins can delete client profiles' }, { status: 403 });
     }
 
     const BACKEND_URL = await getBackendUrl();

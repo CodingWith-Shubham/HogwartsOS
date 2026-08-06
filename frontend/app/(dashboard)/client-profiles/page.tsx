@@ -39,8 +39,8 @@ import { toast } from 'sonner';
 export default function ClientProfilesPage() {
   const { user } = useAuth();
   const userRole = user?.role || 'sales';
-  const canCreate = ['sales', 'manager', 'admin'].includes(userRole);
-  const canDelete = ['manager', 'admin'].includes(userRole);
+  const canCreate = ['sales', 'manager', 'admin', 'super_admin', 'editor'].includes(userRole);
+  const canDelete = ['manager', 'admin', 'super_admin'].includes(userRole);
 
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<any[]>([]);

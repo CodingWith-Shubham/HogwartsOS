@@ -104,10 +104,10 @@ export function ClientProfileModal({
   const { user } = useAuth();
   const userRole = user?.role || 'sales';
 
-  // All three roles (editor, sales, manager) + admin can create and edit everything
-  const canEditAllFields = ['sales', 'manager', 'admin', 'editor'].includes(userRole);
+  // All roles can create and edit everything
+  const canEditAllFields = ['sales', 'manager', 'admin', 'editor', 'super_admin'].includes(userRole);
   const canCreate = canEditAllFields;
-  const canDelete = ['manager', 'admin'].includes(userRole);
+  const canDelete = ['manager', 'admin', 'super_admin'].includes(userRole);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);

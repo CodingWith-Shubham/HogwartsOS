@@ -109,6 +109,7 @@ export interface Shoot {
   bts: string;
   shootMemberName: string;
   shootMemberEmail: string;
+  setName?: string;
   dataLink: string;
   driveLinkUploaded: string | boolean;
   createdAt: string;

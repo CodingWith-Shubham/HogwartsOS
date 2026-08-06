@@ -523,7 +523,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [paymentHistoryLead, setPaymentHistoryLead] = useState<Lead | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Record<string, PaymentInstallment[]>>({});
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({
+  const DEFAULT_SCHEDULE_FORM = {
     shootDate: '',
     shootStartTime: '',
     shootEndTime: '',
@@ -536,17 +536,8 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     studioTime: '',
     shootMemberName: FALLBACK_SHOOT_MEMBERS[0].name,
     shootMemberEmail: FALLBACK_SHOOT_MEMBERS[0].email,
-  });
-
-  useEffect(() => {
-    if (shootMembers.length > 0 && scheduleForm.shootMemberName === FALLBACK_SHOOT_MEMBERS[0].name) {
-      setScheduleForm((prev) => ({
-        ...prev,
-        shootMemberName: shootMembers[0].name,
-        shootMemberEmail: shootMembers[0].email,
-      }));
-    }
-  }, [shootMembers, scheduleForm.shootMemberName]);
+  };
+  const [scheduleForms, setScheduleForms] = useState([DEFAULT_SCHEDULE_FORM]);
 
   const refreshLeads = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
@@ -676,8 +667,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     return map;
   }, [shoots]);
 
-  const totalHours = scheduleForm.totalHours;
-
+  // Remove standalone totalHours to fix build error
   const salesLeads = useMemo(() => {
     return filterSalesLeads(leads, user?.name, user?.role);
   }, [leads, user?.name, user?.role]);
@@ -757,7 +747,13 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const openScheduleModal = (lead: Lead) => {
     const existingShoot = shootsByLeadId.get(lead.leadId);
     setScheduleLead(lead);
-    setScheduleForm({
+
+    let quantity = 1;
+    if (lead.podcastEdit && !isNaN(Number(lead.podcastEdit))) {
+      quantity = Math.max(1, Number(lead.podcastEdit));
+    }
+
+    const forms = Array.from({ length: quantity }).map(() => ({
       shootDate: '',
       shootStartTime: '',
       shootEndTime: '',
@@ -770,80 +766,146 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       studioTime: lead.studioTime || existingShoot?.studioTime || '',
       shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
       shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
-    });
+    }));
+    
+    setScheduleForms(forms);
     setConflictError('');
     setScheduleOpen(true);
   };
 
-  const handleScheduleMemberChange = (name: string) => {
+  const handleScheduleMemberChange = (name: string, index: number) => {
     const member = shootMembers.find((item) => item.name === name) ?? shootMembers[0] ?? FALLBACK_SHOOT_MEMBERS[0];
-    setScheduleForm((prev) => ({
-      ...prev,
-      shootMemberName: member.name,
-      shootMemberEmail: member.email,
-    }));
+    setScheduleForms((prev) => {
+      const newForms = [...prev];
+      newForms[index] = {
+        ...newForms[index],
+        shootMemberName: member.name,
+        shootMemberEmail: member.email,
+      };
+      return newForms;
+    });
+  };
+
+  const checkTimeOverlap = (startA: string, endA: string, startB: string, endB: string) => {
+    if (!startA || !endA || !startB || !endB) return false;
+    const toMins = (time: string) => {
+      const [h, m] = time.split(':').map(Number);
+      return (h * 60) + (m || 0);
+    };
+    const startAMins = toMins(startA);
+    const endAMins = toMins(endA);
+    const startBMins = toMins(startB);
+    const endBMins = toMins(endB);
+    return startAMins < endBMins && startBMins < endAMins;
   };
 
   const handleScheduleShoot = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!scheduleLead) return;
 
-    if (!scheduleForm.setName) {
-      setConflictError('Please select a set / location before scheduling.');
+    if (scheduleForms.some((f) => !f.setName)) {
+      setConflictError('Please select a set / location for all scheduled shoots.');
       return;
     }
 
-    setSchedulingShoot(true);
-    try {
-      const assignedTo = getAssignedSalespersonName(scheduleLead.assignedTo, users);
-      const payload = {
-        lead_id: scheduleLead.leadId,
-        client_name: scheduleLead.name,
-        contact_num: scheduleLead.phoneNumber,
-        email_id: scheduleLead.clientEmail,
-        shoot_date: scheduleForm.shootDate,
-        shoot_start_time: scheduleForm.shootStartTime,
-        shoot_end_time: scheduleForm.shootEndTime,
-        total_hours: totalHours,
-        camera: scheduleForm.camera,
-        teleprompter: scheduleForm.teleprompter,
-        bts: scheduleForm.bts,
-        record_time: scheduleForm.recordTime,
-        set_name: scheduleForm.setName,
-        studio_time: scheduleForm.studioTime,
-        assigned_to: assignedTo,
-        shoot_member_name: scheduleForm.shootMemberName,
-        shoot_member_email: scheduleForm.shootMemberEmail,
-      };
-      const response = await fetch(SCHEDULE_SHOOT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    for (let i = 0; i < scheduleForms.length; i++) {
+      const formA = scheduleForms[i];
+      if (!formA.shootDate || !formA.shootStartTime || !formA.shootEndTime) continue;
 
-      if (response.status === 409) {
-        const conflict = await response.json();
-        
-        let errorMessage = "A scheduling conflict occurred.";
-        
-        if (conflict.conflict_type === 'member') {
-          errorMessage = `${conflict.conflicting_member || scheduleForm.shootMemberName} is already assigned to a shoot for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please assign a different member or change the time.`;
-        } else {
-          errorMessage = `"${conflict.conflicting_set || payload.set_name}" is already booked for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please choose a different set or time.`;
+      for (let j = i + 1; j < scheduleForms.length; j++) {
+        const formB = scheduleForms[j];
+        if (formA.shootDate === formB.shootDate) {
+          const overlap = checkTimeOverlap(formA.shootStartTime, formA.shootEndTime, formB.shootStartTime, formB.shootEndTime);
+          if (overlap) {
+            if (formA.setName === formB.setName || formA.setName === 'Entire Studio' || formB.setName === 'Entire Studio') {
+              setConflictError(`Scheduling conflict between Shoot ${i + 1} and Shoot ${j + 1}: Both are booked for the same set at overlapping times.`);
+              return;
+            }
+            if (formA.shootMemberName === formB.shootMemberName) {
+              setConflictError(`Scheduling conflict between Shoot ${i + 1} and Shoot ${j + 1}: ${formA.shootMemberName} is double-booked.`);
+              return;
+            }
+          }
         }
-        
-        setConflictError(errorMessage);
-        return;
       }
 
-      if (!response.ok) throw new Error('Failed to schedule shoot');
+      const conflict = shoots.find((existingShoot) => {
+        if (existingShoot.shootDate !== formA.shootDate) return false;
+        const overlap = checkTimeOverlap(formA.shootStartTime, formA.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
+        if (!overlap) return false;
+        const setMatches = formA.setName === existingShoot.setName || formA.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
+        const memberMatches = formA.shootMemberName === existingShoot.shootMemberName;
+        return setMatches || memberMatches;
+      });
+
+      if (conflict) {
+        if (conflict.shootMemberName === formA.shootMemberName) {
+          setConflictError(`Conflict for Shoot ${i + 1}: ${formA.shootMemberName} is already assigned to a shoot for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
+          return;
+        } else {
+          setConflictError(`Conflict for Shoot ${i + 1}: The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
+          return;
+        }
+      }
+    }
+
+    setSchedulingShoot(true);
+    setConflictError('');
+    
+    try {
+      const assignedTo = getAssignedSalespersonName(scheduleLead.assignedTo, users);
+      
+      for (let i = 0; i < scheduleForms.length; i++) {
+        const form = scheduleForms[i];
+        const payload = {
+          lead_id: scheduleLead.leadId,
+          client_name: scheduleLead.name,
+          contact_num: scheduleLead.phoneNumber,
+          email_id: scheduleLead.clientEmail,
+          shoot_date: form.shootDate,
+          shoot_start_time: form.shootStartTime,
+          shoot_end_time: form.shootEndTime,
+          total_hours: form.totalHours,
+          camera: form.camera,
+          teleprompter: form.teleprompter,
+          bts: form.bts,
+          record_time: form.recordTime,
+          set_name: form.setName,
+          studio_time: form.studioTime,
+          assigned_to: assignedTo,
+          shoot_member_name: form.shootMemberName,
+          shoot_member_email: form.shootMemberEmail,
+        };
+        
+        const response = await fetch(SCHEDULE_SHOOT_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.status === 409) {
+          const conflict = await response.json();
+          let errorMessage = `A scheduling conflict occurred for Shoot ${i + 1}.`;
+          
+          if (conflict.conflict_type === 'member') {
+            errorMessage = `${conflict.conflicting_member || form.shootMemberName} is already assigned to a shoot for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please assign a different member or change the time for Shoot ${i + 1}.`;
+          } else {
+            errorMessage = `"${conflict.conflicting_set || payload.set_name}" is already booked for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please choose a different set or time for Shoot ${i + 1}.`;
+          }
+          
+          setConflictError(errorMessage);
+          return; // Stop processing further forms if one conflicts
+        }
+
+        if (!response.ok) throw new Error(`Failed to schedule shoot ${i + 1}`);
+      }
 
       setScheduleOpen(false);
       setScheduleLead(null);
-      toast.success('Shoot scheduled!');
+      toast.success('Shoots scheduled successfully!');
       await Promise.all([refreshLeads(true), refreshShoots(true)]);
     } catch (error) {
-      toast.error('Failed to schedule shoot', {
+      toast.error('Failed to schedule shoots', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
@@ -2235,182 +2297,228 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="shootDate">Shoot Date</Label>
-                  <Input
-                    id="shootDate"
-                    type="date"
-                    required
-                    className="schedule-shoot-date-input"
-                    value={scheduleForm.shootDate}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, shootDate: e.target.value }))
-                    }
-                  />
+              {scheduleForms.map((form, index) => (
+                <div key={index} className="space-y-4 rounded-md border border-border p-4">
+                  <h4 className="font-semibold text-sm border-b pb-2">Shoot {index + 1}</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`shootDate-${index}`}>Shoot Date</Label>
+                      <Input
+                        id={`shootDate-${index}`}
+                        type="date"
+                        required
+                        className="schedule-shoot-date-input"
+                        value={form.shootDate}
+                        onChange={(e) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], shootDate: e.target.value };
+                            return newForms;
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`camera-${index}`}>Camera Count</Label>
+                      <Input
+                        id={`camera-${index}`}
+                        type="number"
+                        min="1"
+                        required
+                        value={form.camera}
+                        onChange={(e) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], camera: e.target.value };
+                            return newForms;
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`shootStartTime-${index}`}>Shoot Start Time</Label>
+                      <TimeOfDaySelect
+                        id={`shootStartTime-${index}`}
+                        value={form.shootStartTime}
+                        onChange={(value) => {
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = {
+                              ...newForms[index],
+                              shootStartTime: value,
+                              shootEndTime: calculateEndTime(value, newForms[index].totalHours),
+                            };
+                            return newForms;
+                          });
+                          setConflictError('');
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`totalHours-${index}`}>Total Hours</Label>
+                      <Input
+                        id={`totalHours-${index}`}
+                        type="number"
+                        min="0.25"
+                        step="0.25"
+                        required
+                        disabled={!form.shootStartTime}
+                        value={form.totalHours}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = {
+                              ...newForms[index],
+                              totalHours: value,
+                              shootEndTime: calculateEndTime(newForms[index].shootStartTime, value),
+                            };
+                            return newForms;
+                          });
+                          setConflictError('');
+                        }}
+                        placeholder={form.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
+                      />
+                      <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`shootEndTime-${index}`}>Shoot End Time</Label>
+                      <TimeOfDaySelect
+                        id={`shootEndTime-${index}`}
+                        value={form.shootEndTime}
+                        onChange={() => undefined}
+                        disabled
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`teleprompter-${index}`}>Teleprompter</Label>
+                      <Select
+                        value={form.teleprompter}
+                        onValueChange={(value) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], teleprompter: value };
+                            return newForms;
+                          })
+                        }
+                      >
+                        <SelectTrigger id={`teleprompter-${index}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="No">No</SelectItem>
+                          <SelectItem value="Yes">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`bts-${index}`}>BTS Required</Label>
+                      <Select
+                        value={form.bts}
+                        onValueChange={(value) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], bts: value };
+                            return newForms;
+                          })
+                        }
+                      >
+                        <SelectTrigger id={`bts-${index}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="No">No</SelectItem>
+                          <SelectItem value="Yes">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`recordTime-${index}`}>Record Time</Label>
+                      <Input
+                        id={`recordTime-${index}`}
+                        value={form.recordTime}
+                        onChange={(e) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], recordTime: e.target.value };
+                            return newForms;
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`setName-${index}`}>Set / Location</Label>
+                      <Select
+                        value={form.setName}
+                        onValueChange={(value) => {
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], setName: value };
+                            return newForms;
+                          });
+                          setConflictError('');
+                        }}
+                      >
+                        <SelectTrigger id={`setName-${index}`}><SelectValue placeholder="Select a set / location" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Black Money">Black Money</SelectItem>
+                          <SelectItem value="Dark Realm">Dark Realm</SelectItem>
+                          <SelectItem value="Dark Multiverse">Dark Multiverse</SelectItem>
+                          <SelectItem value="Green Amazon">Green Amazon</SelectItem>
+                          <SelectItem value="Moroccan">Moroccan</SelectItem>
+                          <SelectItem value="Cyclorama Chroma Screen">Cyclorama Chroma Screen</SelectItem>
+                          <SelectItem value="Entire Studio">Entire Studio</SelectItem>
+                          <SelectItem value="Product Shoot">Product Shoot</SelectItem>
+                          <SelectItem value="Outdoor Shoot">Outdoor Shoot</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`studioTime-${index}`}>Studio Time</Label>
+                      <Input
+                        id={`studioTime-${index}`}
+                        value={form.studioTime}
+                        onChange={(e) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], studioTime: e.target.value };
+                            return newForms;
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`shootMember-${index}`}>Shoot Member</Label>
+                      <Select
+                        value={form.shootMemberName}
+                        onValueChange={(val) => handleScheduleMemberChange(val, index)}
+                      >
+                        <SelectTrigger id={`shootMember-${index}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {shootMembers.map((member) => (
+                            <SelectItem key={member.name} value={member.name}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`shootMemberEmail-${index}`}>Shoot Member Email</Label>
+                      <Input
+                        id={`shootMemberEmail-${index}`}
+                        type="email"
+                        required
+                        value={form.shootMemberEmail}
+                        onChange={(e) =>
+                          setScheduleForms((prev) => {
+                            const newForms = [...prev];
+                            newForms[index] = { ...newForms[index], shootMemberEmail: e.target.value };
+                            return newForms;
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="camera">Camera Count</Label>
-                  <Input
-                    id="camera"
-                    type="number"
-                    min="1"
-                    required
-                    value={scheduleForm.camera}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, camera: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shootStartTime">Shoot Start Time</Label>
-                  <TimeOfDaySelect
-                    id="shootStartTime"
-                    value={scheduleForm.shootStartTime}
-                    onChange={(value) => {
-                      setScheduleForm((prev) => ({
-                        ...prev,
-                        shootStartTime: value,
-                        shootEndTime: calculateEndTime(value, prev.totalHours),
-                      }));
-                      setConflictError('');
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="totalHours">Total Hours</Label>
-                  <Input
-                    id="totalHours"
-                    type="number"
-                    min="0.25"
-                    step="0.25"
-                    required
-                    disabled={!scheduleForm.shootStartTime}
-                    value={totalHours}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setScheduleForm((prev) => ({
-                        ...prev,
-                        totalHours: value,
-                        shootEndTime: calculateEndTime(prev.shootStartTime, value),
-                      }));
-                      setConflictError('');
-                    }}
-                    placeholder={scheduleForm.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
-                  />
-                  <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shootEndTime">Shoot End Time</Label>
-                  <TimeOfDaySelect
-                    id="shootEndTime"
-                    value={scheduleForm.shootEndTime}
-                    onChange={() => undefined}
-                    disabled
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="teleprompter">Teleprompter</Label>
-                  <Select
-                    value={scheduleForm.teleprompter}
-                    onValueChange={(value) =>
-                      setScheduleForm((prev) => ({ ...prev, teleprompter: value }))
-                    }
-                  >
-                    <SelectTrigger id="teleprompter"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="No">No</SelectItem>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bts">BTS Required</Label>
-                  <Select
-                    value={scheduleForm.bts}
-                    onValueChange={(value) =>
-                      setScheduleForm((prev) => ({ ...prev, bts: value }))
-                    }
-                  >
-                    <SelectTrigger id="bts"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="No">No</SelectItem>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recordTime">Record Time</Label>
-                  <Input
-                    id="recordTime"
-                    value={scheduleForm.recordTime}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, recordTime: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="setName">Set / Location</Label>
-                  <Select
-                    value={scheduleForm.setName}
-                    onValueChange={(value) => {
-                      setScheduleForm((prev) => ({ ...prev, setName: value }));
-                      setConflictError('');
-                    }}
-                  >
-                    <SelectTrigger id="setName"><SelectValue placeholder="Select a set / location" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Black Money">Black Money</SelectItem>
-                      <SelectItem value="Dark Realm">Dark Realm</SelectItem>
-                      <SelectItem value="Dark Multiverse">Dark Multiverse</SelectItem>
-                      <SelectItem value="Green Amazon">Green Amazon</SelectItem>
-                      <SelectItem value="Moroccan">Moroccan</SelectItem>
-                      <SelectItem value="Cyclorama Chroma Screen">Cyclorama Chroma Screen</SelectItem>
-                      <SelectItem value="Entire Studio">Entire Studio</SelectItem>
-                      <SelectItem value="Product Shoot">Product Shoot</SelectItem>
-                      <SelectItem value="Outdoor Shoot">Outdoor Shoot</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="studioTime">Studio Time</Label>
-                  <Input
-                    id="studioTime"
-                    value={scheduleForm.studioTime}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, studioTime: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shootMember">Shoot Member</Label>
-                  <Select
-                    value={scheduleForm.shootMemberName}
-                    onValueChange={handleScheduleMemberChange}
-                  >
-                    <SelectTrigger id="shootMember"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {shootMembers.map((member) => (
-                        <SelectItem key={member.name} value={member.name}>
-                          {member.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shootMemberEmail">Shoot Member Email</Label>
-                  <Input
-                    id="shootMemberEmail"
-                    type="email"
-                    required
-                    value={scheduleForm.shootMemberEmail}
-                    onChange={(e) =>
-                      setScheduleForm((prev) => ({ ...prev, shootMemberEmail: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
+              ))}
+
 
               {conflictError && (
                 <div className="rounded-md border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
@@ -2422,7 +2530,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 <Button type="button" variant="outline" onClick={() => setScheduleOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={schedulingShoot || !totalHours}>
+                <Button type="submit" disabled={schedulingShoot || scheduleForms.some(f => !f.totalHours)}>
                   <Camera className="mr-1.5 h-4 w-4" />
                   Send to Shoot Team
                 </Button>

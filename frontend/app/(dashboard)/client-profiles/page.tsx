@@ -28,6 +28,7 @@ import {
   Users,
   ShieldAlert,
   Trash2,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { TableShimmer } from '@/components/shared/ShimmerLoader';
 import { useAuth } from '@/lib/auth-context';
@@ -84,6 +85,25 @@ export default function ClientProfilesPage() {
   const handleViewProfile = (id: string) => {
     setSelectedProfileId(id);
     setModalOpen(true);
+  };
+
+  const handleCopyOnboardingLink = async (id: string) => {
+    try {
+      const res = await authFetch(`/api/client-profiles/${id}/generate-link`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        const url = `${window.location.origin}/onboarding/client-profile?token=${data.token}`;
+        await navigator.clipboard.writeText(url);
+        toast.success('Onboarding link copied to clipboard!');
+      } else {
+        toast.error('Failed to generate link', { description: data.error });
+      }
+    } catch (err) {
+      console.error('Error generating link:', err);
+      toast.error('Could not generate onboarding link');
+    }
   };
 
   // Stats calculation
@@ -186,17 +206,30 @@ export default function ClientProfilesPage() {
       key: 'actions',
       header: 'Actions',
       cell: (p) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleViewProfile(p._id);
-          }}
-          className="h-8 px-2 text-xs"
-        >
-          <Eye className="mr-1.5 h-3.5 w-3.5" /> View Profile
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewProfile(p._id);
+            }}
+            className="h-8 px-2 text-xs"
+          >
+            <Eye className="mr-1.5 h-3.5 w-3.5" /> View Profile
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyOnboardingLink(p._id);
+            }}
+            className="h-8 px-2 text-xs border-primary/20 text-primary hover:bg-primary/10"
+          >
+            <LinkIcon className="mr-1.5 h-3 w-3" /> Copy Link
+          </Button>
+        </div>
       ),
     },
   ];

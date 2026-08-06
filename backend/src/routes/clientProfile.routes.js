@@ -9,13 +9,26 @@ import {
   addPreviousProject,
   removePreviousProject,
   searchProjects,
+  generateOnboardingLink,
+  getPublicProfile,
+  updatePublicProfile,
 } from "../controllers/clientProfile.controller.js";
-import { verifyJWT } from "../middlewares/auth.middlewares.js";
+import { verifyJWT, verifyPublicClientToken } from "../middlewares/auth.middlewares.js";
 
 const router = Router();
 
-// Protect all routes with JWT verification
+// ─── Public Routes (No standard JWT required) ──────────────────────────────
+router.route("/public/me")
+  .get(verifyPublicClientToken, getPublicProfile)
+  .put(verifyPublicClientToken, updatePublicProfile);
+
+// Protect all following routes with standard JWT verification
 router.use(verifyJWT);
+
+// CRM route to generate the link
+router.route("/:id/generate-link")
+  .post(generateOnboardingLink);
+
 
 router.route("/")
   .get(getAllClientProfiles)

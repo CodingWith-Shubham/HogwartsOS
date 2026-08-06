@@ -576,3 +576,63 @@ export const searchProjects = asyncHandler(async (req, res) => {
     new ApiResponse(200, { projects: results }, "Projects search results")
   );
 });
+
+// ─── Public Onboarding Endpoints ──────────────────────────────────────────────────
+
+import jwt from "jsonwebtoken";
+
+export const generateOnboardingLink = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const profile = await ClientProfile.findById(id);
+  if (!profile) throw new ApiError(404, "Client profile not found");
+
+  // Generate a token valid for 7 days
+  const token = jwt.sign(
+    { clientId: profile._id, purpose: 'client_onboarding' },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  return res.status(200).json(
+    new ApiResponse(200, { token }, "Onboarding link generated successfully")
+  );
+});
+
+export const getPublicProfile = asyncHandler(async (req, res) => {
+  // Extract ID from the publicClient object attached by verifyPublicClientToken middleware
+  const clientId = req.publicClient.id;
+  const profile = await ClientProfile.findById(clientId).lean();
+  
+  if (!profile) throw new ApiError(404, "Client profile not found");
+
+  // Strip internal fields that the client shouldn't see
+  const { internalNotes, clientStatus, editorPreferences, previousProjects, ...publicData } = profile;
+
+  return res.status(200).json(
+    new ApiResponse(200, { profile: publicData }, "Public profile fetched successfully")
+  );
+});
+
+export const updatePublicProfile = asyncHandler(async (req, res) => {
+  const clientId = req.publicClient.id;
+  
+  // Prevent clients from updating sensitive/internal fields
+  const updates = { ...req.body };
+  delete updates.internalNotes;
+  delete updates.clientStatus;
+  delete updates.editorPreferences;
+  delete updates.previousProjects;
+  delete updates._id;
+
+  const profile = await ClientProfile.findByIdAndUpdate(
+    clientId,
+    { $set: updates },
+    { new: true, runValidators: true }
+  );
+
+  if (!profile) throw new ApiError(404, "Client profile not found");
+
+  return res.status(200).json(
+    new ApiResponse(200, { profile }, "Profile updated successfully")
+  );
+});

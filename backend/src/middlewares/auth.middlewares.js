@@ -50,4 +50,28 @@ export const verifyN8n = (req, res, next) => {
   // Attach a mock system user so controllers relying on req.user don't crash
   req.user = { role: 'admin', _id: 'n8n-system', name: 'n8n-system' };
   next();
-};
+};
+
+export const verifyPublicClientToken = asyncHandler(async (req, res, next) => {
+    const token = req.headers.authorization?.replace("Bearer ", "") || req.query.token;
+
+    if (!token) {
+        throw new ApiError(401, "Unauthorized: No onboarding token provided");
+    }
+
+    try {  
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      
+      // Ensure this token was generated specifically for client onboarding
+      if (decoded.purpose !== 'client_onboarding' || !decoded.clientId) {
+          throw new ApiError(401, "Unauthorized: Invalid onboarding token");
+      }
+      
+      req.publicClient = { id: decoded.clientId };
+      next();
+    } catch (error) {
+      console.log("ONBOARDING JWT ERROR:", error);
+      throw new ApiError(401, "Unauthorized: Invalid or expired link");
+    }
+});
+

@@ -229,7 +229,7 @@ export default function AttendancePage() {
   }, []);
 
   const fetchTeamAttendance = useCallback(async (date: string) => {
-    if (!['manager', 'admin'].includes(user?.role || '')) return;
+    if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
     try {
       const res = await fetch(`/api/attendance?date=${date}`);
       const data = await res.json();
@@ -246,7 +246,7 @@ export default function AttendancePage() {
     fetchLeaveData();
     fetchTeamLeaves();
     fetchLopOverrides();
-    if (['manager', 'admin'].includes(user?.role || '')) {
+    if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
       fetchTeamAttendance(selectedDate);
     }
   }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, selectedDate, user]);
@@ -307,7 +307,7 @@ export default function AttendancePage() {
           description: `Status: ${data.attendance.status} | Location: ${data.attendance.workLocation}${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
-        if (['manager', 'admin'].includes(user?.role || '')) {
+        if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
           fetchTeamAttendance(selectedDate);
         }
       } else {
@@ -340,7 +340,7 @@ export default function AttendancePage() {
           description: `Have a great rest of your day!${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
-        if (['manager', 'admin'].includes(user?.role || '')) {
+        if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
           fetchTeamAttendance(selectedDate);
         }
       } else {
@@ -420,8 +420,11 @@ export default function AttendancePage() {
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
           <TabsList className="bg-secondary/40 border border-border h-auto p-1 flex-wrap w-full md:w-auto justify-start">
             <TabsTrigger value="my-attendance" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">My Attendance</TabsTrigger>
-            {['manager', 'admin'].includes(user?.role || '') && (
+            {['manager', 'admin', 'super_admin'].includes(user?.role || '') && (
               <TabsTrigger value="team-roster" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Team Roster</TabsTrigger>
+            )}
+            {user?.role === 'super_admin' && (
+              <TabsTrigger value="lop-overrides" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchLopOverrides}>LOP Overrides</TabsTrigger>
             )}
             {user?.role === 'super_admin' && (
               <TabsTrigger value="employee-summaries" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchSummaries}>Employee Summaries</TabsTrigger>
@@ -698,6 +701,15 @@ export default function AttendancePage() {
             <CardHeader><CardTitle className="text-lg">Leave History</CardTitle></CardHeader>
             <CardContent><Table><TableHeader><TableRow><TableHead>Dates</TableHead><TableHead>Type</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Certificate</TableHead></TableRow></TableHeader><TableBody>{leaves.length ? leaves.map(leave => <TableRow key={leave._id}><TableCell>{leave.startDate} – {leave.endDate}</TableCell><TableCell>{leave.leaveType}</TableCell><TableCell>{leave.totalDays}</TableCell><TableCell>{leave.reason}</TableCell><TableCell><Badge>{leave.status}</Badge></TableCell><TableCell>{leave.certificateFileName ? <a className="text-indigo-400 hover:underline" href={`/api/attendance?action=leave-certificate&leaveId=${leave._id}`} target="_blank">View</a> : '—'}</TableCell></TableRow>) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No leave applications yet.</TableCell></TableRow>}</TableBody></Table></CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="lop-overrides" className="mt-0">
+          {user?.role === 'super_admin' && (
+            <Card className="border-border shadow-lg bg-card">
+              <CardHeader><CardTitle className="text-lg">LOP → Present Override Requests</CardTitle><CardDescription>Requests appear here after an employee submits an explanation for an LOP day.</CardDescription></CardHeader>
+              <CardContent><Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Explanation</TableHead><TableHead>Action</TableHead></TableRow></TableHeader><TableBody>{lopOverrides.length ? lopOverrides.map(record => <TableRow key={record._id}><TableCell>{record.employeeName}</TableCell><TableCell>{record.date}</TableCell><TableCell>{record.lopOverrideRequest?.note}</TableCell><TableCell className="flex gap-2"><Button size="sm" onClick={() => reviewLopOverride(record._id!, 'Approved')}>Approve as Present</Button><Button size="sm" variant="destructive" onClick={() => reviewLopOverride(record._id!, 'Rejected')}>Reject</Button></TableCell></TableRow>) : <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No pending LOP override requests. LOP is generated after the employee&apos;s second missed day in a completed week.</TableCell></TableRow>}</TableBody></Table></CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="team-roster" className="mt-0">

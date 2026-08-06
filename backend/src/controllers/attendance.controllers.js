@@ -1,5 +1,7 @@
 import { Attendance } from "../models/attendance.models.js";
 import { LeaveBalance } from "../models/leaveBalance.models.js";
+import { classifyMissedDaysForUser } from "./leave.controllers.js";
+import { User } from "../models/user.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -170,6 +172,8 @@ const getMyAttendance = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Unauthorized");
     }
 
+    const employee = await User.findById(user._id);
+    if (employee) await classifyMissedDaysForUser(employee);
     const logs = await Attendance.find({
         employeeEmail: user.email.toLowerCase()
     }).sort({ date: -1 });
@@ -185,6 +189,12 @@ const getMyAttendance = asyncHandler(async (req, res) => {
 const getTeamAttendance = asyncHandler(async (req, res) => {
     if (!["manager", "admin", "super_admin"].includes(req.user?.role)) throw new ApiError(403, "Manager access required");
     const date = req.query.date || getTodayString();
+    // Ensure completed days show their Weekly Off/LOP classification even when
+    // nobody has manually run the scheduler yet.
+    if (date < getTodayString()) {
+        const employees = await User.find({}, "_id empId name email");
+        await Promise.all(employees.map(employee => classifyMissedDaysForUser(employee, date)));
+    }
     const records = await Attendance.find({ date }).sort({ createdAt: -1 });
     const fyStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
     const balances = await LeaveBalance.find({ employeeEmail: { $in: records.map(record => record.employeeEmail) }, financialYear: `${fyStart}-${String(fyStart + 1).slice(-2)}` });

@@ -60,6 +60,32 @@ const datesInRange = (start, end) => {
 };
 const cleanup = (file) => { if (file?.path) fs.unlink(file.path, () => {}); };
 
+// Classify completed, unmarked days for one employee. The first missed day in a
+// Mon-Sun week consumes the weekly off; every later missed day becomes LOP.
+// Today is intentionally excluded because an employee may still check in.
+export const classifyMissedDaysForUser = async (user, throughDate = new Date()) => {
+    const last = parseDate(throughDate);
+    const today = parseDate(new Date());
+    if (last >= today) last.setUTCDate(last.getUTCDate() - 1);
+    const monday = new Date(last);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    if (last < monday) return 0;
+    const email = user.email.toLowerCase();
+    let created = 0;
+    for (const date of datesInRange(dateString(monday), dateString(last))) {
+        const existing = await Attendance.findOne({ employeeEmail: email, date });
+        if (existing) continue;
+        const weeklyOffUsed = await Attendance.exists({ employeeEmail: email, date: { $gte: dateString(monday), $lte: date }, weeklyOffUsed: true });
+        await Attendance.create({
+            employeeId: user.empId || user._id.toString(), employeeName: user.name,
+            employeeEmail: email, date, status: weeklyOffUsed ? "LOP" : "Weekly Off",
+            weeklyOffUsed: !weeklyOffUsed, lopApplied: Boolean(weeklyOffUsed)
+        });
+        created++;
+    }
+    return created;
+};
+
 export const applyLeave = asyncHandler(async (req, res) => {
     const { leaveType, startDate, endDate, reason } = req.body;
     const start = dateString(startDate); const end = dateString(endDate); const today = dateString();
@@ -150,9 +176,7 @@ export const processWeeklyOff = asyncHandler(async (req, res) => {
     const target = dateString(req.body?.date || new Date()); const targetDate = parseDate(target); const monday = new Date(targetDate); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7)); const sunday = new Date(monday); sunday.setUTCDate(sunday.getUTCDate() + 6);
     const users = await User.find({}, "_id empId name email"); let processed = 0;
     for (const user of users) {
-        const hasAttendance = await Attendance.exists({ employeeEmail: user.email.toLowerCase(), date: target }); if (hasAttendance) continue;
-        const hasWeeklyOff = await Attendance.exists({ employeeEmail: user.email.toLowerCase(), date: { $gte: dateString(monday), $lte: dateString(sunday) }, weeklyOffUsed: true });
-        await Attendance.create({ employeeId: user.empId || user._id.toString(), employeeName: user.name, employeeEmail: user.email.toLowerCase(), date: target, status: hasWeeklyOff ? "Absent" : "Weekly Off", weeklyOffUsed: !hasWeeklyOff, lopApplied: hasWeeklyOff }); processed++;
+        processed += await classifyMissedDaysForUser(user, target);
     }
     res.json(new ApiResponse(200, { processed, date: target }, "Weekly off processing complete"));
 });

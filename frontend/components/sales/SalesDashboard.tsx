@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
@@ -131,7 +132,7 @@ function isVerifiedInstallment(payment: PaymentInstallment): boolean {
 type ProposalForm = {
   clientEmail: string;
   cost: string;
-  serviceNotes: string;
+  serviceNotes: string[];
   salesNotes: string;
   camera: string;
   recordTime: string;
@@ -740,11 +741,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       shortFormatVideo: '0',
       teaserEdit: lead.teaserDemo || '0',
       thumbnailEdit: lead.thumbnail || '0',
-      serviceNotes: SERVICE_NOTE_OPTIONS.includes(
-        lead.serviceNotes as (typeof SERVICE_NOTE_OPTIONS)[number]
-      )
-        ? lead.serviceNotes
-        : '',
+      serviceNotes: lead.serviceNotes 
+        ? lead.serviceNotes.split(',').map(s => s.trim()).filter(s => SERVICE_NOTE_OPTIONS.includes(s as any))
+        : [],
       salesNotes: lead.salesNotes || '',
       camera: shoot?.camera || '',
       recordTime: shoot?.recordTime || '',
@@ -862,7 +861,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         normalizeQuantity(proposalForm[field.key]),
       ])
     );
-    const serviceNotes = proposalForm.serviceNotes.trim();
+    const serviceNotes = proposalForm.serviceNotes.join(', ').trim();
     const salesNotes = proposalForm.salesNotes.trim();
 
     setSubmittingProposal(true);
@@ -1774,23 +1773,34 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="service-notes">Service Notes</Label>
-                  <Select
-                    value={proposalForm.serviceNotes}
-                    onValueChange={(value) =>
-                      setProposalForm((prev) => ({ ...prev, serviceNotes: value }))
-                    }
-                  >
-                    <SelectTrigger id="service-notes">
-                      <SelectValue placeholder="Select a service" />
-                    </SelectTrigger>
-                    <SelectContent>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal border-input">
+                        {proposalForm.serviceNotes.length > 0 
+                          ? proposalForm.serviceNotes.join(', ') 
+                          : <span className="text-muted-foreground">Select services</span>}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56" align="start">
                       {SERVICE_NOTE_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
+                        <DropdownMenuCheckboxItem
+                          key={option}
+                          checked={proposalForm.serviceNotes.includes(option)}
+                          onCheckedChange={(checked) => {
+                            setProposalForm((prev) => ({
+                              ...prev,
+                              serviceNotes: checked
+                                ? [...prev.serviceNotes, option]
+                                : prev.serviceNotes.filter((s) => s !== option),
+                            }));
+                          }}
+                          onSelect={(e) => e.preventDefault()}
+                        >
                           {option}
-                        </SelectItem>
+                        </DropdownMenuCheckboxItem>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sales-notes">Sales Notes</Label>

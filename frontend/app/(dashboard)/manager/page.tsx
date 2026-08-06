@@ -143,7 +143,7 @@ function workloadBadgeClass(level: string) {
 
 function workloadForEditor(workloads: EditorWorkload[], editorName: string) {
   return workloads.find(
-    (item) => item.editorName.trim().toLowerCase() === editorName.trim().toLowerCase()
+    (item) => (item.editorName || '').trim().toLowerCase() === (editorName || '').trim().toLowerCase()
   );
 }
 
@@ -638,7 +638,7 @@ export default function ManagerPage() {
   };
 
   const activeProjects = leads.filter(
-    (lead) => lead.proposalAccepted && !['closed', 'delivered'].includes(lead.status.trim().toLowerCase())
+    (lead) => lead.proposalAccepted && !['closed', 'delivered'].includes(lead.status?.trim().toLowerCase() || '')
   ).length;
   const pendingApprovals = editing.filter((edit) => edit.status === 'Draft Sent').length;
   const availableEditors = editorWorkload.filter((workload) => workloadLevel(workload.totalDeliverables) === 'Free').length;

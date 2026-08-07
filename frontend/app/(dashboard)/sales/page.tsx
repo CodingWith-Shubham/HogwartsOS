@@ -10,7 +10,7 @@ export default async function SalesPage() {
     redirect('/login');
   }
 
-  const allowedRoles = ['manager', 'admin', 'sales'];
+  const allowedRoles = ['manager', 'admin', 'super_admin', 'sales'];
   if (!allowedRoles.includes(user.role)) {
     redirect(user.redirectTo || '/dashboard');
   }

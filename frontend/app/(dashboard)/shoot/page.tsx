@@ -10,7 +10,7 @@ export default async function ShootPage() {
     redirect('/login');
   }
 
-  const allowedRoles = ['manager', 'shoot'];
+  const allowedRoles = ['manager', 'super_admin', 'shoot'];
   if (!allowedRoles.includes(user.role)) {
     redirect(user.redirectTo || '/dashboard');
   }

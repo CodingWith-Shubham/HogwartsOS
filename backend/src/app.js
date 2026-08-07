@@ -14,6 +14,7 @@ import attendanceRouter from './routes/attendance.routes.js';
 import correctionRouter from './routes/correction.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import upsellRouter from './routes/upsell.routes.js';
+import upsellCrossSellRouter from './routes/upsellCrossSell.routes.js';
 import clientProfileRouter from './routes/clientProfile.routes.js';
 
 import errorHandler from './utils/error-handler.js';
@@ -46,6 +47,7 @@ app.use('/api/v1/attendance', attendanceRouter);
 app.use('/api/v1/corrections', correctionRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1', upsellRouter);
+app.use('/api/v1/upsell-crosssell', upsellCrossSellRouter); // Upsell & Cross-Sell pipeline (separate from leads)
 
 app.get('/', (req, res) => {
     res.json({ message: 'Hogwarts Studio CRM Backend API Running' });

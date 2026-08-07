@@ -6,14 +6,35 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle } from 'lucide-react';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
 import { useAuth } from '@/lib/auth-context';
+import { authFetch } from '@/lib/auth-fetch';
 import { toast } from 'sonner';
 import { UpsellModal } from '@/components/clients/UpsellModal';
 import { ClientProfileModal } from '@/components/client-profile/ClientProfileModal';
+import {
+  UpsellCrossSellModal,
+  type UpsellCrossSellType,
+} from '@/components/clients/UpsellCrossSellModal';
+import {
+  UpsellCrossSellPipeline,
+  UpsellStatusBadge,
+  type UpsellCrossSellEntry,
+} from '@/components/clients/UpsellCrossSellPipeline';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Sheet,
   SheetContent,
@@ -81,6 +102,28 @@ export default function ClientsPage() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedProfileClient, setSelectedProfileClient] = useState<any>(null);
 
+  // Upsell & Cross-Sell pipeline state (isolated from the Lead model)
+  const [ucxModalOpen, setUcxModalOpen] = useState(false);
+  const [ucxType, setUcxType] = useState<UpsellCrossSellType>('upsell');
+  const [selectedUcxClient, setSelectedUcxClient] = useState<any | null>(null);
+  const [ucxEntries, setUcxEntries] = useState<UpsellCrossSellEntry[]>([]);
+  const [ucxClients, setUcxClients] = useState<any[]>([]);
+
+  const fetchUpsells = useCallback(async () => {
+    try {
+      const [listRes, summaryRes] = await Promise.all([
+        authFetch('/api/upsell-crosssell', { cache: 'no-store' }),
+        authFetch('/api/upsell-crosssell/clients-summary', { cache: 'no-store' }),
+      ]);
+      const listPayload = await listRes.json().catch(() => ({}));
+      const summaryPayload = await summaryRes.json().catch(() => ({}));
+      if (listRes.ok) setUcxEntries(listPayload.data?.entries ?? []);
+      if (summaryRes.ok) setUcxClients(summaryPayload.data?.clients ?? []);
+    } catch (error) {
+      console.error('Error fetching upsell/cross-sell data:', error);
+    }
+  }, []);
+
   const triggerFetch = useCallback(async () => {
     try {
       const [clientsRes, realtimeRes, shootsRes, editingRes, usersRes] = await Promise.all([
@@ -126,6 +169,10 @@ export default function ClientsPage() {
     };
   }, [triggerFetch]);
 
+  useEffect(() => {
+    fetchUpsells();
+  }, [fetchUpsells]);
+
   const handleAddClient = () => {
     setEditingClient(null);
     setClientName('');
@@ -168,6 +215,23 @@ export default function ClientsPage() {
 
     setSelectedUpsellClient(lead);
     setUpsellModalOpen(true);
+  };
+
+  // Isolated upsell / cross-sell modals — never touch the Lead record
+  const handleNewUpsell = (c: any) => {
+    const lead = leads.find((l) => l.leadId === c.id);
+    if (!lead) return;
+    setSelectedUcxClient(lead);
+    setUcxType('upsell');
+    setUcxModalOpen(true);
+  };
+
+  const handleNewCrossSell = (c: any) => {
+    const lead = leads.find((l) => l.leadId === c.id);
+    if (!lead) return;
+    setSelectedUcxClient(lead);
+    setUcxType('crosssell');
+    setUcxModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -227,6 +291,8 @@ export default function ClientsPage() {
   const activeClients = leads.filter((l) => l.proposalAccepted && !['closed', 'delivered'].includes((l.status || '').toLowerCase())).length;
   const totalRevenue = invoices.filter((i) => i.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0);
   const leadsCount = leads.filter((l) => !l.proposalAccepted).length;
+  const upsellCount = ucxClients.reduce((sum, c) => sum + (c.upsellCount || 0), 0);
+  const crosssellCount = ucxClients.reduce((sum, c) => sum + (c.crosssellCount || 0), 0);
 
   // 2. Clients list mapping
   const clientsData = leads.map((lead) => {
@@ -247,10 +313,29 @@ export default function ClientsPage() {
       totalRevenue: clientRevenue,
       status: lead.status || 'New Lead',
       whatsapp: lead.whatsapp || '',
+      ucxBadges: ucxClients
+        .filter((summary) => summary.clientLeadId === lead.leadId)
+        .flatMap((summary) => {
+          const badges: { status: string; type: 'upsell' | 'crosssell' }[] = [];
+          if (summary.upsellCount > 0) badges.push({ status: summary.latestStatus, type: 'upsell' });
+          if (summary.crosssellCount > 0) badges.push({ status: summary.latestStatus, type: 'crosssell' });
+          return badges;
+        }),
     };
   });
 
   const isEditable = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'sales';
+
+  const ServiceBadge = ({ status, type }: { status: string; type: 'upsell' | 'crosssell' }) => (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {type === 'crosssell' ? (
+        <Shuffle className="h-3 w-3 text-sky-500" />
+      ) : (
+        <TrendingUp className="h-3 w-3 text-amber-500" />
+      )}
+      <UpsellStatusBadge status={status} />
+    </div>
+  );
 
   const columns: Column<any>[] = [
     {
@@ -268,6 +353,13 @@ export default function ClientsPage() {
           <div>
             <p className="font-medium">{c.name}</p>
             <p className="text-xs text-muted-foreground">{c.email}</p>
+            {(c.ucxBadges as { status: string; type: 'upsell' | 'crosssell' }[]).length > 0 && (
+              <div className="mt-1 space-y-1">
+                {c.ucxBadges.map((badge: { status: string; type: 'upsell' | 'crosssell' }, idx: number) => (
+                  <ServiceBadge key={idx} status={badge.status} type={badge.type} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -340,6 +432,28 @@ export default function ClientsPage() {
               <Button
                 variant="ghost"
                 size="icon"
+                title="Initiate Upsell (new pipeline)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNewUpsell(c);
+                }}
+              >
+                <TrendingUp className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Initiate Cross-Sell (different service category)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNewCrossSell(c);
+                }}
+              >
+                <Shuffle className="h-4 w-4 text-sky-500 hover:text-sky-600" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 title="Edit Client"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -370,23 +484,102 @@ export default function ClientsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard title="Total Clients" value={totalClients} icon={Users} />
-        <StatCard title="Active" value={activeClients} icon={Building2} />
-        <StatCard title="Total Revenue" value={formatINR(totalRevenue)} icon={Wallet} />
-        <StatCard title="Leads" value={leadsCount} icon={TrendingUp} />
-      </div>
+      <Tabs defaultValue={"clients" as string} className="w-full">
+        <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
+          <TabsTrigger value="clients" className="data-[state=active]:bg-muted">
+            <Users className="mr-1.5 h-4 w-4" /> All Clients
+          </TabsTrigger>
+          <TabsTrigger value="upsells" className="data-[state=active]:bg-muted">
+            <TrendingUp className="mr-1.5 h-4 w-4 text-amber-500" /> Upsells ({upsellCount})
+          </TabsTrigger>
+          <TabsTrigger value="crosssells" className="data-[state=active]:bg-muted">
+            <Shuffle className="mr-1.5 h-4 w-4 text-sky-500" /> Cross-Sells ({crosssellCount})
+          </TabsTrigger>
+        </TabsList>
 
-      <DataTable
-        data={clientsData}
-        columns={columns}
-        searchKeys={['name', 'email', 'contact']}
-        searchPlaceholder="Search clients..."
-        onRowClick={(c) => {
-          const clientProjects = editing.filter((p) => p.leadId === c.id);
-          console.log('Client projects:', clientProjects);
-        }}
-      />
+        <TabsContent value="clients" className="mt-0">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+            <StatCard title="Total Clients" value={totalClients} icon={Users} />
+            <StatCard title="Active" value={activeClients} icon={Building2} />
+            <StatCard title="Total Revenue" value={formatINR(totalRevenue)} icon={Wallet} />
+            <StatCard title="Leads" value={leadsCount} icon={TrendingUp} />
+            <StatCard title="Upsells" value={upsellCount} icon={ArrowUpCircle} />
+            <StatCard title="Cross-Sells" value={crosssellCount} icon={Shuffle} />
+          </div>
+
+          <DataTable
+            data={clientsData}
+            columns={columns}
+            searchKeys={['name', 'email', 'contact']}
+            searchPlaceholder="Search clients..."
+            onRowClick={(c) => {
+              const clientProjects = editing.filter((p) => p.leadId === c.id);
+              console.log('Client projects:', clientProjects);
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="upsells" className="mt-0">
+          <UpsellCrossSellPipeline
+            entries={ucxEntries.filter((e) => e.type === 'upsell')}
+            canAdvance={isEditable}
+            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            onRefresh={fetchUpsells}
+          />
+        </TabsContent>
+
+        <TabsContent value="crosssells" className="mt-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Cross-Sell Clients</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {ucxClients.filter((c) => c.crosssellCount > 0).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No cross-sell clients yet.</p>
+              ) : (
+                ucxClients
+                  .filter((c) => c.crosssellCount > 0)
+                  .map((client) => {
+                    const statuses = ucxEntries
+                      .filter((e) => e.clientLeadId === client.clientLeadId && e.type === 'crosssell')
+                      .map((e) => e.status);
+                    const latestStatus = client.latestStatus || statuses[0] || 'initiated';
+                    return (
+                      <div
+                        key={client.clientLeadId}
+                        className="flex flex-col gap-1 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-sm">{client.clientName}</p>
+                            <UpsellStatusBadge status={latestStatus} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {(client.clientEmail || '') || '—'} · {client.crosssellCount} active cross-sell
+                            {client.crosssellCount > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        {user?.role !== 'manager' && (
+                          <p className="text-xs text-muted-foreground md:max-w-[40%] md:text-right">
+                            Latest: {latestStatus.replace(/_/g, ' ')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </CardContent>
+          </Card>
+
+          <UpsellCrossSellPipeline
+            entries={ucxEntries.filter((e) => e.type === 'crosssell')}
+            showClientName
+            canAdvance={isEditable}
+            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            onRefresh={fetchUpsells}
+          />
+        </TabsContent>
+      </Tabs>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
@@ -511,7 +704,7 @@ export default function ClientsPage() {
         </SheetContent>
       </Sheet>
 
-      <UpsellModal 
+      <UpsellModal
         open={upsellModalOpen}
         onOpenChange={setUpsellModalOpen}
         client={selectedUpsellClient}
@@ -520,6 +713,15 @@ export default function ClientsPage() {
           setLoading(true);
           triggerFetch();
         }}
+      />
+
+      <UpsellCrossSellModal
+        open={ucxModalOpen}
+        onOpenChange={setUcxModalOpen}
+        type={ucxType}
+        client={selectedUcxClient}
+        salesMembers={usersList.map(u => u.name)}
+        onSuccess={fetchUpsells}
       />
 
       <ClientProfileModal

@@ -30,6 +30,12 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ManagerTaskBoard } from '@/components/manager/ManagerTaskBoard';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
+import {
+  UpsellCrossSellPipeline,
+  type UpsellCrossSellEntry,
+  type PendingAssignmentEntry,
+} from '@/components/clients/UpsellCrossSellPipeline';
+import { UpsellCrossSellAnalyticsWidget } from '@/components/dashboard/UpsellCrossSellAnalyticsWidget';
 
 const EDITOR_WORKLOAD_URL = '/api/editing/workload';
 const DELIVERABLE_FIELDS = [
@@ -223,6 +229,11 @@ export default function ManagerPage() {
   const [assignmentErrors, setAssignmentErrors] = useState<Record<string, string>>({});
   const [revisionRevenue, setRevisionRevenue] = useState(0);
   const [activeTab, setActiveTab] = useState('assign_editor');
+  const [upsellEntries, setUpsellEntries] = useState<UpsellCrossSellEntry[]>([]);
+  const [pendingUpsells, setPendingUpsells] = useState<PendingAssignmentEntry[]>([]);
+  const [assignUpsell, setAssignUpsell] = useState<PendingAssignmentEntry | null>(null);
+  const [upsellEditor, setUpsellEditor] = useState('');
+  const [assigningUpsell, setAssigningUpsell] = useState(false);
   
   const [assignForm, setAssignForm] = useState({
     serviceType: '',
@@ -329,6 +340,52 @@ export default function ManagerPage() {
       clearInterval(interval);
     };
   }, []);
+
+  // Upsell & Cross-Sell pipeline (isolated from the main CRM data)
+  const refreshUpsells = async () => {
+    try {
+      const [listRes, pendingRes] = await Promise.all([
+        authFetch('/api/upsell-crosssell', { cache: 'no-store' }),
+        authFetch('/api/upsell-crosssell/pending-editor-assignment', { cache: 'no-store' }),
+      ]);
+      const listPayload = await listRes.json().catch(() => ({}));
+      const pendingPayload = await pendingRes.json().catch(() => ({}));
+      if (listRes.ok) setUpsellEntries(listPayload.data?.entries ?? []);
+      if (pendingRes.ok) setPendingUpsells(pendingPayload.data?.entries ?? []);
+    } catch (error) {
+      console.error('Failed to fetch upsell/cross-sell entries:', error);
+    }
+  };
+
+  useEffect(() => {
+    refreshUpsells();
+    const interval = setInterval(refreshUpsells, 60000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAssignUpsellEditor = async () => {
+    if (!assignUpsell || !upsellEditor) return;
+    setAssigningUpsell(true);
+    try {
+      const response = await authFetch(`/api/upsell-crosssell/${assignUpsell._id}/assign-editor`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editorAssigned: upsellEditor }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Failed to assign editor');
+      toast.success('Editor assigned — deal moved to Editing');
+      setAssignUpsell(null);
+      setUpsellEditor('');
+      await refreshUpsells();
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : 'Failed to assign editor');
+    } finally {
+      setAssigningUpsell(false);
+    }
+  };
 
   const refreshEditing = async () => {
     const response = await authFetch('/api/editing', { cache: 'no-store' });
@@ -657,6 +714,7 @@ export default function ManagerPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
           <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted">Assign Editor</TabsTrigger>
+<TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted">Upsells &amp; Cross-Sells</TabsTrigger>
           <TabsTrigger value="task_board" className="data-[state=active]:bg-muted">Task Board</TabsTrigger>
           <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted">Editor Workload</TabsTrigger>
           <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted">Verify Editor Work</TabsTrigger>
@@ -721,6 +779,21 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+    </TabsContent>
+
+    <TabsContent value="upsell_crosssell" className="mt-0 space-y-6">
+      <UpsellCrossSellAnalyticsWidget />
+      <UpsellCrossSellPipeline
+        entries={upsellEntries}
+        showClientName
+        canDelete={['manager', 'admin', 'super_admin'].includes(user?.role || '')}
+        pendingAssignment={pendingUpsells}
+        onAssign={(entry) => {
+          setAssignUpsell(entry);
+          setUpsellEditor('');
+        }}
+        onRefresh={refreshUpsells}
+      />
     </TabsContent>
 
     <TabsContent value="task_board" className="mt-0">
@@ -1160,6 +1233,51 @@ export default function ManagerPage() {
               <Button type="submit" disabled={submittingFeedback || !feedbackText.trim()}>Submit Feedback</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upsell & Cross-Sell: assign editor */}
+      <Dialog open={!!assignUpsell} onOpenChange={(open) => !open && setAssignUpsell(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Editor</DialogTitle>
+            <DialogDescription>
+              {assignUpsell
+                ? `${assignUpsell.clientName} · ${assignUpsell.type === 'crosssell' ? 'Cross-sell' : 'Upsell'} · ${assignUpsell.services.join(', ')}. The deal moves into Editing.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="upsell-editor">Editor</Label>
+              <Select value={upsellEditor} onValueChange={setUpsellEditor}>
+                <SelectTrigger id="upsell-editor">
+                  <SelectValue placeholder="Choose editor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editors.map((editor) => (
+                    <SelectItem key={editor.name} value={editor.name}>
+                      {editorDropdownLabel(editorWorkload, editor.name)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {assignUpsell?.shootLink && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={assignUpsell.shootLink} target="_blank" rel="noreferrer">
+                  View Material <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                </a>
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignUpsell(null)}>Cancel</Button>
+            <Button onClick={handleAssignUpsellEditor} disabled={assigningUpsell || !upsellEditor}>
+              {assigningUpsell ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Scissors className="mr-2 h-4 w-4" />}
+              Assign Editor
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

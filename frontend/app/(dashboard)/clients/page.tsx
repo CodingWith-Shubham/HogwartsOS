@@ -303,52 +303,56 @@ export default function ClientsPage() {
       header: 'Status',
       cell: (c) => <LeadStatusBadge status={c.status} />,
     },
-    ...(isEditable
-      ? [
-          {
-            key: 'actions',
-            header: 'Actions',
-            cell: (c: any) => (
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="View Client Profile"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProfileClient({ name: c.name, email: c.email, phone: c.contact });
-                    setProfileModalOpen(true);
-                  }}
-                >
-                  <UserCheck className="h-4 w-4 text-purple-500 hover:text-purple-600" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Upsell Client"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleUpsellClient(c);
-                  }}
-                >
-                  <ArrowUpCircle className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Edit Client"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditClient(c);
-                  }}
-                >
-                  <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                </Button>
-              </div>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (c: any) => (
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Client Profile — create / edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedProfileClient({
+                name: c.name,
+                email: c.email !== '—' ? c.email : undefined,
+                phone: c.contact !== '—' ? c.contact : undefined,
+              });
+              setProfileModalOpen(true);
+            }}
+          >
+            <UserCheck className="h-4 w-4 text-purple-500 hover:text-purple-600" />
+          </Button>
+          {isEditable && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Upsell Client"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUpsellClient(c);
+                }}
+              >
+                <ArrowUpCircle className="h-4 w-4 text-amber-500 hover:text-amber-600" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Edit Client"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditClient(c);
+                }}
+              >
+                <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -522,6 +526,7 @@ export default function ClientsPage() {
         open={profileModalOpen}
         onOpenChange={setProfileModalOpen}
         clientInfo={selectedProfileClient}
+        onSuccess={() => triggerFetch()}
       />
     </div>
   );

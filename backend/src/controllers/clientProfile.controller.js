@@ -96,11 +96,11 @@ export const checkDuplicateProfile = asyncHandler(async (req, res) => {
 
 /**
  * Create a new Client Profile
- * Sales Members, Managers, Editors, and Admins
+ * Sales Members, Managers, Editors, Admins, and Super Admins
  */
 export const createClientProfile = asyncHandler(async (req, res) => {
   const userRole = req.user?.role;
-  if (!["sales", "manager", "admin", "editor"].includes(userRole)) {
+  if (!["sales", "manager", "admin", "editor", "super_admin"].includes(userRole)) {
     throw new ApiError(403, "Access denied: You do not have permission to create client profiles");
   }
 

@@ -8,6 +8,14 @@ import { asyncHandler } from "../utils/async-handler.js";
 
 const getTodayString = () => new Date().toISOString().split('T')[0];
 
+// Returns the wall-clock hour/minute in Asia/Kolkata for a given Date, so the
+// 10:15 AM late cutoff is evaluated in the office timezone regardless of the
+// server host's timezone (same IST convention as the attendance cron).
+const getISTClockParts = (now = new Date()) => {
+    const istNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    return { hours: istNow.getHours(), minutes: istNow.getMinutes() };
+};
+
 const checkIn = asyncHandler(async (req, res) => {
     const user = req.user;
     if (!user) {
@@ -25,9 +33,8 @@ const checkIn = asyncHandler(async (req, res) => {
     }
 
     const now = new Date();
-    // Mark Late if checking in after 10:15 AM
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
+    // Mark Late if checking in after 10:15 AM IST (exactly 10:15 AM stays Present)
+    const { hours, minutes } = getISTClockParts(now);
     const isLate = hours > 10 || (hours === 10 && minutes > 15);
 
     const checkInLocation = req.body.checkInLocation || { lat: null, lng: null };
@@ -303,4 +310,4 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { summaries, startDate: startDate || null, endDate: endDate || null }, "Attendance summaries retrieved successfully"));
 });
 
-export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary };
+export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary, getISTClockParts };

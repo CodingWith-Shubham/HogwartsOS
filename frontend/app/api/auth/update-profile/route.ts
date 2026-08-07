@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!['manager', 'admin'].includes(authenticatedUser.role)) {
+    if (!['manager', 'admin', 'super_admin'].includes(authenticatedUser.role)) {
       return NextResponse.json({ success: false, error: 'Forbidden. Please contact a manager to update your account details.' }, { status: 403 });
     }
 

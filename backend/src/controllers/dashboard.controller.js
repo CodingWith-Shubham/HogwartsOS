@@ -8,7 +8,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const getCorrectionsVsRevisions = asyncHandler(async (req, res) => {
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Unauthorized access.");
     }
 
@@ -128,8 +128,8 @@ export const getCorrectionsVsRevisions = asyncHandler(async (req, res) => {
 });
 
 export const getRevenueMetrics = asyncHandler(async (req, res) => {
-    // Only managers and admins should probably see this
-    if (req.user?.role !== "manager" && req.user?.role !== "admin") {
+    // Only managers, admins and super admins should see this
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Unauthorized access.");
     }
 

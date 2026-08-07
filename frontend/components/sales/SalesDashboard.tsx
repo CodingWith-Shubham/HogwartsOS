@@ -59,7 +59,7 @@ import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootD
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
   'https://n8n.hogwartsstudios.com/webhook/final-payment-completed';
 
-const FALLBACK_SALES_MEMBERS = ['Isha Malhotra', 'Krishna Tiwari', 'Krishan Kunal Bagoria'];
+const FALLBACK_SALES_MEMBERS = ['Isha Malhotra', 'Krishna Tiwari', 'Krishan Kunal Bagoria', 'Pallavi Srivastava'];
 const DEFAULT_ASSIGNED_TO = FALLBACK_SALES_MEMBERS[0];
 
 const FILTER_TABS: { value: LeadFilterTab; label: string }[] = [
@@ -254,7 +254,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const { user, users } = useAuth();
 
   const salesMembers = useMemo(() => {
-    const list = users.filter((u) => u.role === 'sales' || u.role === 'manager' || u.role === 'admin');
+    const list = users.filter((u) => u.role === 'sales' || u.role === 'manager' || u.role === 'admin' || u.role === 'super_admin');
     return list.length > 0 ? list.map(u => u.name) : FALLBACK_SALES_MEMBERS;
   }, [users]);
 

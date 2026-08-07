@@ -57,7 +57,7 @@ export function getAssignedSalespersonName(assignedTo: string, users: User[]) {
   if (!normalizedAssignee) return assignedTo;
 
   const salesperson = users.find((user) => {
-    if (user.role !== 'sales' && user.role !== 'manager') return false;
+    if (!['sales', 'manager', 'admin', 'super_admin'].includes(user.role)) return false;
     return (
       user.name.trim().toLowerCase() === normalizedAssignee ||
       user.email.trim().toLowerCase() === normalizedAssignee ||

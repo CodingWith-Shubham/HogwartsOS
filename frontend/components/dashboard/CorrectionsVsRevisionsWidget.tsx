@@ -21,7 +21,7 @@ export function CorrectionsVsRevisionsWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.role !== 'manager') return;
+    if (!['manager', 'admin', 'super_admin'].includes(user?.role ?? '')) return;
 
     const fetchData = async () => {
       try {
@@ -40,7 +40,7 @@ export function CorrectionsVsRevisionsWidget() {
     fetchData();
   }, [user]);
 
-  if (user?.role !== 'manager') return null;
+  if (!['manager', 'admin', 'super_admin'].includes(user?.role ?? '')) return null;
 
   return (
     <Card className="col-span-1 lg:col-span-3 mb-6">

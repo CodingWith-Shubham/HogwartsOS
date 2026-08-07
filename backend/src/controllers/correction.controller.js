@@ -7,7 +7,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 const createCorrection = asyncHandler(async (req, res) => {
     const { projectId, editingTaskId, editorId, editorName, note } = req.body;
     
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Only managers can raise corrections.");
     }
 
@@ -34,7 +34,7 @@ const createCorrection = asyncHandler(async (req, res) => {
 });
 
 const resolveCorrection = asyncHandler(async (req, res) => {
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Only managers can resolve corrections.");
     }
 
@@ -56,7 +56,7 @@ const resolveCorrection = asyncHandler(async (req, res) => {
 });
 
 const getCorrectionsByTask = asyncHandler(async (req, res) => {
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Unauthorized access to corrections.");
     }
 
@@ -67,7 +67,7 @@ const getCorrectionsByTask = asyncHandler(async (req, res) => {
 });
 
 const getCorrectionsByProject = asyncHandler(async (req, res) => {
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Unauthorized access to corrections.");
     }
 
@@ -87,7 +87,7 @@ const getCorrectionsByProject = asyncHandler(async (req, res) => {
 });
 
 const getCorrectionSummary = asyncHandler(async (req, res) => {
-    if (req.user?.role !== "manager") {
+    if (!["manager", "admin", "super_admin"].includes(req.user?.role)) {
         throw new ApiError(403, "Unauthorized access to corrections.");
     }
 

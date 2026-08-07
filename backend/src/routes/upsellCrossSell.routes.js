@@ -9,6 +9,7 @@ import {
     getUpsellCrossSellMetrics,
     updateUpsellCrossSell,
     updateUpsellCrossSellStatus,
+    updateProposalResponse,
     assignEditorToUpsell,
     deleteUpsellCrossSell
 } from "../controllers/upsellCrossSell.controller.js";
@@ -34,6 +35,7 @@ router.route("/:id")
     .delete(verifyJWTOrN8N, deleteUpsellCrossSell);
 
 router.route("/:id/status").patch(verifyJWTOrN8N, updateUpsellCrossSellStatus);
+router.route("/:id/proposal-response").patch(verifyJWTOrN8N, updateProposalResponse);
 router.route("/:id/assign-editor").patch(verifyJWTOrN8N, assignEditorToUpsell);
 
 export default router;

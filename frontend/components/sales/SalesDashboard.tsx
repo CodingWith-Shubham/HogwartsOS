@@ -27,15 +27,13 @@ import {
 } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import type { EditingProject, Lead, LeadFilterTab, Shoot } from '@/lib/sheets/types';
-import type { InstallmentLabel, PaymentInstallment, PaymentMode, User } from '@/lib/types';
+import type { PaymentInstallment } from '@/lib/types';
 import {
   filterSalesLeads,
   isPendingPaymentVerification,
@@ -52,25 +50,17 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
+import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
+import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
+import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
+import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
+import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
 
-const SCHEDULE_SHOOT_WEBHOOK_URL =
-  'https://n8n.hogwartsstudios.com/webhook/schedule-shoot';
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
   'https://n8n.hogwartsstudios.com/webhook/final-payment-completed';
 
 const FALLBACK_SALES_MEMBERS = ['Isha Malhotra', 'Krishna Tiwari', 'Krishan Kunal Bagoria'];
 const DEFAULT_ASSIGNED_TO = FALLBACK_SALES_MEMBERS[0];
-const SERVICE_NOTE_OPTIONS = [
-  'Podcast',
-  'Solo content shoot',
-  'Outdoor shoot',
-  'Product',
-  'Fashion',
-  'Only space',
-  'Only editing',
-  'Only marketing',
-  'End to End',
-] as const;
 
 const FILTER_TABS: { value: LeadFilterTab; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -87,73 +77,10 @@ interface SalesDashboardProps {
   initialEditing: EditingProject[];
 }
 
-const FALLBACK_SHOOT_MEMBERS = [
-  { name: 'Mayank Saxena', email: 'mayank@hogwartsstudios.com' },
-];
 
-const DELIVERABLE_FIELDS = [
-  { key: 'podcastEdit', payloadKey: 'podcast_edit', label: 'Podcast Edit' },
-  { key: 'reelEdit', payloadKey: 'reel_edit', label: 'Reel Edit' },
-  { key: 'longFormatVideo', payloadKey: 'long_format_video', label: 'Long Format Video', durationKey: 'longFormatDuration' },
-  { key: 'shortFormatVideo', payloadKey: 'short_format_video', label: 'Short Format Video', durationKey: 'shortFormatDuration' },
-  { key: 'teaserEdit', payloadKey: 'teaser_edit', label: 'Teaser Edit' },
-  { key: 'thumbnailEdit', payloadKey: 'thumbnail_edit', label: 'Thumbnail Edit' },
-] as const;
-
-const TIME_HOURS = Array.from({ length: 12 }, (_, index) => String(index + 1));
-const TIME_MINUTES = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
-const TIME_PERIODS = ['AM', 'PM'] as const;
-const INSTALLMENT_LABELS: InstallmentLabel[] = ['Advance', 'Day Before Shoot', 'Post Shoot', 'Custom'];
-
-type TimePeriod = (typeof TIME_PERIODS)[number];
-type DeliverableKey = (typeof DELIVERABLE_FIELDS)[number]['key'];
-
-function getAssignedSalespersonName(assignedTo: string, users: User[]) {
-  const normalizedAssignee = assignedTo.trim().toLowerCase();
-  if (!normalizedAssignee) return assignedTo;
-
-  const salesperson = users.find((user) => {
-    if (user.role !== 'sales' && user.role !== 'manager') return false;
-    return (
-      user.name.trim().toLowerCase() === normalizedAssignee ||
-      user.email.trim().toLowerCase() === normalizedAssignee ||
-      user.username.trim().toLowerCase() === normalizedAssignee ||
-      user.name.trim().toLowerCase().split(/\s+/)[0] === normalizedAssignee
-    );
-  });
-
-  return salesperson?.name ?? assignedTo;
-}
 
 function isVerifiedInstallment(payment: PaymentInstallment): boolean {
   return payment.payment_mode === 'Cash' || ['payment verified', 'payment confirmed', 'confirmed', 'cash received'].includes(payment.payment_status.trim().toLowerCase());
-}
-
-type ProposalForm = {
-  clientEmail: string;
-  cost: string;
-  serviceNotes: string[];
-  salesNotes: string;
-  camera: string;
-  recordTime: string;
-  studioTime: string;
-  longFormatDuration: string;
-  shortFormatDuration: string;
-} & Record<DeliverableKey, string>;
-
-const DEFAULT_DELIVERABLES: Record<DeliverableKey, string> = {
-  podcastEdit: '0',
-  reelEdit: '0',
-  longFormatVideo: '0',
-  shortFormatVideo: '0',
-  teaserEdit: '0',
-  thumbnailEdit: '0',
-};
-
-function normalizeQuantity(value: string) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return '0';
-  return String(Math.floor(parsed));
 }
 
 // Editing-only leads ("Only editing" service note) skip the entire shoot flow:
@@ -173,13 +100,6 @@ function isEditingOnlyShoot(shoot: Shoot | undefined) {
   return String(shoot?.isEditingOnly ?? '').trim().toLowerCase() === 'true';
 }
 
-function totalDeliverables(values: Record<DeliverableKey, string>) {
-  return DELIVERABLE_FIELDS.reduce(
-    (sum, field) => sum + Number(normalizeQuantity(values[field.key])),
-    0
-  );
-}
-
 function salesDeliverableSummary(lead: Lead) {
   const podcast = Number(lead.podcastDraft || 0) + Number(lead.podcastEdit || 0);
   const reel = Number(lead.reelDraft || 0) + Number(lead.reelEdit || 0);
@@ -190,48 +110,6 @@ function salesDeliverableSummary(lead: Lead) {
     reel > 0 ? `🎬${reel}` : '',
     thumbnail > 0 ? `🖼${thumbnail}` : '',
   ].filter(Boolean);
-}
-
-function parseTimeParts(value: string) {
-  if (!value) return { hour: '', minute: '', period: '' };
-  const [rawHour, rawMinute] = value.split(':').map(Number);
-  if (Number.isNaN(rawHour) || Number.isNaN(rawMinute)) {
-    return { hour: '', minute: '', period: '' };
-  }
-
-  const period: TimePeriod = rawHour >= 12 ? 'PM' : 'AM';
-  const hour = rawHour % 12 || 12;
-
-  return {
-    hour: String(hour),
-    minute: String(rawMinute).padStart(2, '0'),
-    period,
-  };
-}
-
-function buildTimeValue(hour: string, minute: string, period: string) {
-  if (!hour || !minute || !period) return '';
-  let nextHour = Number(hour);
-  const nextMinute = Number(minute);
-
-  if (
-    Number.isNaN(nextHour) ||
-    Number.isNaN(nextMinute) ||
-    nextHour < 1 ||
-    nextHour > 12 ||
-    nextMinute < 0 ||
-    nextMinute > 59
-  ) {
-    return '';
-  }
-
-  if (period === 'AM') {
-    nextHour = nextHour === 12 ? 0 : nextHour;
-  } else {
-    nextHour = nextHour === 12 ? 12 : nextHour + 12;
-  }
-
-  return `${String(nextHour).padStart(2, '0')}:${String(nextMinute).padStart(2, '0')}`;
 }
 
 function isShootEligible(lead: Lead) {
@@ -269,103 +147,6 @@ function buildMonthDays(month: Date) {
     day.setDate(start.getDate() + index);
     return day;
   });
-}
-
-function calculateEndTime(start: string, totalHours: string) {
-  if (!start || !totalHours) return '';
-  const [hour, minute] = start.split(':').map(Number);
-  const durationMinutes = Math.round(Number(totalHours) * 60);
-
-  if (
-    [hour, minute, durationMinutes].some((value) => Number.isNaN(value)) ||
-    hour < 0 || hour > 23 || minute < 0 || minute > 59 || durationMinutes <= 0
-  ) {
-    return '';
-  }
-
-  const endMinutes = (hour * 60 + minute + durationMinutes) % (24 * 60);
-  return `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
-}
-
-function parseCost(value: string): number {
-  const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function TimeOfDaySelect({
-  id,
-  value,
-  onChange,
-  disabled = false,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  const [parts, setParts] = useState(() => parseTimeParts(value));
-
-  useEffect(() => {
-    setParts(parseTimeParts(value));
-  }, [value]);
-
-  const handlePartChange = (part: 'hour' | 'minute' | 'period', nextValue: string) => {
-    const nextParts = { ...parts, [part]: nextValue };
-    setParts(nextParts);
-    const nextTimeValue = buildTimeValue(nextParts.hour, nextParts.minute, nextParts.period);
-    if (nextTimeValue) {
-      onChange(nextTimeValue);
-    }
-  };
-
-  return (
-    <div className="grid grid-cols-[1fr_1fr_88px] gap-2">
-      <Select value={parts.hour} onValueChange={(nextValue) => handlePartChange('hour', nextValue)} disabled={disabled}>
-        <SelectTrigger id={`${id}-hour`} aria-label="Hour">
-          <SelectValue placeholder="Hour" />
-        </SelectTrigger>
-        <SelectContent>
-          {TIME_HOURS.map((hour) => (
-            <SelectItem key={hour} value={hour}>
-              {hour}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={parts.minute}
-        onValueChange={(nextValue) => handlePartChange('minute', nextValue)}
-        disabled={disabled}
-      >
-        <SelectTrigger id={`${id}-minute`} aria-label="Minute">
-          <SelectValue placeholder="Min" />
-        </SelectTrigger>
-        <SelectContent>
-          {TIME_MINUTES.map((minute) => (
-            <SelectItem key={minute} value={minute}>
-              {minute}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={parts.period}
-        onValueChange={(nextValue) => handlePartChange('period', nextValue)}
-        disabled={disabled}
-      >
-        <SelectTrigger id={id} aria-label="AM or PM">
-          <SelectValue placeholder="AM/PM" />
-        </SelectTrigger>
-        <SelectContent>
-          {TIME_PERIODS.map((period) => (
-            <SelectItem key={period} value={period}>
-              {period}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
@@ -477,10 +258,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     return list.length > 0 ? list.map(u => u.name) : FALLBACK_SALES_MEMBERS;
   }, [users]);
 
-  const shootMembers = useMemo(() => {
-    const list = users.filter((u) => u.role === 'shoot');
-    return list.length > 0 ? list.map(u => ({ name: u.name, email: u.email })) : FALLBACK_SHOOT_MEMBERS;
-  }, [users]);
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [shoots, setShoots] = useState<Shoot[]>(initialShoots);
@@ -502,35 +279,14 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [filterTab, setFilterTab] = useState<LeadFilterTab>('all');
-  const [submittingProposal, setSubmittingProposal] = useState(false);
-  const [proposalForm, setProposalForm] = useState<ProposalForm>({
-    clientEmail: '',
-    cost: '',
-    serviceNotes: [],
-    salesNotes: '',
-    camera: '',
-    recordTime: '',
-    studioTime: '',
-    longFormatDuration: '',
-    shortFormatDuration: '',
-    ...DEFAULT_DELIVERABLES,
-  });
+  const [proposalDefaults, setProposalDefaults] = useState<Partial<ProposalFormValues>>({});
+  const [schedulePrefill, setSchedulePrefill] = useState<ScheduleDialogPrefill>({});
   const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
   const [paymentLead, setPaymentLead] = useState<Lead | null>(null);
-  const [paymentOption, setPaymentOption] = useState<'50' | '100' | 'custom'>('50');
-  const [customAmount, setCustomAmount] = useState('');
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('Online');
-  const [installmentLabel, setInstallmentLabel] = useState<InstallmentLabel>('Advance');
-  const [cashCollectedBy, setCashCollectedBy] = useState('');
-  const [additionalEmails, setAdditionalEmails] = useState('');
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
-  const [sendingPaymentLink, setSendingPaymentLink] = useState(false);
   const [verifyingLeadId, setVerifyingLeadId] = useState<string | null>(null);
   const [completingFinalPaymentId, setCompletingFinalPaymentId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleLead, setScheduleLead] = useState<Lead | null>(null);
-  const [schedulingShoot, setSchedulingShoot] = useState(false);
-  const [conflictError, setConflictError] = useState('');
   const [sendingDraftId, setSendingDraftId] = useState<string | null>(null);
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
   const [handoverId, setHandoverId] = useState<string | null>(null);
@@ -540,21 +296,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [paymentHistoryLead, setPaymentHistoryLead] = useState<Lead | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Record<string, PaymentInstallment[]>>({});
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
-  const DEFAULT_SCHEDULE_FORM = {
-    shootDate: '',
-    shootStartTime: '',
-    shootEndTime: '',
-    totalHours: '',
-    camera: '1',
-    teleprompter: 'No',
-    bts: 'No',
-    recordTime: '',
-    setName: '',
-    studioTime: '',
-    shootMemberName: FALLBACK_SHOOT_MEMBERS[0].name,
-    shootMemberEmail: FALLBACK_SHOOT_MEMBERS[0].email,
-  };
-  const [scheduleForms, setScheduleForms] = useState([DEFAULT_SCHEDULE_FORM]);
 
   const refreshLeads = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
@@ -613,7 +354,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshPaymentHistory = useCallback(async (silent = false) => {
     try {
-      const response = await authFetch('/api/payments', { cache: 'no-store' });
+      // Upsell/cross-sell payments belong to the Clients-tab parallel pipeline —
+      // exclude them so lead payment totals stay accurate.
+      const response = await authFetch('/api/payments?exclude_upsell=1', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
 
@@ -743,7 +486,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const openProposalModal = (lead: Lead) => {
     const shoot = shootsByLeadId.get(lead.leadId);
     setSelected(lead);
-    setProposalForm({
+    setProposalDefaults({
       clientEmail: lead.clientEmail,
       cost: lead.cost,
       podcastEdit: lead.podcastEdit || '0',
@@ -772,223 +515,16 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
     const existingShoot = shootsByLeadId.get(lead.leadId);
     setScheduleLead(lead);
-
-    let quantity = 1;
-    if (lead.podcastEdit && !isNaN(Number(lead.podcastEdit))) {
-      quantity = Math.max(1, Number(lead.podcastEdit));
-    }
-
-    const forms = Array.from({ length: quantity }).map(() => ({
-      shootDate: '',
-      shootStartTime: '',
-      shootEndTime: '',
-      totalHours: '',
+    setSchedulePrefill({
+      shootCount:
+        lead.podcastEdit && !isNaN(Number(lead.podcastEdit))
+          ? Math.max(1, Number(lead.podcastEdit))
+          : 1,
       camera: lead.camera || existingShoot?.camera || '1',
-      teleprompter: 'No',
-      bts: 'No',
       recordTime: lead.recordTime || existingShoot?.recordTime || '',
-      setName: '',
       studioTime: lead.studioTime || existingShoot?.studioTime || '',
-      shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
-      shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
-    }));
-    
-    setScheduleForms(forms);
-    setConflictError('');
-    setScheduleOpen(true);
-  };
-
-  const handleScheduleMemberChange = (name: string, index: number) => {
-    const member = shootMembers.find((item) => item.name === name) ?? shootMembers[0] ?? FALLBACK_SHOOT_MEMBERS[0];
-    setScheduleForms((prev) => {
-      const newForms = [...prev];
-      newForms[index] = {
-        ...newForms[index],
-        shootMemberName: member.name,
-        shootMemberEmail: member.email,
-      };
-      return newForms;
     });
-  };
-
-  const checkTimeOverlap = (startA: string, endA: string, startB: string, endB: string) => {
-    if (!startA || !endA || !startB || !endB) return false;
-    const toMins = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      return (h * 60) + (m || 0);
-    };
-    const startAMins = toMins(startA);
-    const endAMins = toMins(endA);
-    const startBMins = toMins(startB);
-    const endBMins = toMins(endB);
-    return startAMins < endBMins && startBMins < endAMins;
-  };
-
-  const handleScheduleShoot = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!scheduleLead) return;
-
-    if (scheduleForms.some((f) => !f.setName)) {
-      setConflictError('Please select a set / location for all scheduled shoots.');
-      return;
-    }
-
-    for (let i = 0; i < scheduleForms.length; i++) {
-      const formA = scheduleForms[i];
-      if (!formA.shootDate || !formA.shootStartTime || !formA.shootEndTime) continue;
-
-      for (let j = i + 1; j < scheduleForms.length; j++) {
-        const formB = scheduleForms[j];
-        if (formA.shootDate === formB.shootDate) {
-          const overlap = checkTimeOverlap(formA.shootStartTime, formA.shootEndTime, formB.shootStartTime, formB.shootEndTime);
-          if (overlap) {
-            if (formA.setName === formB.setName || formA.setName === 'Entire Studio' || formB.setName === 'Entire Studio') {
-              setConflictError(`Scheduling conflict between Shoot ${i + 1} and Shoot ${j + 1}: Both are booked for the same set at overlapping times.`);
-              return;
-            }
-            if (formA.shootMemberName === formB.shootMemberName) {
-              setConflictError(`Scheduling conflict between Shoot ${i + 1} and Shoot ${j + 1}: ${formA.shootMemberName} is double-booked.`);
-              return;
-            }
-          }
-        }
-      }
-
-      const conflict = shoots.find((existingShoot) => {
-        if (existingShoot.shootDate !== formA.shootDate) return false;
-        const overlap = checkTimeOverlap(formA.shootStartTime, formA.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
-        if (!overlap) return false;
-        const setMatches = formA.setName === existingShoot.setName || formA.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
-        const memberMatches = formA.shootMemberName === existingShoot.shootMemberName;
-        return setMatches || memberMatches;
-      });
-
-      if (conflict) {
-        if (conflict.shootMemberName === formA.shootMemberName) {
-          setConflictError(`Conflict for Shoot ${i + 1}: ${formA.shootMemberName} is already assigned to a shoot for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
-          return;
-        } else {
-          setConflictError(`Conflict for Shoot ${i + 1}: The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
-          return;
-        }
-      }
-    }
-
-    setSchedulingShoot(true);
-    setConflictError('');
-    
-    try {
-      const assignedTo = getAssignedSalespersonName(scheduleLead.assignedTo, users);
-      
-      for (let i = 0; i < scheduleForms.length; i++) {
-        const form = scheduleForms[i];
-        const payload = {
-          lead_id: scheduleLead.leadId,
-          client_name: scheduleLead.name,
-          contact_num: scheduleLead.phoneNumber,
-          email_id: scheduleLead.clientEmail,
-          shoot_date: form.shootDate,
-          shoot_start_time: form.shootStartTime,
-          shoot_end_time: form.shootEndTime,
-          total_hours: form.totalHours,
-          camera: form.camera,
-          teleprompter: form.teleprompter,
-          bts: form.bts,
-          record_time: form.recordTime,
-          set_name: form.setName,
-          studio_time: form.studioTime,
-          assigned_to: assignedTo,
-          shoot_member_name: form.shootMemberName,
-          shoot_member_email: form.shootMemberEmail,
-        };
-        
-        const response = await fetch(SCHEDULE_SHOOT_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.status === 409) {
-          const conflict = await response.json();
-          let errorMessage = `A scheduling conflict occurred for Shoot ${i + 1}.`;
-          
-          if (conflict.conflict_type === 'member') {
-            errorMessage = `${conflict.conflicting_member || form.shootMemberName} is already assigned to a shoot for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please assign a different member or change the time for Shoot ${i + 1}.`;
-          } else {
-            errorMessage = `"${conflict.conflicting_set || payload.set_name}" is already booked for ${conflict.conflicting_client} from ${conflict.conflicting_start} to ${conflict.conflicting_end}. Please choose a different set or time for Shoot ${i + 1}.`;
-          }
-          
-          setConflictError(errorMessage);
-          return; // Stop processing further forms if one conflicts
-        }
-
-        if (!response.ok) throw new Error(`Failed to schedule shoot ${i + 1}`);
-      }
-
-      setScheduleOpen(false);
-      setScheduleLead(null);
-      toast.success('Shoots scheduled successfully!');
-      await Promise.all([refreshLeads(true), refreshShoots(true)]);
-    } catch (error) {
-      toast.error('Failed to schedule shoots', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setSchedulingShoot(false);
-    }
-  };
-
-  const handleSendProposal = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selected) return;
-
-    const deliverablesPayload = Object.fromEntries(
-      DELIVERABLE_FIELDS.map((field) => [
-        field.payloadKey,
-        normalizeQuantity(proposalForm[field.key]),
-      ])
-    );
-    const serviceNotes = proposalForm.serviceNotes.join(', ').trim();
-    const salesNotes = proposalForm.salesNotes.trim();
-
-    setSubmittingProposal(true);
-    try {
-      const response = await authFetch('/api/send-proposal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_id: selected.leadId,
-          client_name: selected.name,
-          client_email: proposalForm.clientEmail,
-          client_phone: selected.phoneNumber,
-          service_pitched: selected.servicePitched,
-          service_notes: serviceNotes,
-          sales_notes: salesNotes,
-          ...deliverablesPayload,
-          long_format_duration: proposalForm.longFormatDuration.trim(),
-          short_format_duration: proposalForm.shortFormatDuration.trim(),
-          cost: proposalForm.cost,
-          camera: proposalForm.camera,
-          record_time: proposalForm.recordTime,
-          studio_time: proposalForm.studioTime,
-          salesperson_name: selected.assignedTo,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send proposal');
-      }
-
-      setProposalOpen(false);
-      toast.success('Proposal sent successfully!');
-      await refreshLeads(true);
-    } catch (error) {
-      toast.error('Failed to send proposal', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setSubmittingProposal(false);
-    }
+    setScheduleOpen(true);
   };
 
   const handleLeadOpenChange = (open: boolean) => {
@@ -1100,89 +636,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       });
     } finally {
       setDeletingLeadId(null);
-    }
-  };
-
-  const handleSendPaymentLink = async () => {
-    if (!paymentLead || !user) return;
-
-    const totalCost = parseCost(paymentLead.cost);
-    const { remaining: remainingBeforePayment, totalCollected } = paymentSummary(paymentLead);
-    const amountToCollect = paymentOption === 'custom'
-      ? Number(customAmount)
-      : (remainingBeforePayment * Number(paymentOption)) / 100;
-    const percentage = (amountToCollect / totalCost) * 100;
-
-    if (!Number.isFinite(totalCost) || totalCost <= 0) {
-      toast.error('A valid project cost is required before sending a payment link');
-      return;
-    }
-
-    if (!Number.isFinite(amountToCollect) || amountToCollect <= 0 || amountToCollect > remainingBeforePayment) {
-      toast.error('Payment amount must be greater than zero and cannot exceed the remaining balance');
-      return;
-    }
-
-    if (paymentMode === 'Cash' && !cashCollectedBy.trim()) {
-      toast.error('Cash collector name is required');
-      return;
-    }
-
-    if (!invoiceFile) {
-      toast.error('An invoice or supporting document is required before sending a payment link');
-      return;
-    }
-
-    const roundedAmountToCollect = Number(amountToCollect.toFixed(2));
-    const roundedPercentage = Number(percentage.toFixed(2));
-    const remainingAmount = Number((remainingBeforePayment - roundedAmountToCollect).toFixed(2));
-
-    setSendingPaymentLink(true);
-    try {
-      const formData = new FormData();
-      formData.append('lead_id', paymentLead.leadId);
-      formData.append('client_name', paymentLead.name);
-      formData.append('client_email', paymentLead.clientEmail);
-      formData.append('cost', paymentLead.cost);
-      formData.append('total_cost', String(totalCost));
-      formData.append('amount_to_collect', String(roundedAmountToCollect));
-      formData.append('remaining_amount', String(remainingAmount));
-      formData.append('amount_paid_so_far', String(totalCollected));
-      formData.append('payment_percentage', String(roundedPercentage));
-      formData.append('payment_type', roundedPercentage === 100 ? 'Full Payment' : 'Advance Payment');
-      formData.append('payment_mode', paymentMode);
-      formData.append('cash_collected_by', paymentMode === 'Cash' ? cashCollectedBy.trim() : '');
-      formData.append('installment_label', installmentLabel);
-      formData.append('salesperson_name', paymentLead.assignedTo);
-      formData.append('salesperson_email', user.email);
-      formData.append('additional_emails', additionalEmails);
-      if (invoiceFile) {
-        formData.append('invoice_file', invoiceFile);
-      }
-
-      const response = await authFetch('/api/send-payment-link', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to send payment link');
-      }
-
-      setPaymentLinkOpen(false);
-      setPaymentLead(null);
-      setAdditionalEmails('');
-      setInvoiceFile(null);
-      toast.success(paymentMode === 'Cash' ? 'Cash payment recorded!' : 'Payment link sent!');
-      await refreshLeads(true);
-      await refreshPaymentHistory(true);
-    } catch (error) {
-      toast.error('Failed to send payment link', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setSendingPaymentLink(false);
     }
   };
 
@@ -1351,13 +804,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           onClick={(e) => {
             e.stopPropagation();
             setPaymentLead(lead);
-            setPaymentOption('50');
-            setCustomAmount('');
-            setPaymentMode('Online');
-            setInstallmentLabel('Advance');
-            setCashCollectedBy(user?.name ?? '');
-            setAdditionalEmails('');
-            setInvoiceFile(null);
             setPaymentLinkOpen(true);
           }}
         >
@@ -1842,364 +1288,26 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
       </Tabs>
 
-      <Dialog open={proposalOpen} onOpenChange={setProposalOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Send Proposal</DialogTitle>
-            <DialogDescription>
-              Send a proposal to {selected?.name ?? 'the client'}
-            </DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <form onSubmit={handleSendProposal} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="client-name">Client Name</Label>
-                <Input id="client-name" value={selected.name} readOnly className="bg-muted" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="client-email">Client Email</Label>
-                <Input
-                  id="client-email"
-                  type="email"
-                  required
-                  value={proposalForm.clientEmail}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({ ...prev, clientEmail: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="service-notes">Service Notes</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal border-input">
-                        {proposalForm.serviceNotes.length > 0 
-                          ? proposalForm.serviceNotes.join(', ') 
-                          : <span className="text-muted-foreground">Select services</span>}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="start">
-                      {SERVICE_NOTE_OPTIONS.map((option) => (
-                        <DropdownMenuCheckboxItem
-                          key={option}
-                          checked={proposalForm.serviceNotes.includes(option)}
-                          onCheckedChange={(checked) => {
-                            setProposalForm((prev) => ({
-                              ...prev,
-                              serviceNotes: checked
-                                ? [...prev.serviceNotes, option]
-                                : prev.serviceNotes.filter((s) => s !== option),
-                            }));
-                          }}
-                          onSelect={(e) => e.preventDefault()}
-                        >
-                          {option}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sales-notes">Sales Notes</Label>
-                  <Textarea
-                    id="sales-notes"
-                    value={proposalForm.salesNotes}
-                    onChange={(e) =>
-                      setProposalForm((prev) => ({ ...prev, salesNotes: e.target.value }))
-                    }
-                    placeholder="Add notes for the sales team..."
-                    className="min-h-10"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="proposal-camera">Camera Setup</Label>
-                  <Input
-                    id="proposal-camera"
-                    value={proposalForm.camera}
-                    onChange={(e) =>
-                      setProposalForm((prev) => ({ ...prev, camera: e.target.value }))
-                    }
-                    placeholder="e.g. 2 cameras"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="proposal-record-time">Record Time</Label>
-                  <Input
-                    id="proposal-record-time"
-                    value={proposalForm.recordTime}
-                    onChange={(e) =>
-                      setProposalForm((prev) => ({ ...prev, recordTime: e.target.value }))
-                    }
-                    placeholder="e.g. 2 hours"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="proposal-studio-time">Studio Time</Label>
-                  <Input
-                    id="proposal-studio-time"
-                    value={proposalForm.studioTime}
-                    onChange={(e) =>
-                      setProposalForm((prev) => ({ ...prev, studioTime: e.target.value }))
-                    }
-                    placeholder="e.g. 3 hours"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {DELIVERABLE_FIELDS.map((field) => {
-                  const durationKey = 'durationKey' in field ? field.durationKey : null;
+      <SendProposalDialog
+        open={proposalOpen}
+        onOpenChange={setProposalOpen}
+        lead={selected}
+        defaults={proposalDefaults}
+        onSuccess={async () => {
+          await refreshLeads(true);
+        }}
+      />
 
-                  if (durationKey) {
-                    return (
-                      <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
-                        <div className="space-y-2">
-                          <Label htmlFor={field.key}>{field.label}</Label>
-                          <Input
-                            id={field.key}
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={proposalForm[field.key]}
-                            onChange={(e) =>
-                              setProposalForm((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor={durationKey}>Duration</Label>
-                          <Input
-                            id={durationKey}
-                            value={proposalForm[durationKey]}
-                            onChange={(e) =>
-                              setProposalForm((prev) => ({
-                                ...prev,
-                                [durationKey]: e.target.value,
-                              }))
-                            }
-                            placeholder="e.g. 60 min"
-                          />
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-2" key={field.key}>
-                      <Label htmlFor={field.key}>{field.label}</Label>
-                      <Input
-                        id={field.key}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={proposalForm[field.key]}
-                        onChange={(e) =>
-                          setProposalForm((prev) => ({
-                            ...prev,
-                            [field.key]: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-sm font-medium">
-                Total deliverables: {totalDeliverables(proposalForm)}
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="cost">Cost in ₹</Label>
-                <Input
-                  id="cost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  value={proposalForm.cost}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({ ...prev, cost: e.target.value }))
-                  }
-                />
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setProposalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={submittingProposal}>
-                  <Send className="mr-1.5 h-4 w-4" />
-                  Send Proposal
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={paymentLinkOpen} onOpenChange={setPaymentLinkOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send Payment Link</DialogTitle>
-            <DialogDescription>
-              Send payment instructions to {paymentLead?.clientEmail || 'the client'}?
-            </DialogDescription>
-          </DialogHeader>
-          {paymentLead && (
-            <>
-            <div className="rounded-md border border-border p-3 space-y-1 text-sm">
-              <p className="font-medium">{paymentLead.name}</p>
-              <p className="text-muted-foreground">{paymentLead.clientEmail}</p>
-              <p className="text-muted-foreground tabular-nums">
-                Amount: {paymentLead.cost ? formatINR(parseCost(paymentLead.cost)) : '—'}
-              </p>
-            </div>
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Payment Mode</legend>
-                <div className="grid grid-cols-2 rounded-md border border-border p-1">
-                  {(['Online', 'Cash'] as PaymentMode[]).map((mode) => (
-                    <Button
-                      key={mode}
-                      type="button"
-                      variant={paymentMode === mode ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setPaymentMode(mode)}
-                    >
-                      {mode}
-                    </Button>
-                  ))}
-                </div>
-              </fieldset>
-              <div className="space-y-2">
-                <Label htmlFor="installment-label">Installment Label</Label>
-                <Select value={installmentLabel} onValueChange={(value) => setInstallmentLabel(value as InstallmentLabel)}>
-                  <SelectTrigger id="installment-label"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {INSTALLMENT_LABELS.map((label) => <SelectItem key={label} value={label}>{label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              {paymentMode === 'Cash' ? (
-                <>
-                <div className="space-y-2">
-                  <Label htmlFor="cash-collected-by">Cash collected by</Label>
-                  <Input
-                    id="cash-collected-by"
-                    required
-                    value={cashCollectedBy}
-                    onChange={(e) => setCashCollectedBy(e.target.value)}
-                    placeholder="Collector's name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cash-invoice-file">Attach Invoice/Document *</Label>
-                  <Input
-                    id="cash-invoice-file"
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    required
-                    onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)}
-                  />
-                </div>
-                </>
-              ) : (
-                <>
-              <div className="space-y-2">
-                <Label htmlFor="additional-emails">Additional Emails (Comma separated)</Label>
-                <Input
-                  id="additional-emails"
-                  type="text"
-                  value={additionalEmails}
-                  onChange={(e) => setAdditionalEmails(e.target.value)}
-                  placeholder="person@example.com, finance@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="invoice-file">Attach Invoice/Document *</Label>
-                <Input
-                  id="invoice-file"
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  required
-                  onChange={(e) => setInvoiceFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-                </>
-              )}
-              <fieldset className="space-y-3">
-                <legend className="text-sm font-medium">Advance Payment Type</legend>
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {[
-                    { value: '50', label: '50% Advance' },
-                    { value: '100', label: '100% Full Payment' },
-                    { value: 'custom', label: 'Custom amount' },
-                  ].map((option) => (
-                    <Label key={option.value} className="flex cursor-pointer items-center gap-2 font-normal">
-                      <input
-                        type="radio"
-                        name="payment-option"
-                        value={option.value}
-                        checked={paymentOption === option.value}
-                        onChange={() => setPaymentOption(option.value as '50' | '100' | 'custom')}
-                      />
-                      {option.label}
-                    </Label>
-                  ))}
-                </div>
-                {paymentOption === 'custom' && (
-                  <div className="max-w-56 space-y-2">
-                    <Label htmlFor="custom-payment-amount">Custom amount (₹)</Label>
-                    <Input
-                      id="custom-payment-amount"
-                      type="number"
-                      min="0.01"
-                      max={paymentSummary(paymentLead).remaining}
-                      step="0.01"
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder="e.g. 25000"
-                    />
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {Number(customAmount) > 0 && parseCost(paymentLead.cost) > 0
-                        ? `This is ${((Number(customAmount) / parseCost(paymentLead.cost)) * 100).toFixed(2)}% of the total amount.`
-                        : 'Enter an amount to see its percentage of the total.'}
-                    </p>
-                  </div>
-                )}
-              </fieldset>
-              <div className="rounded-md bg-muted p-3 text-sm space-y-1 tabular-nums">
-                <p>
-                  Amount to collect: {formatINR(paymentOption === 'custom' ? Number(customAmount) || 0 : (paymentSummary(paymentLead).remaining * Number(paymentOption)) / 100)}
-                </p>
-                <p className="text-muted-foreground">
-                  Remaining balance after this payment: {formatINR(paymentSummary(paymentLead).remaining - (paymentOption === 'custom' ? Number(customAmount) || 0 : (paymentSummary(paymentLead).remaining * Number(paymentOption)) / 100))}
-                </p>
-              </div>
-            </>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setPaymentLinkOpen(false);
-                setPaymentLead(null);
-                setAdditionalEmails('');
-                setInvoiceFile(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSendPaymentLink} disabled={sendingPaymentLink || !invoiceFile}>
-              <Wallet className="mr-1.5 h-4 w-4" />
-              {paymentMode === 'Cash' ? 'Record Cash Payment' : 'Send Payment Link'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SendPaymentLinkDialog
+        open={paymentLinkOpen}
+        onOpenChange={setPaymentLinkOpen}
+        lead={paymentLead}
+        summary={paymentLead ? paymentSummary(paymentLead) : null}
+        onSuccess={async () => {
+          await refreshLeads(true);
+          await refreshPaymentHistory(true);
+        }}
+      />
 
       <Dialog open={Boolean(paymentHistoryLead)} onOpenChange={(open) => !open && setPaymentHistoryLead(null)}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
@@ -2256,7 +1364,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                            {/* Show Verify button for installments pending verification */}
                            {['screenshot received', 'screenshot uploaded', 'pending verification', 'screenshot uploaded - pending verification'].includes(
                              (payment.payment_status ?? '').trim().toLowerCase()
-                           ) && user && ['manager', 'sales', 'admin'].includes(user.role ?? '') && (
+                           ) && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
                              <Button
                                size="sm"
                                variant="outline"
@@ -2307,274 +1415,16 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Schedule Shoot</DialogTitle>
-            <DialogDescription>Send shoot details to the production team.</DialogDescription>
-          </DialogHeader>
-          {scheduleLead && (
-            <form onSubmit={handleScheduleShoot} className="space-y-5">
-              <div className="rounded-md border border-border p-3">
-                <p className="text-sm font-medium mb-3">Client Details</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Client Name</p>
-                    <p className="font-medium">{scheduleLead.name || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Contact Number</p>
-                    <p>{scheduleLead.phoneNumber || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email ID</p>
-                    <p className="truncate">{scheduleLead.clientEmail || '-'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {scheduleForms.map((form, index) => (
-                <div key={index} className="space-y-4 rounded-md border border-border p-4">
-                  <h4 className="font-semibold text-sm border-b pb-2">Shoot {index + 1}</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`shootDate-${index}`}>Shoot Date</Label>
-                      <Input
-                        id={`shootDate-${index}`}
-                        type="date"
-                        required
-                        className="schedule-shoot-date-input"
-                        value={form.shootDate}
-                        onChange={(e) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], shootDate: e.target.value };
-                            return newForms;
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`camera-${index}`}>Camera Count</Label>
-                      <Input
-                        id={`camera-${index}`}
-                        type="number"
-                        min="1"
-                        required
-                        value={form.camera}
-                        onChange={(e) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], camera: e.target.value };
-                            return newForms;
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`shootStartTime-${index}`}>Shoot Start Time</Label>
-                      <TimeOfDaySelect
-                        id={`shootStartTime-${index}`}
-                        value={form.shootStartTime}
-                        onChange={(value) => {
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = {
-                              ...newForms[index],
-                              shootStartTime: value,
-                              shootEndTime: calculateEndTime(value, newForms[index].totalHours),
-                            };
-                            return newForms;
-                          });
-                          setConflictError('');
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`totalHours-${index}`}>Total Hours</Label>
-                      <Input
-                        id={`totalHours-${index}`}
-                        type="number"
-                        min="0.25"
-                        step="0.25"
-                        required
-                        disabled={!form.shootStartTime}
-                        value={form.totalHours}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = {
-                              ...newForms[index],
-                              totalHours: value,
-                              shootEndTime: calculateEndTime(newForms[index].shootStartTime, value),
-                            };
-                            return newForms;
-                          });
-                          setConflictError('');
-                        }}
-                        placeholder={form.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
-                      />
-                      <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`shootEndTime-${index}`}>Shoot End Time</Label>
-                      <TimeOfDaySelect
-                        id={`shootEndTime-${index}`}
-                        value={form.shootEndTime}
-                        onChange={() => undefined}
-                        disabled
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`teleprompter-${index}`}>Teleprompter</Label>
-                      <Select
-                        value={form.teleprompter}
-                        onValueChange={(value) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], teleprompter: value };
-                            return newForms;
-                          })
-                        }
-                      >
-                        <SelectTrigger id={`teleprompter-${index}`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="No">No</SelectItem>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`bts-${index}`}>BTS Required</Label>
-                      <Select
-                        value={form.bts}
-                        onValueChange={(value) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], bts: value };
-                            return newForms;
-                          })
-                        }
-                      >
-                        <SelectTrigger id={`bts-${index}`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="No">No</SelectItem>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`recordTime-${index}`}>Record Time</Label>
-                      <Input
-                        id={`recordTime-${index}`}
-                        value={form.recordTime}
-                        onChange={(e) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], recordTime: e.target.value };
-                            return newForms;
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`setName-${index}`}>Set / Location</Label>
-                      <Select
-                        value={form.setName}
-                        onValueChange={(value) => {
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], setName: value };
-                            return newForms;
-                          });
-                          setConflictError('');
-                        }}
-                      >
-                        <SelectTrigger id={`setName-${index}`}><SelectValue placeholder="Select a set / location" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Black Money">Black Money</SelectItem>
-                          <SelectItem value="Dark Realm">Dark Realm</SelectItem>
-                          <SelectItem value="Dark Multiverse">Dark Multiverse</SelectItem>
-                          <SelectItem value="Green Amazon">Green Amazon</SelectItem>
-                          <SelectItem value="Moroccan">Moroccan</SelectItem>
-                          <SelectItem value="Cyclorama Chroma Screen">Cyclorama Chroma Screen</SelectItem>
-                          <SelectItem value="Entire Studio">Entire Studio</SelectItem>
-                          <SelectItem value="Product Shoot">Product Shoot</SelectItem>
-                          <SelectItem value="Outdoor Shoot">Outdoor Shoot</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`studioTime-${index}`}>Studio Time</Label>
-                      <Input
-                        id={`studioTime-${index}`}
-                        value={form.studioTime}
-                        onChange={(e) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], studioTime: e.target.value };
-                            return newForms;
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`shootMember-${index}`}>Shoot Member</Label>
-                      <Select
-                        value={form.shootMemberName}
-                        onValueChange={(val) => handleScheduleMemberChange(val, index)}
-                      >
-                        <SelectTrigger id={`shootMember-${index}`}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {shootMembers.map((member) => (
-                            <SelectItem key={member.name} value={member.name}>
-                              {member.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`shootMemberEmail-${index}`}>Shoot Member Email</Label>
-                      <Input
-                        id={`shootMemberEmail-${index}`}
-                        type="email"
-                        required
-                        value={form.shootMemberEmail}
-                        onChange={(e) =>
-                          setScheduleForms((prev) => {
-                            const newForms = [...prev];
-                            newForms[index] = { ...newForms[index], shootMemberEmail: e.target.value };
-                            return newForms;
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-
-              {conflictError && (
-                <div className="rounded-md border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
-                  {conflictError}
-                </div>
-              )}
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setScheduleOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={schedulingShoot || scheduleForms.some(f => !f.totalHours)}>
-                  <Camera className="mr-1.5 h-4 w-4" />
-                  Send to Shoot Team
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ScheduleShootDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        lead={scheduleLead}
+        prefill={schedulePrefill}
+        existingShoots={shoots}
+        onSuccess={async () => {
+          await Promise.all([refreshLeads(true), refreshShoots(true)]);
+        }}
+      />
 
       <Sheet open={leadOpen} onOpenChange={handleLeadOpenChange}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">

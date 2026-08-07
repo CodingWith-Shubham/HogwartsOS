@@ -57,6 +57,13 @@ export async function POST(request: Request) {
 
     payload.append('invoice_file', invoiceFile);
 
+    // Preserve the regular lead payload unchanged unless an upsell/cross-sell
+    // identifier was explicitly supplied.
+    const upsellCrossSellId = String(formData.get('upsell_crosssell_id') ?? '').trim();
+    if (upsellCrossSellId) {
+      payload.append('upsell_crosssell_id', upsellCrossSellId);
+    }
+
     const response = await fetch(PAYMENT_LINK_WEBHOOK_URL, {
       method: 'POST',
       body: payload,

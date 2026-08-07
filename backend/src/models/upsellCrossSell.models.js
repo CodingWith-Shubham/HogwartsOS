@@ -91,6 +91,20 @@ const upsellCrossSellSchema = new Schema({
         type: String,
         default: ""
     },
+    // Mirrors the Lead pipeline's proposal acceptance tracking so the upsell
+    // pipeline shows the same "Client Accepted" / "Proposal Revoked" states.
+    proposalAccepted: {
+        type: Boolean,
+        default: false
+    },
+    proposalRevoked: {
+        type: Boolean,
+        default: false
+    },
+    proposalRevokeReason: {
+        type: String,
+        default: ""
+    },
     paymentLink: {
         type: String,
         default: ""

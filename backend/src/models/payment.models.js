@@ -77,6 +77,14 @@ const paymentSchema = new Schema({
     amountPaidSoFar: {
         type: Number,
         default: 0
+    },
+    // When set, this payment belongs to an UpsellCrossSell pipeline entry —
+    // NOT to the client's original lead pipeline. Verification/screenshot flows
+    // then update the upsell entry instead of the Lead/Client record.
+    upsellCrossSellId: {
+        type: String,
+        default: "",
+        index: true
     }
 }, { timestamps: true });
 

@@ -1,6 +1,7 @@
 import { Payment } from "../models/payment.models.js";
 import { Client } from "../models/client.models.js";
 import { Shoot } from "../models/shoot.models.js";
+import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -52,6 +53,21 @@ const getPayments = asyncHandler(async (req, res) => {
     const filter = {};
     if (req.query.leadId) filter.leadId = req.query.leadId;
     if (req.query.paymentId) filter.paymentId = req.query.paymentId;
+    // Upsell/cross-sell scoping:
+    // - ?upsellCrossSellId=<entryId> → payments for one specific upsell entry
+    // - ?upsell=1                    → every payment tagged to an upsell entry
+    // - ?excludeUpsell=1             → only regular lead-pipeline payments
+    const upsellCrossSellId = String(req.query.upsellCrossSellId || req.query.upsell_crosssell_id || "").trim();
+    if (upsellCrossSellId) {
+        filter.upsellCrossSellId = upsellCrossSellId;
+    } else if (req.query.upsell === "1" || req.query.upsell === "true") {
+        filter.upsellCrossSellId = { $ne: "" };
+    } else if (req.query.excludeUpsell === "1" || req.query.excludeUpsell === "true") {
+        filter.$or = [
+            { upsellCrossSellId: "" },
+            { upsellCrossSellId: { $exists: false } }
+        ];
+    }
     
     const payments = await Payment.find(filter).sort({ createdAt: -1 });
     const formatted = payments.map(p => {
@@ -90,7 +106,10 @@ const createPayment = asyncHandler(async (req, res) => {
         installmentNumber: body.installmentNumber || "1",
         installmentLabel: body.installmentLabel || "Advance",
         paymentMode: body.paymentMode || "Online",
-        amountPaidSoFar: Number(body.amountPaidSoFar || 0)
+        amountPaidSoFar: Number(body.amountPaidSoFar || 0),
+        // Forwarded by n8n when the payment link was sent from the
+        // upsell/cross-sell pipeline (accepts snake_case too).
+        upsellCrossSellId: String(body.upsellCrossSellId || body.upsell_crosssell_id || "").trim()
     });
 
     // Only update client status for cash payments (immediately verified) or
@@ -98,12 +117,21 @@ const createPayment = asyncHandler(async (req, res) => {
     // Online payments remain "Payment Link Sent" until screenshot is uploaded.
     if (payment.paymentMode === 'Cash' || payment.paymentCompleted) {
         const status = payment.paymentCompleted ? "Payment Completed" : "Payment Verified";
-        const client = await Client.findOneAndUpdate(
-            { leadId: body.leadId },
-            { $set: { status } }
-        );
-        // Editing-only projects bypass shoot scheduling and go straight to editor assignment
-        await ensureEditingOnlyShoot(client);
+        if (payment.upsellCrossSellId) {
+            // Upsell/cross-sell cash payment: advance the upsell entry, never the lead.
+            const upsellEntry = await UpsellCrossSell.findById(payment.upsellCrossSellId);
+            if (upsellEntry && ["initiated", "proposal_sent", "payment_sent"].includes(upsellEntry.status)) {
+                upsellEntry.status = "payment_done";
+                await upsellEntry.save();
+            }
+        } else {
+            const client = await Client.findOneAndUpdate(
+                { leadId: body.leadId },
+                { $set: { status } }
+            );
+            // Editing-only projects bypass shoot scheduling and go straight to editor assignment
+            await ensureEditingOnlyShoot(client);
+        }
     }
 
     return res.status(201).json(new ApiResponse(201, { payment }, "Payment created successfully"));
@@ -189,13 +217,31 @@ const verifyPayment = asyncHandler(async (req, res) => {
     }
 
     if (clientStatus) {
-        const client = await Client.findOneAndUpdate(
-            { leadId: payment.leadId },
-            { $set: { status: clientStatus } }
-        );
-        if (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") {
-            // Editing-only projects bypass the shoot flow and go straight to editor assignment
-            await ensureEditingOnlyShoot(client);
+        if (payment.upsellCrossSellId) {
+            // Upsell/cross-sell payment: advance the parallel pipeline entry —
+            // the original Client/Lead record is NEVER touched.
+            const upsellEntry = await UpsellCrossSell.findById(payment.upsellCrossSellId);
+            if (
+                upsellEntry &&
+                (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") &&
+                ["initiated", "proposal_sent", "payment_sent"].includes(upsellEntry.status)
+            ) {
+                // Mirrors the lead flow: verification marks the upsell deal paid.
+                // Editing-only entries are now ready for the manager's
+                // Assign Editor queue (payment_done + editingOnly is its trigger);
+                // shoot-based entries move on to shoot scheduling.
+                upsellEntry.status = "payment_done";
+                await upsellEntry.save();
+            }
+        } else {
+            const client = await Client.findOneAndUpdate(
+                { leadId: payment.leadId },
+                { $set: { status: clientStatus } }
+            );
+            if (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") {
+                // Editing-only projects bypass the shoot flow and go straight to editor assignment
+                await ensureEditingOnlyShoot(client);
+            }
         }
     }
 

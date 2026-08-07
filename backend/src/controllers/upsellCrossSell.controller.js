@@ -332,7 +332,16 @@ const updateUpsellCrossSell = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Upsell/cross-sell entry not found");
     }
 
-    const allowed = ["cost", "assignedTo", "notes", "services", "editingOnly"];
+    const allowed = [
+        "cost",
+        "assignedTo",
+        "notes",
+        "services",
+        "editingOnly",
+        "proposalAccepted",
+        "proposalRevoked",
+        "proposalRevokeReason"
+    ];
     const updates = {};
     for (const key of allowed) {
         if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -401,9 +410,78 @@ const updateUpsellCrossSellStatus = asyncHandler(async (req, res) => {
     if (paymentLink !== undefined) updates.paymentLink = paymentLink;
     if (shootLink !== undefined) updates.shootLink = shootLink;
 
+    // A (re-)sent proposal starts a fresh acceptance round — mirrors the lead
+    // pipeline where a revoked proposal can be re-sent from a clean slate.
+    if (status === "proposal_sent") {
+        updates.proposalAccepted = false;
+        updates.proposalRevoked = false;
+        updates.proposalRevokeReason = "";
+    }
+
     const updated = await UpsellCrossSell.findByIdAndUpdate(entry._id, { $set: updates }, { new: true });
 
     return res.status(200).json(new ApiResponse(200, { entry: updated }, `Status updated to ${status}`));
+});
+
+/**
+ * PATCH /api/v1/upsell-crosssell/:id/proposal-response
+ * Records the client's response to a sent proposal — the upsell/cross-sell
+ * equivalent of the lead pipeline's "Proposal Accepted" / "Proposal Revoked".
+ * Called by the n8n proposal-confirmation workflow (x-n8n-secret) or directly
+ * by a pipeline user.
+ *
+ * Body (either style):
+ *   { action: "accepted" | "revoked", reason?: string }
+ *   { proposalAccepted?: boolean, proposalRevoked?: boolean, reason?, proposalRevokeReason? }
+ */
+const updateProposalResponse = asyncHandler(async (req, res) => {
+    if (req.user?._id !== "n8n-system") {
+        assertPipelineRole(req);
+    }
+
+    const entry = await UpsellCrossSell.findById(req.params.id);
+    if (!entry) {
+        throw new ApiError(404, "Upsell/cross-sell entry not found");
+    }
+
+    const body = req.body || {};
+    const action = String(body.action || "").trim().toLowerCase();
+    const reason = String(body.reason ?? body.proposalRevokeReason ?? "").trim();
+
+    let accepted;
+    let revoked;
+    if (["accepted", "approve", "approved"].includes(action)) {
+        accepted = true;
+        revoked = false;
+    } else if (["revoked", "rejected", "declined"].includes(action)) {
+        accepted = false;
+        revoked = true;
+    } else if (body.proposalAccepted !== undefined || body.proposalRevoked !== undefined) {
+        accepted = Boolean(body.proposalAccepted);
+        revoked = body.proposalRevoked !== undefined ? Boolean(body.proposalRevoked) : !accepted;
+    } else {
+        throw new ApiError(400, "Provide action ('accepted' | 'revoked') or proposalAccepted / proposalRevoked flags");
+    }
+
+    const updates = {
+        proposalAccepted: accepted,
+        proposalRevoked: revoked,
+        proposalRevokeReason: revoked ? reason : ""
+    };
+
+    if (accepted && entry.status === "initiated") {
+        // Safety net: accepting implies the proposal was sent.
+        updates.status = "proposal_sent";
+    }
+    if (revoked && entry.status === "proposal_sent") {
+        // Same as a lead's "Proposal Revoked": back to the pre-proposal stage
+        // so the rep can correct and re-send the proposal.
+        updates.status = "initiated";
+    }
+
+    const updated = await UpsellCrossSell.findByIdAndUpdate(entry._id, { $set: updates }, { new: true });
+
+    return res.status(200).json(new ApiResponse(200, { entry: updated }, accepted ? "Proposal accepted" : "Proposal revoked"));
 });
 
 
@@ -473,6 +551,7 @@ export {
     getUpsellCrossSellMetrics,
     updateUpsellCrossSell,
     updateUpsellCrossSellStatus,
+    updateProposalResponse,
     assignEditorToUpsell,
     deleteUpsellCrossSell
 };

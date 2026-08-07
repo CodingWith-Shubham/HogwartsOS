@@ -368,6 +368,34 @@ export default function ManagerPage() {
     if (!assignUpsell || !upsellEditor) return;
     setAssigningUpsell(true);
     try {
+      // Fire the same editor-assignment n8n webhook used by the regular shoot
+      // flow first, then advance the upsell/cross-sell record in MongoDB.
+      const editor = editors.find((item) => item.name === upsellEditor);
+      const matchingShoot = shoots
+        .filter((shoot) => shoot.leadId === assignUpsell.clientLeadId)
+        .sort((a, b) => String(b.createdAt || b.shootDate).localeCompare(String(a.createdAt || a.shootDate)))[0];
+
+      await postWebhook('/assign-editor-tasks', {
+        shoot_id: matchingShoot?.shootId ?? '',
+        lead_id: assignUpsell.clientLeadId,
+        client_name: assignUpsell.clientName,
+        email_id: assignUpsell.clientEmail ?? '',
+        client_email: assignUpsell.clientEmail ?? '',
+        data_link: assignUpsell.shootLink ?? '',
+        service_type: assignUpsell.services.join(', '),
+        tasks: [
+          {
+            task_type: 'editing',
+            quantity: 1,
+            task_label: `${assignUpsell.services.join(', ')} #1`,
+            editor_name: editor?.name ?? upsellEditor,
+            editor_email: editor?.email ?? '',
+          },
+        ],
+        manager_comment: '',
+        upsell_crosssell_id: assignUpsell._id,
+      });
+
       const response = await authFetch(`/api/upsell-crosssell/${assignUpsell._id}/assign-editor`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -14,17 +12,29 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Trash2, ExternalLink, Loader2, Scissors } from 'lucide-react';
+import { Trash2, ExternalLink, Loader2, Scissors, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { authFetch } from '@/lib/auth-fetch';
+import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatINR, formatDate } from '@/lib/formatter';
+import type { Shoot } from '@/lib/sheets/types';
+import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
+import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
+import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
+import { UploadDriveLinkDialog } from '@/components/pipeline/UploadDriveLinkDialog';
+import {
+  SERVICE_NOTE_OPTIONS,
+  type ProposalFormValues,
+} from '@/components/pipeline/stageDialogShared';
 
 export interface UpsellCrossSellEntry {
   _id: string;
   clientLeadId: string;
   clientName: string;
   contactNumber: string;
+  /** Backend field containing the client phone number. */
+  clientPhone?: string;
   clientEmail?: string;
   type: 'upsell' | 'crosssell';
   services: string[];
@@ -37,14 +47,28 @@ export interface UpsellCrossSellEntry {
   proposalLink?: string;
   paymentLink?: string;
   shootLink?: string;
+  /** Mirrors the lead pipeline's proposal acceptance tracking. */
+  proposalAccepted?: boolean;
+  proposalRevoked?: boolean;
+  proposalRevokeReason?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** Payment record linked to an upsell/cross-sell entry (latest first). */
+export interface UpsellEntryPayment {
+  paymentId?: string;
+  screenshotUrl?: string;
+  paymentStatus?: string;
+  verifiedBy?: string;
+  amount?: number;
 }
 
 export interface PendingAssignmentEntry {
   _id: string;
   clientLeadId: string;
   clientName: string;
+  clientEmail?: string;
   type: 'upsell' | 'crosssell';
   services: string[];
   editingOnly: boolean;
@@ -97,52 +121,96 @@ export function UpsellStatusBadge({ status }: { status: string }) {
   return <Badge className={meta.className}>{meta.label}</Badge>;
 }
 
+type StageModalKind = 'proposal' | 'payment' | 'schedule' | 'driveLink';
+
 interface PipelineAction {
   label: string;
   nextStatus: string;
-  linkField?: 'proposalLink' | 'paymentLink' | 'shootLink';
-  linkTitle?: string;
-  linkPlaceholder?: string;
+  /** Modal-and-webhook action used in the regular lead/shoot workflow. */
+  modal?: StageModalKind;
+  /** Direct payment verification (same /payments/:id/verify call the sales dashboard makes). */
+  verify?: boolean;
+  /** Rendered disabled with this explanation (mirrors the sales dashboard's gated buttons). */
+  disabledReason?: string;
 }
 
-/** Available next actions for an entry, honoring the editing-only bypass. */
-const getActions = (entry: UpsellCrossSellEntry): PipelineAction[] => {
+/** Payment statuses the n8n workflow sets when a screenshot still needs a human verify. */
+const PENDING_VERIFICATION_STATUSES = [
+  'screenshot received',
+  'screenshot uploaded',
+  'pending verification',
+  'screenshot uploaded - pending verification',
+];
+
+const VERIFIED_PAYMENT_STATUSES = ['payment verified', 'payment completed', 'verified'];
+
+const normalizePaymentStatus = (status?: string) => (status ?? '').trim().toLowerCase();
+
+const isPaymentPendingVerification = (payment?: UpsellEntryPayment | null) =>
+  !!payment && PENDING_VERIFICATION_STATUSES.includes(normalizePaymentStatus(payment.paymentStatus));
+
+const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
+  !!payment && VERIFIED_PAYMENT_STATUSES.includes(normalizePaymentStatus(payment.paymentStatus));
+
+/**
+ * Available next actions for an entry, honoring the editing-only bypass and
+ * the sales dashboard's gating:
+ * - payment link only after the client accepted the proposal
+ * - shoot scheduling only after the payment is verified
+ */
+const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null): PipelineAction[] => {
   switch (entry.status) {
     case 'initiated':
       return [
         {
-          label: 'Proposal Sent',
+          label: 'Send Proposal',
           nextStatus: 'proposal_sent',
-          linkField: 'proposalLink',
-          linkTitle: 'Add proposal link',
-          linkPlaceholder: 'https://... (proposal doc / PDF)',
+          modal: 'proposal',
         },
       ];
     case 'proposal_sent':
+      if (entry.proposalAccepted) {
+        return [
+          {
+            label: 'Send Payment Link',
+            nextStatus: 'payment_sent',
+            modal: 'payment',
+          },
+        ];
+      }
       return [
         {
           label: 'Send Payment Link',
           nextStatus: 'payment_sent',
-          linkField: 'paymentLink',
-          linkTitle: 'Add payment link',
-          linkPlaceholder: 'https://... (payment link)',
+          modal: 'payment',
+          disabledReason: 'Waiting for the client to accept the proposal',
         },
       ];
     case 'payment_sent':
-      return [{ label: 'Mark Payment Done', nextStatus: 'payment_done' }];
+      if (isPaymentPendingVerification(payment)) {
+        return [{ label: 'Verify Payment', nextStatus: 'payment_done', verify: true }];
+      }
+      if (!isPaymentVerifiedRecord(payment)) {
+        return [
+          {
+            label: 'Awaiting Verification',
+            nextStatus: 'payment_done',
+            disabledReason: 'Waiting for the client to upload the payment screenshot',
+          },
+        ];
+      }
+      return [];
     case 'payment_done':
       if (entry.editingOnly) return [];
       return [
         {
           label: 'Schedule Shoot',
           nextStatus: 'shoot_scheduled',
-          linkField: 'shootLink',
-          linkTitle: 'Add shoot / footage folder link',
-          linkPlaceholder: 'https://... (drive folder)',
+          modal: 'schedule',
         },
       ];
     case 'shoot_scheduled':
-      return [{ label: 'Mark Shoot Done', nextStatus: 'shoot_done' }];
+      return [{ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' }];
     case 'editing':
       return [{ label: 'Mark Delivered', nextStatus: 'delivered' }];
     default:
@@ -162,6 +230,8 @@ interface UpsellCrossSellPipelineProps {
   pendingAssignment?: PendingAssignmentEntry[];
   /** Manager callback — open the assign-editor dialog for an entry */
   onAssign?: (entry: PendingAssignmentEntry) => void;
+  /** Payments linked to entries via upsell_crosssell_id, grouped by entry id (latest first). */
+  paymentsByEntryId?: Record<string, UpsellEntryPayment[]>;
   onRefresh?: () => void;
 }
 
@@ -172,12 +242,15 @@ export function UpsellCrossSellPipeline({
   canDelete = false,
   pendingAssignment = [],
   onAssign,
+  paymentsByEntryId,
   onRefresh,
 }: UpsellCrossSellPipelineProps) {
+  const { user } = useAuth();
   const [advancingId, setAdvancingId] = useState<string | null>(null);
-  const [linkDialog, setLinkDialog] = useState<{ entry: UpsellCrossSellEntry; action: PipelineAction } | null>(null);
-  const [linkValue, setLinkValue] = useState('');
-  const [submittingLink, setSubmittingLink] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [stageModal, setStageModal] = useState<{ entry: UpsellCrossSellEntry; kind: Exclude<StageModalKind, 'driveLink'> } | null>(null);
+  const [driveTarget, setDriveTarget] = useState<{ entry: UpsellCrossSellEntry; shootId: string } | null>(null);
+  const [shoots, setShoots] = useState<Shoot[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<UpsellCrossSellEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -195,11 +268,15 @@ export function UpsellCrossSellPipeline({
     if (!res.ok) throw new Error(payload.error || 'Failed to update status');
   };
 
-  const handleDirectAction = async (entry: UpsellCrossSellEntry, action: PipelineAction) => {
+  const advanceEntry = async (
+    entry: UpsellCrossSellEntry,
+    nextStatus: string,
+    updates: Record<string, unknown> = {}
+  ) => {
     setAdvancingId(entry._id);
     try {
-      await patchStatus(entry._id, { status: action.nextStatus });
-      toast.success(`Status updated to "${UPSELL_STATUS_META[action.nextStatus]?.label || action.nextStatus}"`);
+      await patchStatus(entry._id, { status: nextStatus, ...updates });
+      toast.success(`Status updated to "${UPSELL_STATUS_META[nextStatus]?.label || nextStatus}"`);
       onRefresh?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status');
@@ -208,27 +285,116 @@ export function UpsellCrossSellPipeline({
     }
   };
 
-  const handleLinkSubmit = async () => {
-    if (!linkDialog) return;
-    if (!linkValue.trim()) {
-      toast.error('Please provide a link');
+  const fetchShoots = async (): Promise<Shoot[]> => {
+    try {
+      const response = await authFetch('/api/shoots', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Failed to load shoots');
+      const nextShoots = (payload.shoots ?? []) as Shoot[];
+      setShoots(nextShoots);
+      return nextShoots;
+    } catch {
+      return shoots;
+    }
+  };
+
+  const findShootForEntry = (entry: UpsellCrossSellEntry, availableShoots: Shoot[]) => {
+    const matchingShoots = availableShoots
+      .filter((shoot) => shoot.leadId === entry.clientLeadId)
+      .sort((a, b) => String(b.createdAt || b.shootDate).localeCompare(String(a.createdAt || a.shootDate)));
+    return (
+      matchingShoots.find((shoot) => String(shoot.driveLinkUploaded).trim().toLowerCase() !== 'true') ??
+      matchingShoots[0]
+    );
+  };
+
+  /** Latest payment record linked to an entry (n8n tags it with upsell_crosssell_id). */
+  const latestPaymentFor = (entry: UpsellCrossSellEntry): UpsellEntryPayment | null =>
+    (paymentsByEntryId?.[entry._id] ?? [])[0] ?? null;
+
+  /**
+   * Same verification call the sales dashboard makes — the backend advances
+   * this entry to payment_done once the payment verifies.
+   */
+  const handleVerifyPayment = async (entry: UpsellCrossSellEntry) => {
+    if (!user) return;
+    const payment = latestPaymentFor(entry);
+    const paymentId = String(payment?.paymentId ?? '').trim();
+    if (!paymentId) {
+      toast.error('No payment record is linked to this entry yet');
       return;
     }
-    setSubmittingLink(true);
+
+    setVerifyingId(entry._id);
     try {
-      await patchStatus(linkDialog.entry._id, {
-        status: linkDialog.action.nextStatus,
-        [linkDialog.action.linkField as string]: linkValue.trim(),
+      const res = await authFetch(`/api/payments/${paymentId}/verify`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentStatus: 'Payment Verified',
+          verifiedBy: user.name,
+          verifiedAt: new Date().toISOString(),
+        }),
       });
-      toast.success(`Status updated to "${UPSELL_STATUS_META[linkDialog.action.nextStatus]?.label || linkDialog.action.nextStatus}"`);
-      setLinkDialog(null);
-      setLinkValue('');
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'Failed to verify payment');
+      toast.success('Payment verified!');
       onRefresh?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update status');
+      toast.error(err instanceof Error ? err.message : 'Failed to verify payment');
     } finally {
-      setSubmittingLink(false);
+      setVerifyingId(null);
     }
+  };
+
+  const handleAction = async (entry: UpsellCrossSellEntry, action: PipelineAction) => {
+    if (action.verify) {
+      await handleVerifyPayment(entry);
+      return;
+    }
+    if (action.disabledReason) return;
+    if (!action.modal) {
+      await advanceEntry(entry, action.nextStatus);
+      return;
+    }
+    if (action.modal === 'proposal' || action.modal === 'payment') {
+      setStageModal({ entry, kind: action.modal });
+      return;
+    }
+
+    setAdvancingId(entry._id);
+    const latestShoots = await fetchShoots();
+    setAdvancingId(null);
+
+    if (action.modal === 'schedule') {
+      setStageModal({ entry, kind: 'schedule' });
+      return;
+    }
+
+    const shoot = findShootForEntry(entry, latestShoots);
+    if (!shoot) {
+      toast.error('No shoot record was found for this client. The scheduled shoot may not have synchronized yet.');
+      return;
+    }
+    setDriveTarget({ entry, shootId: shoot.shootId });
+  };
+
+  const stageLeadFor = (entry: UpsellCrossSellEntry) => ({
+    leadId: entry.clientLeadId,
+    name: entry.clientName,
+    phoneNumber: entry.clientPhone ?? entry.contactNumber ?? '',
+    clientEmail: entry.clientEmail ?? '',
+    servicePitched: entry.services.join(', '),
+    cost: entry.cost ? String(entry.cost) : '',
+    assignedTo: entry.assignedTo,
+  });
+
+  const proposalDefaultsFor = (entry: UpsellCrossSellEntry): Partial<ProposalFormValues> => {
+    const validServiceNotes = new Set<string>(SERVICE_NOTE_OPTIONS);
+    return {
+      serviceNotes: entry.services.filter((service) => validServiceNotes.has(service)),
+      salesNotes: entry.notes ?? '',
+    };
   };
 
   const handleDelete = async () => {
@@ -290,8 +456,13 @@ export function UpsellCrossSellPipeline({
   );
 
   const renderEntryCard = (entry: UpsellCrossSellEntry) => {
-    const actions = canAdvance ? getActions(entry) : [];
-    const busy = advancingId === entry._id;
+    const payment = latestPaymentFor(entry);
+    const actions = canAdvance ? getActions(entry, payment) : [];
+    const busy = advancingId === entry._id || verifyingId === entry._id;
+    const screenshotUrl = String(payment?.screenshotUrl ?? '').trim();
+    const paymentReached =
+      isPaymentVerifiedRecord(payment) ||
+      ['payment_done', 'shoot_scheduled', 'shoot_done', 'editing', 'delivered'].includes(entry.status);
     const progressPct = Math.round(
       ((UPSELL_PIPELINE.indexOf(entry.status as (typeof UPSELL_PIPELINE)[number]) + 1) / (maxPipelineIndex(entry) + 1)) * 100
     );
@@ -308,11 +479,69 @@ export function UpsellCrossSellPipeline({
             {entry.editingOnly && (
               <Badge className="bg-purple-500/15 text-purple-600 border-purple-500/30">Editing Only</Badge>
             )}
+            {/* Proposal response — same "✅ Client Accepted" / "Proposal Revoked" states as the sales dashboard */}
+            {entry.proposalAccepted && (
+              <span className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600">
+                ✅ Client Accepted
+              </span>
+            )}
+            {entry.proposalRevoked && (
+              <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">Proposal Revoked</Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {entry.services.join(', ')} · {formatINR(entry.cost)} · Rep: {entry.assignedTo}
             {entry.editorAssigned ? ` · Editor: ${entry.editorAssigned}` : ''}
           </p>
+          {entry.proposalRevoked && (
+            <p className="max-w-96 text-[11px] italic text-muted-foreground">
+              Reason: {entry.proposalRevokeReason || 'No reason provided'}
+            </p>
+          )}
+          {/* Payment trail — same Link Sent → Screenshot → Verified indicators as the sales dashboard */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {paymentReached ? (
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Payment Verified
+                </span>
+                {screenshotUrl && (
+                  <a
+                    href={screenshotUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-[11px] font-medium text-green-700 hover:bg-green-500/20 transition-colors"
+                  >
+                    View SS
+                    <ExternalLink className="h-3 w-3 opacity-70" />
+                  </a>
+                )}
+              </>
+            ) : entry.status === 'payment_sent' ? (
+              screenshotUrl ? (
+                <a
+                  href={screenshotUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-600 hover:bg-amber-500/25 transition-colors"
+                >
+                  <AlertCircle className="h-3 w-3" />
+                  Screenshot uploaded - View
+                  <ExternalLink className="h-3 w-3 opacity-70" />
+                </a>
+              ) : (
+                <p className="text-[11px] font-medium text-blue-500">Link Sent</p>
+              )
+            ) : entry.status === 'proposal_sent' && !entry.proposalAccepted ? (
+              <p className="text-[11px] font-medium text-muted-foreground">Awaiting client acceptance</p>
+            ) : null}
+          </div>
+          {entry.editingOnly && entry.status === 'payment_done' && (
+            <p className="text-[11px] font-medium text-purple-400">
+              Editing only · No shoot — awaiting editor assignment
+            </p>
+          )}
           <div className="flex items-center gap-2 pt-1">
             <div className="h-1.5 w-40 rounded-full bg-muted overflow-hidden">
               <div
@@ -345,32 +574,27 @@ export function UpsellCrossSellPipeline({
               </a>
             </Button>
           )}
-          {actions.map((action) =>
-            action.linkField ? (
-              <Button
-                key={action.nextStatus}
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  setLinkValue('');
-                  setLinkDialog({ entry, action });
-                }}
-              >
-                {action.label}
-              </Button>
-            ) : (
-              <Button
-                key={action.nextStatus}
-                size="sm"
-                disabled={busy}
-                onClick={() => handleDirectAction(entry, action)}
-              >
-                {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                {action.label}
-              </Button>
-            )
-          )}
+          {actions.map((action) => (
+            <Button
+              key={action.nextStatus}
+              size="sm"
+              variant={
+                action.modal === 'proposal' || action.modal === 'payment' || action.modal === 'schedule' || action.verify
+                  ? 'outline'
+                  : undefined
+              }
+              className={cn(
+                action.verify && 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10',
+                action.disabledReason && 'text-muted-foreground'
+              )}
+              title={action.disabledReason}
+              disabled={busy || !!action.disabledReason}
+              onClick={() => void handleAction(entry, action)}
+            >
+              {busy && !action.disabledReason ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              {action.label}
+            </Button>
+          ))}
           {canDelete && (
             <Button
               variant="outline"
@@ -416,35 +640,76 @@ export function UpsellCrossSellPipeline({
         </CardContent>
       </Card>
 
-      {/* Link capture dialog (proposal / payment / shoot links) */}
-      <Dialog open={!!linkDialog} onOpenChange={(open) => !open && setLinkDialog(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{linkDialog?.action.linkTitle || 'Add link'}</DialogTitle>
-            <DialogDescription>
-              {linkDialog ? `${linkDialog.entry.clientName} · ${linkDialog.entry.services.join(', ')}` : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="upsell-link-input">Link</Label>
-            <Input
-              id="upsell-link-input"
-              value={linkValue}
-              onChange={(e) => setLinkValue(e.target.value)}
-              placeholder={linkDialog?.action.linkPlaceholder || 'https://...'}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkDialog(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleLinkSubmit} disabled={submittingLink || !linkValue.trim()}>
-              {submittingLink ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Save &amp; Advance
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Reuse the same stage modals and n8n webhook flows as the regular pipelines. */}
+      <SendProposalDialog
+        open={stageModal?.kind === 'proposal'}
+        onOpenChange={(open) => {
+          if (!open) setStageModal(null);
+        }}
+        lead={stageModal?.kind === 'proposal' ? stageLeadFor(stageModal.entry) : null}
+        defaults={stageModal?.kind === 'proposal' ? proposalDefaultsFor(stageModal.entry) : {}}
+        extraPayload={stageModal ? { upsell_crosssell_id: stageModal.entry._id } : undefined}
+        onSuccess={() => {
+          if (stageModal?.kind === 'proposal') {
+            return advanceEntry(stageModal.entry, 'proposal_sent');
+          }
+        }}
+      />
+
+      <SendPaymentLinkDialog
+        open={stageModal?.kind === 'payment'}
+        onOpenChange={(open) => {
+          if (!open) setStageModal(null);
+        }}
+        lead={stageModal?.kind === 'payment' ? stageLeadFor(stageModal.entry) : null}
+        summary={
+          stageModal?.kind === 'payment'
+            ? { totalCollected: 0, remaining: stageModal.entry.cost }
+            : null
+        }
+        extraPayload={stageModal ? { upsell_crosssell_id: stageModal.entry._id } : undefined}
+        onSuccess={() => {
+          if (stageModal?.kind === 'payment') {
+            return advanceEntry(stageModal.entry, 'payment_sent');
+          }
+        }}
+      />
+
+      <ScheduleShootDialog
+        open={stageModal?.kind === 'schedule'}
+        onOpenChange={(open) => {
+          if (!open) setStageModal(null);
+        }}
+        lead={stageModal?.kind === 'schedule' ? stageLeadFor(stageModal.entry) : null}
+        prefill={{ shootCount: 1, camera: '1' }}
+        existingShoots={shoots}
+        extraPayload={stageModal ? { upsell_crosssell_id: stageModal.entry._id } : undefined}
+        onSuccess={() => {
+          if (stageModal?.kind === 'schedule') {
+            void fetchShoots();
+            return advanceEntry(stageModal.entry, 'shoot_scheduled');
+          }
+        }}
+      />
+
+      <UploadDriveLinkDialog
+        open={!!driveTarget}
+        onOpenChange={(open) => {
+          if (!open) setDriveTarget(null);
+        }}
+        target={
+          driveTarget
+            ? { shootId: driveTarget.shootId, clientName: driveTarget.entry.clientName }
+            : null
+        }
+        extraPayload={driveTarget ? { upsell_crosssell_id: driveTarget.entry._id } : undefined}
+        onSuccess={(dataLink) => {
+          if (driveTarget) {
+            setDriveTarget(null);
+            return advanceEntry(driveTarget.entry, 'shoot_done', { shootLink: dataLink });
+          }
+        }}
+      />
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

@@ -13,7 +13,6 @@ import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import { toast } from 'sonner';
-import { UpsellModal } from '@/components/clients/UpsellModal';
 import { ClientProfileModal } from '@/components/client-profile/ClientProfileModal';
 import {
   UpsellCrossSellModal,
@@ -87,8 +86,6 @@ export default function ClientsPage() {
 
   // Form states
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [upsellModalOpen, setUpsellModalOpen] = useState(false);
-  const [selectedUpsellClient, setSelectedUpsellClient] = useState<any | null>(null);
   const [editingClient, setEditingClient] = useState<any | null>(null);
   const [clientName, setClientName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
@@ -108,17 +105,31 @@ export default function ClientsPage() {
   const [selectedUcxClient, setSelectedUcxClient] = useState<any | null>(null);
   const [ucxEntries, setUcxEntries] = useState<UpsellCrossSellEntry[]>([]);
   const [ucxClients, setUcxClients] = useState<any[]>([]);
+  const [ucxPayments, setUcxPayments] = useState<Record<string, any[]>>({});
 
   const fetchUpsells = useCallback(async () => {
     try {
-      const [listRes, summaryRes] = await Promise.all([
+      const [listRes, summaryRes, paymentsRes] = await Promise.all([
         authFetch('/api/upsell-crosssell', { cache: 'no-store' }),
         authFetch('/api/upsell-crosssell/clients-summary', { cache: 'no-store' }),
+        // Every payment tagged to an upsell/cross-sell entry (screenshot + verify trail)
+        authFetch('/api/payments?upsell=1', { cache: 'no-store' }),
       ]);
       const listPayload = await listRes.json().catch(() => ({}));
       const summaryPayload = await summaryRes.json().catch(() => ({}));
+      const paymentsPayload = await paymentsRes.json().catch(() => ({}));
       if (listRes.ok) setUcxEntries(listPayload.data?.entries ?? []);
       if (summaryRes.ok) setUcxClients(summaryPayload.data?.clients ?? []);
+      if (paymentsRes.ok) {
+        const grouped: Record<string, any[]> = {};
+        (paymentsPayload.payments ?? []).forEach((payment: any) => {
+          const key = String(payment.upsellCrossSellId ?? '').trim();
+          if (!key) return;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(payment);
+        });
+        setUcxPayments(grouped);
+      }
     } catch (error) {
       console.error('Error fetching upsell/cross-sell data:', error);
     }
@@ -173,6 +184,16 @@ export default function ClientsPage() {
     fetchUpsells();
   }, [fetchUpsells]);
 
+  // Poll the upsell/cross-sell pipeline so client-side events (proposal
+  // accepted/revoked, screenshot uploads) appear without a manual refresh —
+  // same 30s cadence as the sales dashboard.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void fetchUpsells();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUpsells]);
+
   const handleAddClient = () => {
     setEditingClient(null);
     setClientName('');
@@ -207,14 +228,6 @@ export default function ClientsPage() {
     setAssignedTo(lead.assignedTo || '');
     setStatus(lead.status || 'New Lead');
     setSheetOpen(true);
-  };
-
-  const handleUpsellClient = (c: any) => {
-    const lead = leads.find((l) => l.leadId === c.id);
-    if (!lead) return;
-
-    setSelectedUpsellClient(lead);
-    setUpsellModalOpen(true);
   };
 
   // Isolated upsell / cross-sell modals — never touch the Lead record
@@ -324,7 +337,7 @@ export default function ClientsPage() {
     };
   });
 
-  const isEditable = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'sales';
+  const isEditable = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'sales';
 
   const ServiceBadge = ({ status, type }: { status: string; type: 'upsell' | 'crosssell' }) => (
     <div className="flex items-center gap-1.5 flex-wrap">
@@ -421,17 +434,6 @@ export default function ClientsPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                title="Upsell Client"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleUpsellClient(c);
-                }}
-              >
-                <ArrowUpCircle className="h-4 w-4 text-amber-500 hover:text-amber-600" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
                 title="Initiate Upsell (new pipeline)"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -522,8 +524,10 @@ export default function ClientsPage() {
         <TabsContent value="upsells" className="mt-0">
           <UpsellCrossSellPipeline
             entries={ucxEntries.filter((e) => e.type === 'upsell')}
+            showClientName
             canAdvance={isEditable}
             canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            paymentsByEntryId={ucxPayments}
             onRefresh={fetchUpsells}
           />
         </TabsContent>
@@ -576,6 +580,7 @@ export default function ClientsPage() {
             showClientName
             canAdvance={isEditable}
             canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            paymentsByEntryId={ucxPayments}
             onRefresh={fetchUpsells}
           />
         </TabsContent>
@@ -703,17 +708,6 @@ export default function ClientsPage() {
           </form>
         </SheetContent>
       </Sheet>
-
-      <UpsellModal
-        open={upsellModalOpen}
-        onOpenChange={setUpsellModalOpen}
-        client={selectedUpsellClient}
-        salesMembers={usersList.map(u => u.name)}
-        onSuccess={() => {
-          setLoading(true);
-          triggerFetch();
-        }}
-      />
 
       <UpsellCrossSellModal
         open={ucxModalOpen}

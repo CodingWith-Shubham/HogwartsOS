@@ -49,10 +49,17 @@ export async function POST(request: Request) {
       salesperson_name: String(body.salesperson_name ?? '').trim(),
     };
 
+    // Preserve the regular lead payload unchanged unless an upsell/cross-sell
+    // identifier was explicitly supplied.
+    const upsellCrossSellId = String(body.upsell_crosssell_id ?? '').trim();
+    const outbound = upsellCrossSellId
+      ? { ...payload, upsell_crosssell_id: upsellCrossSellId }
+      : payload;
+
     const response = await fetch(PROPOSAL_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(outbound),
     });
 
     if (!response.ok) {

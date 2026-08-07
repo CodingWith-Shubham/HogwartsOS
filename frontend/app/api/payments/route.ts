@@ -4,16 +4,18 @@ import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(request.headers);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const BACKEND_URL = await getBackendUrl();
-    const token = getAccessToken();
-    const res = await fetch(`${BACKEND_URL}/payments`, {
+    const token = getAccessToken(request.headers);
+    const { searchParams } = new URL(request.url);
+    const qs = searchParams.toString();
+    const res = await fetch(`${BACKEND_URL}/payments${qs ? `?${qs}` : ''}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },

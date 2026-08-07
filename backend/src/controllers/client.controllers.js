@@ -70,6 +70,9 @@ const getClients = asyncHandler(async (req, res) => {
     const payments = await Payment.find({ leadId: { $in: leadIds } }).sort({ createdAt: -1 });
     const paymentMap = new Map();
     payments.forEach(p => {
+        // Upsell/cross-sell payments belong to the parallel pipeline — never
+        // surface them as the original lead's payment status.
+        if (p.upsellCrossSellId) return;
         // Only set if not already set — keeps the most recent payment per lead
         if (!paymentMap.has(p.leadId)) {
             paymentMap.set(p.leadId, p);

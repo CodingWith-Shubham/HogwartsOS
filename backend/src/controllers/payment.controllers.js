@@ -1,8 +1,52 @@
 import { Payment } from "../models/payment.models.js";
 import { Client } from "../models/client.models.js";
+import { Shoot } from "../models/shoot.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+
+// --- Editing-only bypass ---
+// Leads pitched "Only editing" skip the shoot flow entirely. Once their payment
+// is verified/completed we auto-create a placeholder shoot record so the project
+// surfaces directly in the manager dashboard's "Assign Editor" queue.
+const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
+
+const isEditingOnlyClient = (client) => {
+    if (!client) return false;
+    return EDITING_ONLY_SERVICE_REGEX.test(client.serviceNotes || "") ||
+        EDITING_ONLY_SERVICE_REGEX.test(client.servicePitched || "");
+};
+
+const ensureEditingOnlyShoot = async (client) => {
+    if (!isEditingOnlyClient(client)) return;
+
+    const existingShoot = await Shoot.findOne({ leadId: client.leadId });
+    if (existingShoot) return; // A real shoot already exists — keep the normal flow
+
+    await Shoot.create({
+        shootId: `EDITONLY_${client.leadId}`,
+        leadId: client.leadId,
+        clientName: client.name || "",
+        contactNum: client.phoneNumber || "",
+        clientEmailId: client.clientEmail || "",
+        shootDate: "",
+        shootStartTime: "",
+        shootEndTime: "",
+        camera: "",
+        teleprompter: "No",
+        totalHours: "",
+        assignedTo: client.assignedTo || "",
+        bts: "No",
+        shootMemberName: "",
+        shootMemberEmail: "",
+        dataLink: "",
+        // driveLinkUploaded=true surfaces the record in the manager's
+        // "Footage Ready for Review" list without any shoot-team involvement.
+        driveLinkUploaded: true,
+        isEditingOnly: true,
+        setName: ""
+    });
+};
 
 const getPayments = asyncHandler(async (req, res) => {
     const filter = {};
@@ -54,10 +98,12 @@ const createPayment = asyncHandler(async (req, res) => {
     // Online payments remain "Payment Link Sent" until screenshot is uploaded.
     if (payment.paymentMode === 'Cash' || payment.paymentCompleted) {
         const status = payment.paymentCompleted ? "Payment Completed" : "Payment Verified";
-        await Client.findOneAndUpdate(
+        const client = await Client.findOneAndUpdate(
             { leadId: body.leadId },
             { $set: { status } }
         );
+        // Editing-only projects bypass shoot scheduling and go straight to editor assignment
+        await ensureEditingOnlyShoot(client);
     }
 
     return res.status(201).json(new ApiResponse(201, { payment }, "Payment created successfully"));
@@ -143,10 +189,14 @@ const verifyPayment = asyncHandler(async (req, res) => {
     }
 
     if (clientStatus) {
-        await Client.findOneAndUpdate(
+        const client = await Client.findOneAndUpdate(
             { leadId: payment.leadId },
             { $set: { status: clientStatus } }
         );
+        if (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") {
+            // Editing-only projects bypass the shoot flow and go straight to editor assignment
+            await ensureEditingOnlyShoot(client);
+        }
     }
 
     return res.status(200).json(new ApiResponse(200, { payment }, "Payment updated successfully"));

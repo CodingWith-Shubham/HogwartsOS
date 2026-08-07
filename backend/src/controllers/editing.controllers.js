@@ -170,6 +170,14 @@ const assignTasks = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Shoot ID, data link, and at least one task are required");
     }
 
+    // Persist the manager-provided footage link on the shoot record when it isn't set yet
+    // (editing-only projects are assigned without any prior footage upload).
+    const { Shoot } = await import("../models/shoot.models.js");
+    await Shoot.findOneAndUpdate(
+        { shootId: shoot_id, dataLink: { $in: ["", null] } },
+        { $set: { dataLink: data_link } }
+    );
+
     const createdTasks = [];
     const typeCounters = {};
     for (const task of tasks) {

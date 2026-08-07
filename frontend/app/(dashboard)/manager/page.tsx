@@ -358,7 +358,9 @@ export default function ManagerPage() {
     const lead = leads.find((item) => item.leadId === shoot.leadId);
     setAssignShoot(shoot);
     setAssignForm({
-      serviceType: lead?.servicePitched ?? '',
+      serviceType: isTrue(shoot.isEditingOnly)
+        ? (lead?.serviceNotes?.trim() || lead?.servicePitched || 'Only Editing')
+        : (lead?.servicePitched ?? ''),
       dataLink: shoot.dataLink,
       managerComment: '',
       ...leadAssignmentDeliverables(lead),
@@ -620,7 +622,7 @@ export default function ManagerPage() {
   ).length;
   const pendingApprovals = editing.filter((edit) => edit.status === 'Draft Sent').length;
   const availableEditors = editorWorkload.filter((workload) => workloadLevel(workload.totalDeliverables) === 'Free').length;
-  const scheduledShoots = shoots.length;
+  const scheduledShoots = shoots.filter((shoot) => !isTrue(shoot.isEditingOnly)).length;
   const footageReady = useMemo(
     () => {
       const assignedShootIds = new Set(editing.map((edit) => edit.shootId).filter(Boolean));
@@ -681,6 +683,11 @@ export default function ManagerPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium">{shoot.clientName || 'Untitled shoot'}</p>
+                    {isTrue(shoot.isEditingOnly) && (
+                      <Badge className="bg-purple-500/15 text-purple-600 border-purple-500/30">
+                        Editing Only
+                      </Badge>
+                    )}
                     {isTrue(shoot.editedByShootTeam) && (
                       <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">
                         Changes Made
@@ -688,7 +695,9 @@ export default function ManagerPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {formatDate(shoot.shootDate)} · {shoot.shootMemberName || 'No shoot member'}
+                    {isTrue(shoot.isEditingOnly)
+                      ? 'Editing-only project · No shoot required'
+                      : `${formatDate(shoot.shootDate)} · ${shoot.shootMemberName || 'No shoot member'}`}
                   </p>
                   {isTrue(shoot.editedByShootTeam) && (
                     <p className="text-xs text-orange-600">

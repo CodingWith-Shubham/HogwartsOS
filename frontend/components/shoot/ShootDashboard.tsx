@@ -472,7 +472,9 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       const response = await authFetch(`/api/shoots${forceFresh ? '?fresh=1' : ''}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh shoots');
-      setShoots(data.shoots ?? []);
+      // Editing-only placeholder records bypass the shoot team entirely and are
+      // surfaced only on the manager dashboard's "Assign Editor" queue.
+      setShoots((data.shoots ?? []).filter((shoot: Shoot) => !isTrue(shoot.isEditingOnly)));
     } catch (error) {
       if (!silent) {
         toast.error('Failed to refresh shoots', {

@@ -156,6 +156,23 @@ function normalizeQuantity(value: string) {
   return String(Math.floor(parsed));
 }
 
+// Editing-only leads ("Only editing" service note) skip the entire shoot flow:
+// no shoot scheduling, no shoot team. Once payment is verified, the backend
+// auto-creates a placeholder shoot so the project shows up directly in the
+// manager dashboard's "Assign Editor" queue.
+const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
+
+function isEditingOnlyLead(lead: Lead) {
+  return (
+    EDITING_ONLY_SERVICE_REGEX.test(lead.serviceNotes || '') ||
+    EDITING_ONLY_SERVICE_REGEX.test(lead.servicePitched || '')
+  );
+}
+
+function isEditingOnlyShoot(shoot: Shoot | undefined) {
+  return String(shoot?.isEditingOnly ?? '').trim().toLowerCase() === 'true';
+}
+
 function totalDeliverables(values: Record<DeliverableKey, string>) {
   return DELIVERABLE_FIELDS.reduce(
     (sum, field) => sum + Number(normalizeQuantity(values[field.key])),
@@ -489,7 +506,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [proposalForm, setProposalForm] = useState<ProposalForm>({
     clientEmail: '',
     cost: '',
-    serviceNotes: '',
+    serviceNotes: [],
     salesNotes: '',
     camera: '',
     recordTime: '',
@@ -661,7 +678,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const shootsByLeadId = useMemo(() => {
     const map = new Map<string, Shoot>();
     shoots.forEach((shoot) => {
-      if (shoot.leadId) map.set(shoot.leadId, shoot);
+      if (shoot.leadId) {
+        const existing = map.get(shoot.leadId);
+        // Prefer a real shoot over an editing-only placeholder for the same lead
+        if (!existing || isEditingOnlyShoot(existing)) map.set(shoot.leadId, shoot);
+      }
       if (shoot.shootId) map.set(shoot.shootId, shoot);
     });
     return map;
@@ -745,6 +766,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const openScheduleModal = (lead: Lead) => {
+    if (isEditingOnlyLead(lead)) {
+      toast.info('Editing-only project — no shoot scheduling needed. It reaches Assign Editor automatically after payment verification.');
+      return;
+    }
     const existingShoot = shootsByLeadId.get(lead.leadId);
     setScheduleLead(lead);
 
@@ -1466,7 +1491,18 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const renderScheduleAction = (lead: Lead) => {
     const existingShoot = shootsByLeadId.get(lead.leadId);
-    const isAlreadyScheduled = existingShoot || ['Shoot Scheduled', 'Shoot Done'].includes(lead.status);
+    const isAlreadyScheduled =
+      (existingShoot && !isEditingOnlyShoot(existingShoot)) ||
+      ['Shoot Scheduled', 'Shoot Done'].includes(lead.status);
+
+    // Editing-only leads bypass the shoot flow entirely
+    if (isEditingOnlyLead(lead) && !isAlreadyScheduled) {
+      return (
+        <Button variant="outline" size="sm" disabled className="text-muted-foreground">
+          Editing Only · No Shoot
+        </Button>
+      );
+    }
 
     if (isAlreadyScheduled) {
       return (

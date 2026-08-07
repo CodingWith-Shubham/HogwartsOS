@@ -112,6 +112,7 @@ export interface Shoot {
   setName?: string;
   dataLink: string;
   driveLinkUploaded: string | boolean;
+  isEditingOnly?: string | boolean;
   createdAt: string;
   testimonials: string;
   recordTime: string;

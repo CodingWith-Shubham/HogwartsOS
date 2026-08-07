@@ -72,6 +72,13 @@ const shootSchema = new Schema({
         type: Boolean,
         default: false
     },
+    // Editing-only flow: set when the lead was pitched "Only editing".
+    // These records bypass shoot scheduling entirely and surface directly
+    // in the manager dashboard's "Assign Editor" queue once payment is verified.
+    isEditingOnly: {
+        type: Boolean,
+        default: false
+    },
     testimonials: {
         type: String,
         default: ""

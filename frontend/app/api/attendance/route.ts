@@ -9,6 +9,7 @@ const getEndpoint = (backendUrl: string, action?: string, date?: string | null, 
   const endpoints: Record<string, string> = {
     summary: `/summary${startDate && endDate ? `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}` : ''}`, 'team-attendance': `/team-attendance${date ? `?date=${encodeURIComponent(date)}` : ''}`,
     'my-attendance': '/my-attendance', 'my-leaves': '/my-leaves', 'leave-balance': '/leave-balance',
+    'my-summary': '/my-summary',
     'team-leaves': '/team-leaves?status=Pending', 'weekly-off-status': '/weekly-off-status',
     'lop-overrides': '/lop-overrides', 'leave-certificate': `/leave-certificate/${leaveId}`,
     'full-day-requests': '/full-day-requests',

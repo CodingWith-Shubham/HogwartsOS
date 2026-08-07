@@ -16,6 +16,62 @@ const getISTClockParts = (now = new Date()) => {
     return { hours: istNow.getHours(), minutes: istNow.getMinutes() };
 };
 
+// ─── Monthly summary helpers (shared by the admin summary and the per-employee summary) ───
+
+const newMonthBucket = () => ({ Present: 0, Late: 0, "Half-day": 0, Absent: 0, Leave: 0, LOP: 0, "Weekly Off": 0 });
+
+// Buckets a single log's status into the right "YYYY-MM" month bucket.
+// The legacy "Half Day" alias folds into "Half-day".
+const accumulateStatus = (months, dateStr, status) => {
+    const yearMonth = String(dateStr).slice(0, 7);
+    if (!months[yearMonth]) months[yearMonth] = newMonthBucket();
+    const normalized = status === "Half Day" ? "Half-day" : (status || "Absent");
+    if (months[yearMonth][normalized] !== undefined) months[yearMonth][normalized]++;
+    else months[yearMonth][normalized] = 1; // preserve any unforeseen future status
+};
+
+// Counts Mon-Sat working days inside a month, clamped to [rangeStart, rangeEnd]
+// (inclusive "YYYY-MM-DD" strings, typically the report range and/or joining
+// date) and never beyond today, so an in-progress month doesn't penalize anyone
+// for days that haven't happened yet. Sundays are the weekly holiday.
+const countWorkingDays = (year, month, rangeStart = null, rangeEnd = null) => {
+    const monthStart = new Date(Date.UTC(year, month, 1));
+    const monthEnd = new Date(Date.UTC(year, month + 1, 0));
+    const todayUtc = new Date(`${getTodayString()}T00:00:00.000Z`);
+    let first = rangeStart ? new Date(`${rangeStart}T00:00:00.000Z`) : monthStart;
+    let last = rangeEnd ? new Date(`${rangeEnd}T00:00:00.000Z`) : monthEnd;
+    if (first < monthStart) first = monthStart;
+    if (last > monthEnd) last = monthEnd;
+    if (last > todayUtc) last = todayUtc;
+    let workingDays = 0;
+    const date = new Date(first);
+    while (date <= last) {
+        if (date.getUTCDay() !== 0) workingDays++; // excluding Sunday
+        date.setUTCDate(date.getUTCDate() + 1);
+    }
+    return workingDays;
+};
+
+// Finalizes one month's bucket. Effective working days exclude entitled Weekly
+// Off records; sanctioned Leave counts as attended (paid time off), a Half-day
+// counts as 0.5, and LOP/Absent count as missed.
+const finalizeMonthBucket = (bucket, workingDays) => {
+    const weeklyOffs = bucket["Weekly Off"] || 0;
+    bucket.totalWorkingDays = workingDays;
+    bucket.effectiveWorkingDays = Math.max(workingDays - weeklyOffs, 0);
+    const attendedDays = (bucket.Present || 0) + (bucket.Late || 0) + ((bucket["Half-day"] || 0) * 0.5) + (bucket.Leave || 0);
+    bucket.attendancePercentage = bucket.effectiveWorkingDays > 0
+        ? Math.min(100, Math.round((attendedDays / bucket.effectiveWorkingDays) * 100))
+        : 0;
+};
+
+const finalizeMonthBuckets = (months, rangeStart = null, rangeEnd = null) => {
+    for (const [yearMonth, bucket] of Object.entries(months)) {
+        const [year, month] = yearMonth.split('-').map(Number);
+        finalizeMonthBucket(bucket, countWorkingDays(year, month - 1, rangeStart, rangeEnd));
+    }
+};
+
 const checkIn = asyncHandler(async (req, res) => {
     const user = req.user;
     if (!user) {
@@ -240,7 +296,7 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
     const logs = await Attendance.find(dateQuery).sort({ date: 1 });
 
     // Aggregate by employee and then by month
-    // summaryMap: { [email]: { name, email, months: { '2026-08': { present: 0, late: 0, halfDay: 0, absent: 0 } } } }
+    // summaryMap: { [email]: { name, email, months: { '2026-08': { Present, Late, 'Half-day', Absent, Leave, LOP, 'Weekly Off' } } } }
     const summaryMap = {};
 
     for (const log of logs) {
@@ -252,62 +308,49 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
                 months: {}
             };
         }
-
-        const dateObj = new Date(log.date);
-        const yearMonth = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-
-        if (!summaryMap[email].months[yearMonth]) {
-            summaryMap[email].months[yearMonth] = {
-                Present: 0,
-                Late: 0,
-                "Half-day": 0,
-                Absent: 0
-            };
-        }
-
-        const status = log.status || "Absent";
-        if (summaryMap[email].months[yearMonth][status] !== undefined) {
-            summaryMap[email].months[yearMonth][status]++;
-        } else {
-            summaryMap[email].months[yearMonth][status] = 1;
-        }
+        accumulateStatus(summaryMap[email].months, log.date, log.status);
     }
 
-    const getWorkingDaysInMonth = (year, month) => {
-        const monthStart = new Date(Date.UTC(year, month, 1));
-        const monthEnd = new Date(Date.UTC(year, month + 1, 0));
-        const rangeStart = startDate ? new Date(`${startDate}T00:00:00.000Z`) : monthStart;
-        const rangeEnd = endDate ? new Date(`${endDate}T00:00:00.000Z`) : monthEnd;
-        let date = new Date(Math.max(monthStart.getTime(), rangeStart.getTime()));
-        const lastDate = new Date(Math.min(monthEnd.getTime(), rangeEnd.getTime()));
-        let workingDays = 0;
-        while (date <= lastDate) {
-            if (date.getUTCDay() !== 0) workingDays++; // excluding Sunday
-            date.setUTCDate(date.getUTCDate() + 1);
-        }
-        return workingDays;
-    };
+    // Floor the counted range at each employee's joining date so days before
+    // they joined are not counted as missed working days.
+    const userDocs = await User.find({ email: { $in: Object.keys(summaryMap) } }).select("email joiningDate createdAt");
+    const joinMap = {};
+    for (const doc of userDocs) {
+        const joined = doc.joiningDate || doc.createdAt;
+        if (joined) joinMap[doc.email.toLowerCase()] = joined.toISOString().slice(0, 10);
+    }
 
     const summaries = Object.values(summaryMap).map(employee => {
-        for (const [yearMonth, stats] of Object.entries(employee.months)) {
-            const [yearStr, monthStr] = yearMonth.split('-');
-            const year = parseInt(yearStr, 10);
-            const month = parseInt(monthStr, 10) - 1;
-
-            const workingDays = getWorkingDaysInMonth(year, month);
-            stats.totalWorkingDays = workingDays;
-
-            const presentDays = (stats.Present || 0) + (stats.Late || 0) + ((stats["Half-day"] || 0) * 0.5);
-            let percentage = 0;
-            if (workingDays > 0) {
-                percentage = Math.round((presentDays / workingDays) * 100);
-            }
-            stats.attendancePercentage = percentage;
-        }
+        const floor = [startDate, joinMap[employee.email]].filter(Boolean).sort().pop() || null;
+        finalizeMonthBuckets(employee.months, floor, endDate || null);
         return employee;
     });
 
     return res.status(200).json(new ApiResponse(200, { summaries, startDate: startDate || null, endDate: endDate || null }, "Attendance summaries retrieved successfully"));
 });
 
-export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary, getISTClockParts };
+// Per-employee monthly breakdown (leave/LOP/late/absent etc.) for the logged-in
+// user. Available to every role, unlike the org-wide getAttendanceSummary.
+const getMyAttendanceSummary = asyncHandler(async (req, res) => {
+    const user = req.user;
+    if (!user) {
+        throw new ApiError(401, "Unauthorized");
+    }
+
+    const logs = await Attendance.find({ employeeEmail: user.email.toLowerCase() }).sort({ date: 1 });
+    const months = {};
+    for (const log of logs) {
+        accumulateStatus(months, log.date, log.status);
+    }
+
+    // Floor at the joining date so pre-joining days never count as missed.
+    const userDoc = await User.findById(user._id).select("joiningDate createdAt");
+    const joined = userDoc?.joiningDate || userDoc?.createdAt;
+    const floor = joined ? new Date(joined).toISOString().slice(0, 10) : null;
+
+    finalizeMonthBuckets(months, floor, null);
+
+    return res.status(200).json(new ApiResponse(200, { months }, "Monthly attendance breakdown retrieved successfully"));
+});
+
+export { checkIn, checkOut, getMyAttendance, getTeamAttendance, requestFullDay, approveFullDayRequest, getFullDayRequests, getAttendanceSummary, getMyAttendanceSummary, getISTClockParts, accumulateStatus, countWorkingDays, finalizeMonthBucket, finalizeMonthBuckets };

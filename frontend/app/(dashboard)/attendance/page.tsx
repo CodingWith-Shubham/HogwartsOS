@@ -15,7 +15,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { toast } from 'sonner';
 import {
   Clock, LogIn, LogOut, MapPin, CheckCircle, AlertCircle, Calendar,
-  UserCheck, Navigation, NavigationOff, ExternalLink, Loader2, Users
+  UserCheck, Navigation, NavigationOff, ExternalLink, Loader2, Users,
+  ChevronLeft, ChevronRight, TrendingUp
 } from 'lucide-react';
 
 interface LocationCoords {
@@ -45,6 +46,15 @@ interface AttendanceRecord {
 
 interface LeaveRecord { _id: string; leaveType: 'Paid' | 'Sick'; startDate: string; endDate: string; totalDays: number; reason: string; status: 'Pending' | 'Approved' | 'Rejected'; certificateFileName?: string; }
 interface LeaveBalance { financialYear: string; totalPL: number; usedPL: number; remainingPL: number; totalSL: number; usedSL: number; remainingSL: number; }
+interface MonthStats {
+  Present?: number; Late?: number; 'Half-day'?: number; Absent?: number;
+  Leave?: number; LOP?: number; 'Weekly Off'?: number;
+  totalWorkingDays?: number; effectiveWorkingDays?: number; attendancePercentage?: number;
+}
+
+// Newest records live on the first page; 10 records (≈ past 10 working days) per page.
+const HISTORY_PAGE_SIZE = 10;
+const ROSTER_PAGE_SIZE = 10;
 
 // ─── Geolocation Helper ───────────────────────────────────────────────────────
 const getCurrentLocation = (): Promise<LocationCoords> => {
@@ -70,6 +80,29 @@ const formatCoords = (loc?: LocationCoords | null) => {
   if (!loc?.lat || !loc?.lng) return null;
   return `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
 };
+
+// 'YYYY-MM' -> 'August 2026' (parsed as local midnight to avoid TZ drift)
+const monthLabel = (ym: string) =>
+  new Date(`${ym}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+const statusBadgeClass = (status?: string) => {
+  switch (status) {
+    case 'Present': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    case 'Late': return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+    case 'Half-day': case 'Half Day': return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+    case 'Leave': return 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30';
+    case 'Weekly Off': return 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+    case 'LOP': return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+    default: return 'bg-red-500/15 text-red-400 border-red-500/30';
+  }
+};
+
+const percentageBadgeClass = (pct: number) =>
+  pct >= 85
+    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+    : pct >= 70
+      ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+      : 'bg-red-500/10 text-red-500 border-red-500/20';
 
 // ─── Location Status Badge ────────────────────────────────────────────────────
 function LocationStatusBadge({ status }: { status: 'idle' | 'acquiring' | 'captured' | 'denied' }) {
@@ -116,6 +149,45 @@ function LocationCell({ loc }: { loc?: LocationCoords | null }) {
   );
 }
 
+// ─── Pagination Bar (newest records sit on the first page) ───────────────────
+function PaginationBar({
+  page, totalPages, totalItems, pageSize, onPageChange
+}: {
+  page: number; totalPages: number; totalItems: number; pageSize: number; onPageChange: (page: number) => void;
+}) {
+  if (totalItems === 0) return null;
+  const from = page * pageSize + 1;
+  const to = Math.min(totalItems, (page + 1) * pageSize);
+  return (
+    <div className="flex items-center justify-between gap-3 pt-4">
+      <p className="text-xs text-muted-foreground">
+        Showing <span className="font-semibold text-foreground">{from}&ndash;{to}</span> of <span className="font-semibold text-foreground">{totalItems}</span> records
+      </p>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline" size="icon" className="h-8 w-8"
+          disabled={page === 0}
+          onClick={() => onPageChange(page - 1)}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-xs font-medium text-muted-foreground px-2 whitespace-nowrap">
+          Page {page + 1} of {totalPages}
+        </span>
+        <Button
+          variant="outline" size="icon" className="h-8 w-8"
+          disabled={page >= totalPages - 1}
+          onClick={() => onPageChange(page + 1)}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AttendancePage() {
   const { user } = useAuth();
   const [time, setTime] = useState<string>('');
@@ -145,6 +217,11 @@ export default function AttendancePage() {
   const [lopTarget, setLopTarget] = useState<AttendanceRecord | null>(null);
   const [lopOverrides, setLopOverrides] = useState<AttendanceRecord[]>([]);
   const [fullDayRequests, setFullDayRequests] = useState<AttendanceRecord[]>([]);
+  const [historyMonth, setHistoryMonth] = useState<string>(''); // '' = All Months
+  const [historyPage, setHistoryPage] = useState(0);
+  const [rosterPage, setRosterPage] = useState(0);
+  const [myMonthlyStats, setMyMonthlyStats] = useState<Record<string, MonthStats>>({});
+  const [statMonth, setStatMonth] = useState<string>('');
 
   const fetchFullDayRequests = useCallback(async () => {
     if (!['manager', 'admin', 'super_admin'].includes(user?.role || '')) return;
@@ -190,6 +267,20 @@ export default function AttendancePage() {
       setLoadingSummaries(false);
     }
   }, [summaryStartDate, summaryEndDate]);
+  // Personal month-by-month attendance breakdown (percentage + leave/LOP/late/absent counts)
+  const fetchMySummary = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/attendance?action=my-summary');
+      const data = await res.json();
+      if (res.ok && data.months) {
+        setMyMonthlyStats(data.months);
+        setStatMonth((prev) => (prev && data.months[prev] ? prev : Object.keys(data.months).sort().reverse()[0] || ''));
+      }
+    } catch (e) {
+      console.error('Failed to load monthly summary:', e);
+    }
+  }, []);
+
 
   useEffect(() => {
     if (user?.role === 'super_admin') {
@@ -258,7 +349,9 @@ export default function AttendancePage() {
     if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
       fetchTeamAttendance(selectedDate);
     }
-  }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, fetchFullDayRequests, selectedDate, user]);
+    fetchMySummary();
+    setRosterPage(0);
+  }, [fetchAttendance, fetchLeaveData, fetchLopOverrides, fetchTeamLeaves, fetchTeamAttendance, fetchFullDayRequests, fetchMySummary, selectedDate, user]);
 
   const submitLeave = async () => {
     if (!leaveStart || !leaveEnd || !leaveReason.trim()) return toast.error('Complete all leave details');
@@ -316,6 +409,7 @@ export default function AttendancePage() {
           description: `Status: ${data.attendance.status} | Location: ${data.attendance.workLocation}${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
+        fetchMySummary();
         if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
           fetchTeamAttendance(selectedDate);
         }
@@ -349,6 +443,7 @@ export default function AttendancePage() {
           description: `Have a great rest of your day!${loc.lat ? ' | 📍 GPS logged' : ''}`
         });
         fetchAttendance();
+        fetchMySummary();
         if (['manager', 'admin', 'super_admin'].includes(user?.role || '')) {
           fetchTeamAttendance(selectedDate);
         }
@@ -405,6 +500,22 @@ export default function AttendancePage() {
     if (!iso) return '--:--';
     return new Date(iso).toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
   };
+
+  // ─── History month filter + pagination (history is already newest-first) ───
+  const monthOptions = Array.from(new Set(history.map((r) => r.date.slice(0, 7)))).sort().reverse();
+  const filteredHistory = historyMonth ? history.filter((r) => r.date.startsWith(historyMonth)) : history;
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyTotalPages - 1);
+  const pagedHistory = filteredHistory.slice(safeHistoryPage * HISTORY_PAGE_SIZE, (safeHistoryPage + 1) * HISTORY_PAGE_SIZE);
+
+  // ─── Team roster pagination ───
+  const rosterTotalPages = Math.max(1, Math.ceil(teamLogs.length / ROSTER_PAGE_SIZE));
+  const safeRosterPage = Math.min(rosterPage, rosterTotalPages - 1);
+  const pagedTeamLogs = teamLogs.slice(safeRosterPage * ROSTER_PAGE_SIZE, (safeRosterPage + 1) * ROSTER_PAGE_SIZE);
+
+  // ─── Monthly performance stats (current + past months) ───
+  const statMonthKeys = Object.keys(myMonthlyStats).sort().reverse();
+  const statMonthStats = statMonth && myMonthlyStats[statMonth] ? myMonthlyStats[statMonth] : null;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -582,13 +693,97 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
 
+        {/* Monthly Attendance Performance */}
+        <Card className="lg:col-span-1 border-border shadow-lg bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-indigo-400" /> Monthly Performance
+              </span>
+              {statMonthStats && (
+                <Badge variant="outline" className={percentageBadgeClass(statMonthStats.attendancePercentage || 0)}>
+                  {statMonthStats.attendancePercentage || 0}%
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>Attendance score with a full status breakdown</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {statMonthKeys.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No attendance records yet. Your monthly stats will appear here.
+              </p>
+            ) : (
+              <>
+                <Select value={statMonth} onValueChange={setStatMonth}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statMonthKeys.map((m) => (
+                      <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {statMonthStats && (
+                  <>
+                    <div className="flex items-end justify-between p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
+                      <span className="text-3xl font-extrabold text-indigo-300">{statMonthStats.attendancePercentage || 0}%</span>
+                      <span className="text-right text-[11px] text-muted-foreground leading-tight">
+                        of {(statMonthStats.effectiveWorkingDays ?? statMonthStats.totalWorkingDays) || 0} working days<br />
+                        <span className="text-[10px]">(weekly offs excluded · current month counts days so far)</span>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center justify-between rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2 text-xs font-medium text-emerald-400">
+                        <span>Present</span><span className="font-bold">{statMonthStats.Present || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-xs font-medium text-amber-400">
+                        <span>Late</span><span className="font-bold">{statMonthStats.Late || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-blue-500/20 bg-blue-500/5 px-2.5 py-2 text-xs font-medium text-blue-400">
+                        <span>Half-day</span><span className="font-bold">{statMonthStats['Half-day'] || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2.5 py-2 text-xs font-medium text-cyan-400">
+                        <span>Leave</span><span className="font-bold">{statMonthStats.Leave || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-rose-500/20 bg-rose-500/5 px-2.5 py-2 text-xs font-medium text-rose-400">
+                        <span>LOP</span><span className="font-bold">{statMonthStats.LOP || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border border-red-500/20 bg-red-500/5 px-2.5 py-2 text-xs font-medium text-red-400">
+                        <span>Absent</span><span className="font-bold">{statMonthStats.Absent || 0}</span>
+                      </div>
+                      <div className="col-span-2 flex items-center justify-between rounded-md border border-slate-500/20 bg-slate-500/5 px-2.5 py-2 text-xs font-medium text-slate-400">
+                        <span>Weekly Offs</span><span className="font-bold">{statMonthStats['Weekly Off'] || 0}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Attendance Summary & Log Table */}
         <Card className="lg:col-span-2 border-border shadow-lg bg-card">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-indigo-400" /> My Attendance History
-            </CardTitle>
-            <CardDescription>Your personal check-in logs and status history</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-indigo-400" /> My Attendance History
+              </CardTitle>
+              <CardDescription>Your personal check-in logs and status history</CardDescription>
+            </div>
+            <Select value={historyMonth || 'all'} onValueChange={(v) => { setHistoryMonth(v === 'all' ? '' : v); setHistoryPage(0); }}>
+              <SelectTrigger className="w-full sm:w-[160px] h-9">
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m} value={m}>{monthLabel(m)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border border-border overflow-hidden">
@@ -605,29 +800,21 @@ export default function AttendancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {history.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
-                        No attendance records found yet.
+                        {historyMonth ? `No records found for ${monthLabel(historyMonth)}.` : 'No attendance records found yet.'}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    history.map((record) => (
+                    pagedHistory.map((record) => (
                       <TableRow key={record._id || record.date}>
                         <TableCell className="font-medium text-sm">{record.date}</TableCell>
                         <TableCell className="text-sm font-mono">{formatTime(record.checkIn)}</TableCell>
                         <TableCell className="text-sm font-mono">{formatTime(record.checkOut)}</TableCell>
                         <TableCell className="text-sm">{record.workLocation}</TableCell>
                         <TableCell>
-                          <Badge
-                            className={
-                              record.status === 'Present'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                : record.status === 'Late'
-                                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                : 'bg-red-500/15 text-red-400 border-red-500/30'
-                            }
-                          >
+                          <Badge className={statusBadgeClass(record.status)}>
                             {record.status}
                           </Badge>
                         </TableCell>
@@ -692,6 +879,13 @@ export default function AttendancePage() {
                 </TableBody>
               </Table>
             </div>
+            <PaginationBar
+              page={safeHistoryPage}
+              totalPages={historyTotalPages}
+              totalItems={filteredHistory.length}
+              pageSize={HISTORY_PAGE_SIZE}
+              onPageChange={setHistoryPage}
+            />
           </CardContent>
         </Card>
           </div>
@@ -844,7 +1038,7 @@ export default function AttendancePage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    teamLogs.map((log) => (
+                    pagedTeamLogs.map((log) => (
                       <TableRow key={log._id || log.employeeEmail}>
                         <TableCell className="font-medium text-sm">{log.employeeName}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{log.employeeEmail}</TableCell>
@@ -852,15 +1046,7 @@ export default function AttendancePage() {
                         <TableCell className="text-sm font-mono">{formatTime(log.checkOut)}</TableCell>
                         <TableCell className="text-sm">{log.workLocation}</TableCell>
                         <TableCell>
-                          <Badge
-                            className={
-                              log.status === 'Present'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                : log.status === 'Late'
-                                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                : 'bg-red-500/15 text-red-400 border-red-500/30'
-                            }
-                          >
+                          <Badge className={statusBadgeClass(log.status)}>
                             {log.status}
                           </Badge>
                         </TableCell>
@@ -900,6 +1086,13 @@ export default function AttendancePage() {
                 </TableBody>
               </Table>
             </div>
+            <PaginationBar
+              page={safeRosterPage}
+              totalPages={rosterTotalPages}
+              totalItems={teamLogs.length}
+              pageSize={ROSTER_PAGE_SIZE}
+              onPageChange={setRosterPage}
+            />
           </CardContent>
         </Card>
         <Card className="border-border shadow-lg bg-card mt-6">
@@ -993,7 +1186,23 @@ export default function AttendancePage() {
                                           <p className="text-xs text-red-400 uppercase font-semibold">Absent</p>
                                           <p className="text-2xl font-bold text-red-500 mt-1">{stats.Absent || 0}</p>
                                         </div>
+                                        <div className="bg-cyan-500/10 border border-cyan-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-cyan-400 uppercase font-semibold">Leave</p>
+                                          <p className="text-2xl font-bold text-cyan-500 mt-1">{stats.Leave || 0}</p>
+                                        </div>
+                                        <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-rose-400 uppercase font-semibold">LOP</p>
+                                          <p className="text-2xl font-bold text-rose-500 mt-1">{stats.LOP || 0}</p>
+                                        </div>
+                                        <div className="bg-slate-500/10 border border-slate-500/20 p-3 rounded-lg text-center">
+                                          <p className="text-xs text-slate-400 uppercase font-semibold">Weekly Off</p>
+                                          <p className="text-2xl font-bold text-slate-400 mt-1">{stats['Weekly Off'] || 0}</p>
+                                        </div>
                                       </div>
+                                      <p className="text-xs text-muted-foreground pb-2">
+                                        Percentage credits Present + Late + ½×Half-day + Leave over effective working days
+                                        ({stats.effectiveWorkingDays ?? stats.totalWorkingDays ?? 0} working days, weekly offs excluded; current month counts days so far).
+                                      </p>
                                     </AccordionContent>
                                   </AccordionItem>
                                 ))}

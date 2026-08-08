@@ -158,64 +158,59 @@ const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
  * - payment link only after the client accepted the proposal
  * - shoot scheduling only after the payment is verified
  */
-const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null): PipelineAction[] => {
+const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null, remaining: number = 0): PipelineAction[] => {
+  const actions: PipelineAction[] = [];
+
   switch (entry.status) {
     case 'initiated':
-      return [
-        {
-          label: 'Send Proposal',
-          nextStatus: 'proposal_sent',
-          modal: 'proposal',
-        },
-      ];
+      actions.push({ label: 'Send Proposal', nextStatus: 'proposal_sent', modal: 'proposal' });
+      break;
     case 'proposal_sent':
       if (entry.proposalAccepted) {
-        return [
-          {
-            label: 'Send Payment Link',
-            nextStatus: 'payment_sent',
-            modal: 'payment',
-          },
-        ];
-      }
-      return [
-        {
+        actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
+      } else {
+        actions.push({
           label: 'Send Payment Link',
           nextStatus: 'payment_sent',
           modal: 'payment',
           disabledReason: 'Waiting for the client to accept the proposal',
-        },
-      ];
+        });
+      }
+      break;
     case 'payment_sent':
       if (isPaymentPendingVerification(payment)) {
-        return [{ label: 'Verify Payment', nextStatus: 'payment_done', verify: true }];
+        actions.push({ label: 'Verify Payment', nextStatus: 'payment_done', verify: true });
+      } else if (!isPaymentVerifiedRecord(payment)) {
+        actions.push({
+          label: 'Awaiting Verification',
+          nextStatus: 'payment_done',
+          disabledReason: 'Waiting for the client to upload the payment screenshot',
+        });
       }
-      if (!isPaymentVerifiedRecord(payment)) {
-        return [
-          {
-            label: 'Awaiting Verification',
-            nextStatus: 'payment_done',
-            disabledReason: 'Waiting for the client to upload the payment screenshot',
-          },
-        ];
-      }
-      return [];
+      break;
     case 'payment_done':
-      if (entry.editingOnly) return [];
-      return [
-        {
-          label: 'Schedule Shoot',
-          nextStatus: 'shoot_scheduled',
-          modal: 'schedule',
-        },
-      ];
+      if (!entry.editingOnly) {
+        actions.push({ label: 'Schedule Shoot', nextStatus: 'shoot_scheduled', modal: 'schedule' });
+      }
+      break;
     case 'shoot_scheduled':
-      return [{ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' }];
+      actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
+      break;
     case 'editing':
-      return [{ label: 'Mark Delivered', nextStatus: 'delivered' }];
-    default:
-      return [];
+      actions.push({ label: 'Mark Delivered', nextStatus: 'delivered' });
+      break;
   }
+
+  // If there's a remaining balance and they're past the initial proposal stage,
+  // allow sending another payment link if it's not already in the actions.
+  const pastInitial = entry.status !== 'initiated' && !(entry.status === 'proposal_sent' && !entry.proposalAccepted);
+  if (pastInitial && remaining > 0) {
+    if (!actions.some((a) => a.label === 'Send Payment Link')) {
+      actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
+    }
+  }
+
+  return actions;
 };
 
 interface UpsellCrossSellPipelineProps {
@@ -458,7 +453,16 @@ export function UpsellCrossSellPipeline({
 
   const renderEntryCard = (entry: UpsellCrossSellEntry) => {
     const payment = latestPaymentFor(entry);
-    const actions = canAdvance ? getActions(entry, payment) : [];
+    const payments = paymentsByEntryId?.[entry._id] || [];
+    const totalCollected = payments.reduce((sum: number, p: any) => {
+      const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
+      if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified') {
+        return sum + Number(p.amount || 0);
+      }
+      return sum;
+    }, 0);
+    const remaining = Math.max(0, entry.cost - totalCollected);
+    const actions = canAdvance ? getActions(entry, payment, remaining) : [];
     const busy = advancingId === entry._id || verifyingId === entry._id;
     const screenshotUrl = String(payment?.screenshotUrl ?? '').trim();
     const paymentReached =
@@ -666,13 +670,28 @@ export function UpsellCrossSellPipeline({
         lead={stageModal?.kind === 'payment' ? stageLeadFor(stageModal.entry) : null}
         summary={
           stageModal?.kind === 'payment'
-            ? { totalCollected: 0, remaining: stageModal.entry.cost }
+            ? (() => {
+                const payments = paymentsByEntryId?.[stageModal.entry._id] || [];
+                const totalCollected = payments.reduce((sum: number, p: any) => {
+                  const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
+                  if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified') {
+                    return sum + Number(p.amount || 0);
+                  }
+                  return sum;
+                }, 0);
+                const remaining = Math.max(0, stageModal.entry.cost - totalCollected);
+                return { totalCollected, remaining };
+              })()
             : null
         }
         extraPayload={stageModal ? { upsell_crosssell_id: stageModal.entry._id } : undefined}
         onSuccess={() => {
           if (stageModal?.kind === 'payment') {
-            return advanceEntry(stageModal.entry, 'payment_sent');
+            if (stageModal.entry.status === 'proposal_sent') {
+              return advanceEntry(stageModal.entry, 'payment_sent');
+            } else if (onRefresh) {
+              onRefresh();
+            }
           }
         }}
       />

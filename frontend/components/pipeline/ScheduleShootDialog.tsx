@@ -98,15 +98,20 @@ export function ScheduleShootDialog({
     let quantity = Math.max(1, prefill?.shootCount ?? 1);
     if (!Number.isFinite(quantity)) quantity = 1;
     setScheduleForms(
-      Array.from({ length: quantity }).map(() => ({
-        ...DEFAULT_SCHEDULE_FORM,
-        camera: prefill?.camera || '1',
-        recordTime: prefill?.recordTime || '',
-        studioTime: prefill?.studioTime || '',
-        deliverableSetIndex: 0,
-        shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
-        shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
-      }))
+      Array.from({ length: quantity }).map((_, i) => {
+        const dsIndex = (lead.deliverableSets && lead.deliverableSets.length > i) ? i : 0;
+        const ds = lead.deliverableSets ? lead.deliverableSets[dsIndex] : null;
+
+        return {
+          ...DEFAULT_SCHEDULE_FORM,
+          camera: ds?.camera || prefill?.camera || '1',
+          recordTime: ds?.recordTime || prefill?.recordTime || '',
+          studioTime: ds?.studioTime || prefill?.studioTime || '',
+          deliverableSetIndex: dsIndex,
+          shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
+          shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
+        };
+      })
     );
     setConflictError('');
     // Build fresh forms each time the dialog opens.
@@ -329,7 +334,16 @@ export function ScheduleShootDialog({
                         value={String(form.deliverableSetIndex)}
                         onValueChange={(val) => setScheduleForms(prev => {
                           const newForms = [...prev];
-                          newForms[index] = { ...newForms[index], deliverableSetIndex: Number(val) };
+                          const selectedIndex = Number(val);
+                          const ds = lead.deliverableSets ? lead.deliverableSets[selectedIndex] : null;
+
+                          newForms[index] = { 
+                            ...newForms[index], 
+                            deliverableSetIndex: selectedIndex,
+                            camera: ds?.camera || newForms[index].camera,
+                            recordTime: ds?.recordTime || newForms[index].recordTime,
+                            studioTime: ds?.studioTime || newForms[index].studioTime
+                          };
                           return newForms;
                         })}
                       >

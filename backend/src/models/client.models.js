@@ -89,6 +89,7 @@ const clientSchema = new Schema({
     shortFormatDuration: { type: String, default: "" },
     additionalNotes: { type: String, default: "" },
     salesNotes: { type: String, default: "" },
+    deliverableSets: { type: [Schema.Types.Mixed], default: [] },
     proposalRevokeReason: { type: String, default: "" }
 }, { timestamps: true });
 

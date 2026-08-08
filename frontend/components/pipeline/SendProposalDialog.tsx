@@ -20,13 +20,11 @@ import { authFetch } from '@/lib/auth-fetch';
 import {
   SERVICE_NOTE_OPTIONS,
   DELIVERABLE_FIELDS,
-  DEFAULT_DELIVERABLES,
   normalizeQuantity,
   totalDeliverables,
   type ProposalFormValues,
 } from './stageDialogShared';
 
-/** Minimal lead shape the proposal modal needs — satisfied by both `Lead` and upsell/cross-sell entries. */
 export interface ProposalDialogLead {
   leadId: string;
   name: string;
@@ -41,11 +39,8 @@ export interface SendProposalDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lead: ProposalDialogLead | null;
-  /** Values pre-filled every time the dialog opens. */
   defaults?: Partial<ProposalFormValues>;
-  /** Extra fields appended to the webhook payload (e.g. `{ upsell_crosssell_id }`). */
   extraPayload?: Record<string, string>;
-  /** Called after the webhook succeeds — e.g. advance pipeline status. */
   onSuccess?: () => void | Promise<void>;
 }
 
@@ -58,18 +53,28 @@ export function SendProposalDialog({
   onSuccess,
 }: SendProposalDialogProps) {
   const [submittingProposal, setSubmittingProposal] = useState(false);
-  const [proposalForm, setProposalForm] = useState<ProposalFormValues>({
+  
+  const [proposalForm, setProposalForm] = useState({
     clientEmail: '',
     cost: '',
-    serviceNotes: [],
+    serviceNotes: [] as string[],
     salesNotes: '',
+    salesNotes: '',
+    podcastEdit: '0',
+  });
+
+  const [deliverableSets, setDeliverableSets] = useState([{
+    reelEdit: '0',
+    longFormatVideo: '0',
+    shortFormatVideo: '0',
+    teaserEdit: '0',
+    thumbnailEdit: '0',
+    longFormatDuration: '',
+    shortFormatDuration: '',
     camera: '',
     recordTime: '',
     studioTime: '',
-    longFormatDuration: '',
-    shortFormatDuration: '',
-    ...DEFAULT_DELIVERABLES,
-  });
+  }]);
 
   useEffect(() => {
     if (!open || !lead) return;
@@ -78,17 +83,60 @@ export function SendProposalDialog({
       cost: lead.cost,
       serviceNotes: [],
       salesNotes: '',
+      salesNotes: '',
+      podcastEdit: defaults?.podcastEdit ?? '0',
+    });
+    setDeliverableSets([{
+      reelEdit: defaults?.reelEdit ?? '0',
+      longFormatVideo: defaults?.longFormatVideo ?? '0',
+      shortFormatVideo: defaults?.shortFormatVideo ?? '0',
+      teaserEdit: defaults?.teaserEdit ?? '0',
+      thumbnailEdit: defaults?.thumbnailEdit ?? '0',
+      longFormatDuration: defaults?.longFormatDuration ?? '',
+      shortFormatDuration: defaults?.shortFormatDuration ?? '',
       camera: '',
       recordTime: '',
       studioTime: '',
-      longFormatDuration: '',
-      shortFormatDuration: '',
-      ...DEFAULT_DELIVERABLES,
-      ...defaults,
-    });
-    // Initialize from the latest lead/defaults each time the dialog is opened.
+    }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Adjust number of deliverable sets based on podcastEdit
+  useEffect(() => {
+    const count = Math.max(1, Number(normalizeQuantity(proposalForm.podcastEdit)));
+    if (deliverableSets.length !== count) {
+      setDeliverableSets((prev) => {
+        if (prev.length < count) {
+          const extra = Array.from({ length: count - prev.length }).map(() => ({
+            reelEdit: '0',
+            longFormatVideo: '0',
+            shortFormatVideo: '0',
+            teaserEdit: '0',
+            thumbnailEdit: '0',
+            longFormatDuration: '',
+            shortFormatDuration: '',
+            camera: '',
+            recordTime: '',
+            studioTime: '',
+          }));
+          return [...prev, ...extra];
+        } else {
+          return prev.slice(0, count);
+        }
+      });
+    }
+  }, [proposalForm.podcastEdit, deliverableSets.length]);
+
+  const aggregatedDeliverables = {
+    podcastEdit: proposalForm.podcastEdit,
+    reelEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.reelEdit)), 0)),
+    longFormatVideo: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.longFormatVideo)), 0)),
+    shortFormatVideo: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.shortFormatVideo)), 0)),
+    teaserEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.teaserEdit)), 0)),
+    thumbnailEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.thumbnailEdit)), 0)),
+    longFormatDuration: deliverableSets.map(s => s.longFormatDuration).filter(Boolean).join(', '),
+    shortFormatDuration: deliverableSets.map(s => s.shortFormatDuration).filter(Boolean).join(', '),
+  };
 
   const handleSendProposal = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -97,9 +145,12 @@ export function SendProposalDialog({
     const deliverablesPayload = Object.fromEntries(
       DELIVERABLE_FIELDS.map((field) => [
         field.payloadKey,
-        normalizeQuantity(proposalForm[field.key]),
+        field.key === 'podcastEdit' 
+          ? normalizeQuantity(proposalForm.podcastEdit)
+          : normalizeQuantity(aggregatedDeliverables[field.key as keyof typeof aggregatedDeliverables]),
       ])
     );
+
     const serviceNotes = proposalForm.serviceNotes.join(', ').trim();
     const salesNotes = proposalForm.salesNotes.trim();
 
@@ -117,13 +168,11 @@ export function SendProposalDialog({
           service_notes: serviceNotes,
           sales_notes: salesNotes,
           ...deliverablesPayload,
-          long_format_duration: proposalForm.longFormatDuration.trim(),
-          short_format_duration: proposalForm.shortFormatDuration.trim(),
+          long_format_duration: aggregatedDeliverables.longFormatDuration.trim(),
+          short_format_duration: aggregatedDeliverables.shortFormatDuration.trim(),
           cost: proposalForm.cost,
-          camera: proposalForm.camera,
-          record_time: proposalForm.recordTime,
-          studio_time: proposalForm.studioTime,
           salesperson_name: lead.assignedTo,
+          deliverable_sets: deliverableSets,
           ...(extraPayload ?? {}),
         }),
       });
@@ -144,6 +193,7 @@ export function SendProposalDialog({
     }
   };
 
+  const childDeliverableFields = DELIVERABLE_FIELDS.filter(f => f.key !== 'podcastEdit');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -155,7 +205,7 @@ export function SendProposalDialog({
           </DialogDescription>
         </DialogHeader>
         {lead && (
-          <form onSubmit={handleSendProposal} className="space-y-4">
+          <form onSubmit={handleSendProposal} className="space-y-4 pb-4">
             <div className="space-y-2">
               <Label htmlFor="client-name">Client Name</Label>
               <Input id="client-name" value={lead.name} readOnly className="bg-muted" />
@@ -217,105 +267,137 @@ export function SendProposalDialog({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="proposal-camera">Camera Setup</Label>
-                <Input
-                  id="proposal-camera"
-                  value={proposalForm.camera}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({ ...prev, camera: e.target.value }))
-                  }
-                  placeholder="e.g. 2 cameras"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="proposal-record-time">Record Time</Label>
-                <Input
-                  id="proposal-record-time"
-                  value={proposalForm.recordTime}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({ ...prev, recordTime: e.target.value }))
-                  }
-                  placeholder="e.g. 2 hours"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="proposal-studio-time">Studio Time</Label>
-                <Input
-                  id="proposal-studio-time"
-                  value={proposalForm.studioTime}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({ ...prev, studioTime: e.target.value }))
-                  }
-                  placeholder="e.g. 3 hours"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {DELIVERABLE_FIELDS.map((field) => {
-                const durationKey = 'durationKey' in field ? field.durationKey : null;
 
-                if (durationKey) {
-                  return (
-                    <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
+            <div className="space-y-4">
+              <div className="space-y-2 border-b pb-4">
+                <Label htmlFor="podcastEdit" className="text-lg font-semibold text-primary">Number of Podcasts</Label>
+                <Input
+                  id="podcastEdit"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={proposalForm.podcastEdit}
+                  onChange={(e) =>
+                    setProposalForm((prev) => ({
+                      ...prev,
+                      podcastEdit: e.target.value,
+                    }))
+                  }
+                  className="max-w-[200px]"
+                />
+              </div>
+
+              {deliverableSets.map((set, index) => (
+                <div key={index} className="space-y-4 p-4 border rounded-md bg-muted/20 relative">
+                  <h4 className="font-semibold text-sm text-muted-foreground absolute top-0 -mt-2.5 left-4 bg-background px-1">
+                    {deliverableSets.length > 1 ? `Deliverables for Podcast ${index + 1}` : 'Child Deliverables'}
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                    {childDeliverableFields.map((field) => {
+                      const durationKey = 'durationKey' in field ? field.durationKey as keyof typeof set : null;
+
+                      if (durationKey) {
+                        return (
+                          <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
+                            <div className="space-y-2">
+                              <Label htmlFor={`${field.key}-${index}`}>{field.label}</Label>
+                              <Input
+                                id={`${field.key}-${index}`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={set[field.key as keyof typeof set]}
+                                onChange={(e) => {
+                                  const newSets = [...deliverableSets];
+                                  newSets[index] = { ...newSets[index], [field.key]: e.target.value };
+                                  setDeliverableSets(newSets);
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`${durationKey}-${index}`}>Duration</Label>
+                              <Input
+                                id={`${durationKey}-${index}`}
+                                value={set[durationKey]}
+                                onChange={(e) => {
+                                  const newSets = [...deliverableSets];
+                                  newSets[index] = { ...newSets[index], [durationKey]: e.target.value };
+                                  setDeliverableSets(newSets);
+                                }}
+                                placeholder="e.g. 60 min"
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2" key={field.key}>
+                          <Label htmlFor={`${field.key}-${index}`}>{field.label}</Label>
+                          <Input
+                            id={`${field.key}-${index}`}
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={set[field.key as keyof typeof set]}
+                            onChange={(e) => {
+                              const newSets = [...deliverableSets];
+                              newSets[index] = { ...newSets[index], [field.key]: e.target.value };
+                              setDeliverableSets(newSets);
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                    <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-3 pt-2 border-t mt-2">
                       <div className="space-y-2">
-                        <Label htmlFor={field.key}>{field.label}</Label>
+                        <Label htmlFor={`camera-${index}`}>Camera Setup</Label>
                         <Input
-                          id={field.key}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={proposalForm[field.key]}
-                          onChange={(e) =>
-                            setProposalForm((prev) => ({
-                              ...prev,
-                              [field.key]: e.target.value,
-                            }))
-                          }
+                          id={`camera-${index}`}
+                          value={set.camera}
+                          onChange={(e) => {
+                            const newSets = [...deliverableSets];
+                            newSets[index] = { ...newSets[index], camera: e.target.value };
+                            setDeliverableSets(newSets);
+                          }}
+                          placeholder="e.g. 2 cameras"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor={durationKey}>Duration</Label>
+                        <Label htmlFor={`record-time-${index}`}>Record Time</Label>
                         <Input
-                          id={durationKey}
-                          value={proposalForm[durationKey]}
-                          onChange={(e) =>
-                            setProposalForm((prev) => ({
-                              ...prev,
-                              [durationKey]: e.target.value,
-                            }))
-                          }
-                          placeholder="e.g. 60 min"
+                          id={`record-time-${index}`}
+                          value={set.recordTime}
+                          onChange={(e) => {
+                            const newSets = [...deliverableSets];
+                            newSets[index] = { ...newSets[index], recordTime: e.target.value };
+                            setDeliverableSets(newSets);
+                          }}
+                          placeholder="e.g. 2 hours"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`studio-time-${index}`}>Studio Time</Label>
+                        <Input
+                          id={`studio-time-${index}`}
+                          value={set.studioTime}
+                          onChange={(e) => {
+                            const newSets = [...deliverableSets];
+                            newSets[index] = { ...newSets[index], studioTime: e.target.value };
+                            setDeliverableSets(newSets);
+                          }}
+                          placeholder="e.g. 3 hours"
                         />
                       </div>
                     </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-2" key={field.key}>
-                    <Label htmlFor={field.key}>{field.label}</Label>
-                    <Input
-                      id={field.key}
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={proposalForm[field.key]}
-                      onChange={(e) =>
-                        setProposalForm((prev) => ({
-                          ...prev,
-                          [field.key]: e.target.value,
-                        }))
-                      }
-                    />
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
-            <p className="text-sm font-medium">
-              Total deliverables: {totalDeliverables(proposalForm)}
+
+            <p className="text-sm font-medium pt-2">
+              Total deliverables: {totalDeliverables(aggregatedDeliverables as any)}
             </p>
             <div className="space-y-2">
               <Label htmlFor="cost">Cost in ₹</Label>
@@ -331,7 +413,7 @@ export function SendProposalDialog({
                 }
               />
             </div>
-            <DialogFooter>
+            <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>

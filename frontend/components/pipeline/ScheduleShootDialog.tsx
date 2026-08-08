@@ -32,6 +32,7 @@ export interface ScheduleDialogLead {
   phoneNumber: string;
   clientEmail: string;
   assignedTo: string;
+  deliverableSets?: any[];
 }
 
 /** Pre-fill applied to every shoot form when the dialog opens. */
@@ -69,6 +70,7 @@ const DEFAULT_SCHEDULE_FORM = {
   studioTime: '',
   shootMemberName: FALLBACK_SHOOT_MEMBERS[0].name,
   shootMemberEmail: FALLBACK_SHOOT_MEMBERS[0].email,
+  deliverableSetIndex: 0,
 };
 
 export function ScheduleShootDialog({
@@ -101,6 +103,7 @@ export function ScheduleShootDialog({
         camera: prefill?.camera || '1',
         recordTime: prefill?.recordTime || '',
         studioTime: prefill?.studioTime || '',
+        deliverableSetIndex: 0,
         shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
         shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
       }))
@@ -214,6 +217,7 @@ export function ScheduleShootDialog({
           assigned_to: assignedTo,
           shoot_member_name: form.shootMemberName,
           shoot_member_email: form.shootMemberEmail,
+          deliverable_set_index: form.deliverableSetIndex,
           ...(extraPayload ?? {}),
         };
 
@@ -317,6 +321,27 @@ export function ScheduleShootDialog({
                       }
                     />
                   </div>
+
+                  {lead?.deliverableSets && lead.deliverableSets.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`deliverableSetIndex-${index}`}>Shoot For Podcast</Label>
+                      <Select
+                        value={String(form.deliverableSetIndex)}
+                        onValueChange={(val) => setScheduleForms(prev => {
+                          const newForms = [...prev];
+                          newForms[index] = { ...newForms[index], deliverableSetIndex: Number(val) };
+                          return newForms;
+                        })}
+                      >
+                        <SelectTrigger id={`deliverableSetIndex-${index}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {lead.deliverableSets.map((_, i) => (
+                            <SelectItem key={i} value={String(i)}>Podcast {i + 1}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor={`shootStartTime-${index}`}>Shoot Start Time</Label>

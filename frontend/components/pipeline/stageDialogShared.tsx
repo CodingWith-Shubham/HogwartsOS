@@ -73,9 +73,6 @@ export type ProposalFormValues = {
   cost: string;
   serviceNotes: string[];
   salesNotes: string;
-  camera: string;
-  recordTime: string;
-  studioTime: string;
   longFormatDuration: string;
   shortFormatDuration: string;
 } & Record<DeliverableKey, string>;

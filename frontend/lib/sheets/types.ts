@@ -88,6 +88,7 @@ export interface Lead {
   searchText: string;
   payment: Payment | null;
   payment_status?: string;
+  deliverableSets?: any[];
 }
 
 export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells';
@@ -124,6 +125,7 @@ export interface Shoot {
   shootNotes: string;
   editedByShootTeam: string | boolean;
   searchText: string;
+  deliverableSetIndex?: number;
 }
 
 export interface EditingProject {

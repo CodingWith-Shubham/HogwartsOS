@@ -1,6 +1,7 @@
 import { Shoot } from "../models/shoot.models.js";
 import { Client } from "../models/client.models.js";
 import { Payment } from "../models/payment.models.js";
+import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -114,11 +115,20 @@ const createShoot = asyncHandler(async (req, res) => {
         setName: body.setName || "Default Studio"
     });
 
-    // Update client status to Shoot Scheduled
-    await Client.findOneAndUpdate(
-        { leadId: body.leadId },
-        { $set: { status: "Shoot Scheduled" } }
-    );
+    if (body.upsellCrossSellId && body.upsellCrossSellId.trim() !== "") {
+        // Update upsell status instead of main client lead
+        const upsell = await UpsellCrossSell.findById(body.upsellCrossSellId);
+        if (upsell && ["initiated", "proposal_sent", "payment_sent", "payment_done"].includes(upsell.status)) {
+            upsell.status = "shoot_scheduled";
+            await upsell.save();
+        }
+    } else {
+        // Update main client status to Shoot Scheduled
+        await Client.findOneAndUpdate(
+            { leadId: body.leadId },
+            { $set: { status: "Shoot Scheduled" } }
+        );
+    }
 
     return res.status(201).json(new ApiResponse(201, { shoot }, "Shoot scheduled successfully"));
 });

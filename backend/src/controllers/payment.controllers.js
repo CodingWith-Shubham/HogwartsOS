@@ -62,7 +62,7 @@ const getPayments = asyncHandler(async (req, res) => {
         filter.upsellCrossSellId = upsellCrossSellId;
     } else if (req.query.upsell === "1" || req.query.upsell === "true") {
         filter.upsellCrossSellId = { $ne: "" };
-    } else if (req.query.excludeUpsell === "1" || req.query.excludeUpsell === "true") {
+    } else if (req.query.excludeUpsell === "1" || req.query.excludeUpsell === "true" || req.query.exclude_upsell === "1" || req.query.exclude_upsell === "true") {
         filter.$or = [
             { upsellCrossSellId: "" },
             { upsellCrossSellId: { $exists: false } }

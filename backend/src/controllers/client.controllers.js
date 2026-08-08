@@ -123,6 +123,13 @@ const updateClient = asyncHandler(async (req, res) => {
     const { leadId } = req.params;
     const updateData = req.body;
 
+    // Do not update the main client lead if this update comes from an upsell workflow
+    if (updateData.upsellCrossSellId && updateData.upsellCrossSellId.trim() !== "") {
+        const existing = await Client.findOne({ leadId });
+        if (!existing) throw new ApiError(404, "Client not found");
+        return res.status(200).json(new ApiResponse(200, { lead: existing }, "Ignored main lead update since this is an upsell payment"));
+    }
+
     const updated = await Client.findOneAndUpdate(
         { leadId },
         { $set: updateData },

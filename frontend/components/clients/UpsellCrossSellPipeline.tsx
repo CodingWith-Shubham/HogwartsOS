@@ -248,6 +248,7 @@ export function UpsellCrossSellPipeline({
   const { user } = useAuth();
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [paymentHistoryEntry, setPaymentHistoryEntry] = useState<UpsellCrossSellEntry | null>(null);
   const [stageModal, setStageModal] = useState<{ entry: UpsellCrossSellEntry; kind: Exclude<StageModalKind, 'driveLink'> } | null>(null);
   const [driveTarget, setDriveTarget] = useState<{ entry: UpsellCrossSellEntry; shootId: string } | null>(null);
   const [shoots, setShoots] = useState<Shoot[]>([]);
@@ -469,7 +470,8 @@ export function UpsellCrossSellPipeline({
     return (
       <div
         key={entry._id}
-        className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+        onClick={() => setPaymentHistoryEntry(entry)}
+        className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between cursor-pointer hover:bg-muted/30 transition-colors"
       >
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -552,7 +554,7 @@ export function UpsellCrossSellPipeline({
             <span className="text-[10px] text-muted-foreground">{progressPct}%</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
           {entry.proposalLink && (
             <Button variant="ghost" size="sm" asChild>
               <a href={entry.proposalLink} target="_blank" rel="noreferrer">
@@ -710,6 +712,85 @@ export function UpsellCrossSellPipeline({
           }
         }}
       />
+
+      {/* Payment History Dialog */}
+      <Dialog open={Boolean(paymentHistoryEntry)} onOpenChange={(open) => !open && setPaymentHistoryEntry(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payment History</DialogTitle>
+            <DialogDescription>
+              {paymentHistoryEntry ? `${paymentHistoryEntry.clientName} • ${formatINR(paymentHistoryEntry.cost)}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {paymentHistoryEntry && (() => {
+            const payments = paymentsByEntryId?.[paymentHistoryEntry._id] || [];
+            
+            const totalCollected = payments.reduce((sum: number, p: any) => {
+              const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
+              if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified') {
+                return sum + Number(p.amount || 0);
+              }
+              return sum;
+            }, 0);
+            
+            const remaining = Math.max(0, paymentHistoryEntry.cost - totalCollected);
+
+            return (
+              <div className="space-y-4">
+                {payments.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">No payment installments recorded yet.</p>
+                ) : (
+                  <div className="space-y-4 border-l-2 border-border ml-2 pl-5">
+                    {payments.map((payment: any, index: number) => {
+                      const date = payment.verifiedAt || payment.verified_at || payment.paymentLinkSentAt || payment.payment_link_sent_at;
+                      return (
+                        <div key={payment.paymentId || payment.payment_id || index} className="relative rounded-md border border-border p-3">
+                          <span className="absolute -left-[1.85rem] top-4 h-3 w-3 rounded-full border-2 border-background bg-primary" />
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{payment.installmentLabel || payment.installment_label || 'Custom'}</p>
+                              <p className="text-xs text-muted-foreground">{date ? new Date(date).toLocaleDateString('en-IN') : 'Date unavailable'}</p>
+                            </div>
+                            <p className="font-medium tabular-nums">{formatINR(Number(payment.amount || 0))}</p>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                             <Badge variant={payment.paymentMode === 'Cash' || payment.payment_mode === 'Cash' ? 'secondary' : 'outline'}>
+                               {payment.paymentMode || payment.payment_mode || 'Online'}
+                             </Badge>
+                             <Badge variant="outline">{payment.paymentStatus || payment.payment_status || 'Pending'}</Badge>
+                           </div>
+                           {(payment.cashCollectedBy || payment.cash_collected_by) && (
+                             <p className="mt-2 text-xs text-muted-foreground">Collected by: {payment.cashCollectedBy || payment.cash_collected_by}</p>
+                           )}
+                           {(payment.utrNumber || payment.utr_number) && (payment.utrNumber || payment.utr_number) !== 'Not provided' && (
+                             <p className="mt-1 text-xs text-muted-foreground">UTR / Ref: {payment.utrNumber || payment.utr_number}</p>
+                           )}
+                           {(payment.screenshotUrl || payment.screenshot_url) && (
+                             <a
+                               href={payment.screenshotUrl || payment.screenshot_url}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               onClick={(e) => e.stopPropagation()}
+                               className="mt-2 inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/20 transition-colors"
+                             >
+                               <ExternalLink className="h-3 w-3" />
+                               View Payment Screenshot
+                             </a>
+                           )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3 rounded-md bg-muted p-3 text-sm tabular-nums">
+                  <div><p className="text-muted-foreground">Total collected</p><p className="font-medium">{formatINR(totalCollected)}</p></div>
+                  <div><p className="text-muted-foreground">Remaining</p><p className="font-medium">{formatINR(remaining)}</p></div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

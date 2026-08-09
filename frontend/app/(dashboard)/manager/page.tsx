@@ -694,6 +694,7 @@ export default function ManagerPage() {
   };
 
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [finalDraftLinks, setFinalDraftLinks] = useState<Record<string, string>>({});
 
   const sendFinalDelivery = async (edit: EditingProject, type: 'video' | 'hard_drive') => {
     setDeliveringId(edit.editId);
@@ -707,6 +708,7 @@ export default function ManagerPage() {
         })
       });
       
+      const draftLinkToSend = finalDraftLinks[edit.editId] ?? edit.currentDraftLink ?? edit.dataLink;
       const endpoint = type === 'video' ? '/send-final-video' : '/hard-drive-handover';
       await postWebhook(endpoint, {
         edit_id: edit.editId,
@@ -714,7 +716,7 @@ export default function ManagerPage() {
         client_email: edit.emailId,
         service_type: edit.serviceType,
         editor_name: edit.editorName,
-        draft_link: edit.currentDraftLink || edit.dataLink
+        draft_link: draftLinkToSend
       });
       
       toast.success(type === 'video' ? 'Final video email sent!' : 'Handover email sent!');
@@ -1028,24 +1030,31 @@ export default function ManagerPage() {
                       <p className="text-sm font-medium">{edit.clientName} - {edit.serviceType}</p>
                       <p className="text-xs text-muted-foreground">Editor: {edit.editorName}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-
-                      {edit.currentDraftLink && (
-                        <Button size="sm" variant="outline" asChild>
-                          <a href={edit.currentDraftLink} target="_blank" rel="noreferrer">
-                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                            Final Draft
-                          </a>
-                        </Button>
-                      )}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Final Draft Link"
+                          value={finalDraftLinks[edit.editId] ?? edit.currentDraftLink ?? ''}
+                          onChange={(e) => setFinalDraftLinks(prev => ({ ...prev, [edit.editId]: e.target.value }))}
+                          className="h-8 text-xs min-w-[200px]"
+                        />
+                        {(finalDraftLinks[edit.editId] || edit.currentDraftLink) && (
+                          <Button size="sm" variant="outline" asChild className="shrink-0 h-8">
+                            <a href={finalDraftLinks[edit.editId] || edit.currentDraftLink} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                              Link
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <Badge className="w-fit">{edit.status}</Badge>
                     <div className="flex flex-wrap gap-2 justify-end">
-                      <Button size="sm" onClick={() => sendFinalDelivery(edit, 'video')} disabled={deliveringId === edit.editId || edit.status === 'Completed'}>
+                      <Button size="sm" onClick={() => sendFinalDelivery(edit, 'video')} disabled={deliveringId === edit.editId}>
                         <Mail className="mr-1.5 h-3.5 w-3.5" />
-                        Send Final Video
+                        {edit.status === 'Completed' ? 'Send Video Again' : 'Send Final Video'}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => sendFinalDelivery(edit, 'hard_drive')} disabled={deliveringId === edit.editId || edit.status === 'Completed'}>
+                      <Button size="sm" variant="outline" onClick={() => sendFinalDelivery(edit, 'hard_drive')} disabled={deliveringId === edit.editId}>
                         <HardDrive className="mr-1.5 h-3.5 w-3.5" />
                         Handover Hard Drive
                       </Button>

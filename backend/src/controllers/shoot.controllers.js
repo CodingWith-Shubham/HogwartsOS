@@ -121,7 +121,8 @@ const createShoot = asyncHandler(async (req, res) => {
         shootMemberEmail: body.shootMemberEmail || "",
         dataLink: body.dataLink || "",
         driveLinkUploaded: parseBoolean(body.driveLinkUploaded),
-        setName: body.setName || "Default Studio"
+        setName: body.setName || "Default Studio",
+        deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0
     });
 
     if (body.upsellCrossSellId && body.upsellCrossSellId.trim() !== "") {

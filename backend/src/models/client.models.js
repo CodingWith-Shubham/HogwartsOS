@@ -90,6 +90,7 @@ const clientSchema = new Schema({
     additionalNotes: { type: String, default: "" },
     salesNotes: { type: String, default: "" },
     deliverableSets: { type: [Schema.Types.Mixed], default: [] },
+    deliverable_sets: { type: [Schema.Types.Mixed] },
     proposalRevokeReason: { type: String, default: "" }
 }, { timestamps: true });
 

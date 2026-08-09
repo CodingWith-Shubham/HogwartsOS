@@ -83,6 +83,9 @@ const getClients = asyncHandler(async (req, res) => {
         const obj = l.toObject();
         obj.id = l._id.toString();
         obj.payment = paymentMap.get(l.leadId) || null;
+        if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
+            obj.deliverableSets = obj.deliverable_sets;
+        }
         return obj;
     });
 
@@ -151,7 +154,12 @@ const getClientByLeadId = asyncHandler(async (req, res) => {
         throw new ApiError(404, 'Client not found');
     }
     
-    return res.status(200).json(new ApiResponse(200, { leads: [client] }, 'Client fetched'));
+    const obj = client.toObject();
+    if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
+        obj.deliverableSets = obj.deliverable_sets;
+    }
+    
+    return res.status(200).json(new ApiResponse(200, { leads: [obj] }, 'Client fetched'));
 });
 
 const deleteClient = asyncHandler(async (req, res) => {

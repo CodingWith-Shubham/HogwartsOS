@@ -122,7 +122,7 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
   if (!lead) return { ...DEFAULT_ASSIGNMENT_DELIVERABLES };
   
   // If we have a shoot with a deliverableSetIndex and the lead has deliverableSets array
-  if (shoot && shoot.deliverableSetIndex != null && shoot.deliverableSetIndex !== '') {
+  if (shoot && shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
     const dsIndex = Number(shoot.deliverableSetIndex);
     if (lead.deliverableSets && lead.deliverableSets[dsIndex]) {
       const set = lead.deliverableSets[dsIndex];

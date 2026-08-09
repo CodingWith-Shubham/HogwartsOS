@@ -499,9 +499,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         ? lead.serviceNotes.split(',').map(s => s.trim()).filter(s => SERVICE_NOTE_OPTIONS.includes(s as any))
         : [],
       salesNotes: lead.salesNotes || '',
-      camera: shoot?.camera || '',
-      recordTime: shoot?.recordTime || '',
-      studioTime: shoot?.studioTime || '',
       longFormatDuration: '',
       shortFormatDuration: '',
     });

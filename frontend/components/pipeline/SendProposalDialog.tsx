@@ -59,7 +59,6 @@ export function SendProposalDialog({
     cost: '',
     serviceNotes: [] as string[],
     salesNotes: '',
-    salesNotes: '',
     podcastEdit: '0',
   });
 
@@ -82,7 +81,6 @@ export function SendProposalDialog({
       clientEmail: lead.clientEmail,
       cost: lead.cost,
       serviceNotes: [],
-      salesNotes: '',
       salesNotes: '',
       podcastEdit: defaults?.podcastEdit ?? '0',
     });

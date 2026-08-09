@@ -437,7 +437,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [leads, user?.name, user?.role]);
 
   const visibleEditing = useMemo(() => {
-    if (user?.role === 'manager' || user?.role === 'admin') return editing;
+    if (user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') return editing;
     const leadIds = new Set(salesLeads.map((lead) => lead.leadId));
     return editing.filter((edit) => leadIds.has(edit.leadId));
   }, [editing, salesLeads, user?.role]);

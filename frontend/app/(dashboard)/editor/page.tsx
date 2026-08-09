@@ -75,7 +75,7 @@ export default function EditorPage() {
         shoot_end_time: t.shootEndTime,
         revisions: (data.revisions || []).filter((r: any) => r.projectId === t.editId || r.projectId === t.taskId || r.projectId === t.task_id).sort((a: any, b: any) => b.revisionRound - a.revisionRound)
       })).filter((t: any) => {
-        if (user?.role === 'manager' || user?.role === 'admin') return true;
+        if (user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') return true;
         const tEmail = t.assigned_to_email?.trim().toLowerCase();
         const uEmail = user?.email?.trim().toLowerCase();
         const tName = t.assigned_to_name?.trim().toLowerCase();
@@ -157,7 +157,7 @@ export default function EditorPage() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">Deadline: {deadline(task.deadline_at)}</p>
-      {(user?.role === 'manager' || user?.role === 'admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
+      {(user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') && <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={() => { setProfileClientInfo({ name: task.client_name, email: task.client_email }); setProfileModalOpen(true); }}>
           <UserCheck className="mr-1.5 h-3.5 w-3.5" />
@@ -243,7 +243,7 @@ export default function EditorPage() {
     </CardContent></Card>
   );
 
-  if (loading) return <div className="space-y-6"><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks" : "Individual task queue"} /><TableShimmer rows={6} cols={4} /></div>;
+  if (loading) return <div className="space-y-6"><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin' ? "All editing tasks" : "Individual task queue"} /><TableShimmer rows={6} cols={4} /></div>;
   const panel = (items: EditingTask[], empty: string) => {
     if (items.length === 0) return <Card className="md:col-span-2"><CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent></Card>;
     const grouped = items.reduce((acc, task) => {
@@ -272,7 +272,7 @@ export default function EditorPage() {
       </Accordion>
     );
   };
-  return <div><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' ? "All editing tasks across editors" : "Your individual editing tasks"} actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
+  return <div><PageHeader title="Editor" description={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin' ? "All editing tasks across editors" : "Your individual editing tasks"} actions={<Button variant="outline" size="sm" onClick={() => refresh()} disabled={refreshing}>Refresh</Button>} />
     <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5"><StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} /><StatCard title="Corrections" value={groups.corrections.length} icon={AlertCircle} onClick={() => setActiveTab('corrections')} /><StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} /><StatCard title="In Revision" value={groups.revisions.length} icon={AlertCircle} onClick={() => setActiveTab('revisions')} /><StatCard title="Delivered" value={groups.delivered.length} icon={CheckCircle} onClick={() => setActiveTab('delivered')} /></div>
     <Tabs value={activeTab} onValueChange={setActiveTab}><TabsList><TabsTrigger value="assigned">Assigned</TabsTrigger><TabsTrigger value="corrections">Corrections</TabsTrigger><TabsTrigger value="drafts">Drafts</TabsTrigger><TabsTrigger value="revisions">Revisions</TabsTrigger><TabsTrigger value="delivered">Delivered</TabsTrigger></TabsList><TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent><TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.')}</TabsContent><TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent><TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent><TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent></Tabs>
     <ClientProfileModal

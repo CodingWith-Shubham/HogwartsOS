@@ -851,7 +851,7 @@ export default function ManagerPage() {
     </TabsContent>
 
     <TabsContent value="task_board" className="mt-0">
-      <ManagerTaskBoard editors={editors} canReallocate={user?.role === 'manager' || user?.role === 'admin'} />
+      <ManagerTaskBoard editors={editors} canReallocate={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'} />
     </TabsContent>
 
     <TabsContent value="editor_workload" className="mt-0">

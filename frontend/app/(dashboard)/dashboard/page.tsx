@@ -150,7 +150,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Upsell Metrics (Manager/Admin Only) ─────────────────────────── */}
-      {(user?.role === 'manager' || user?.role === 'admin') && (
+      {(user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') && (
         <div className="mb-6">
           <UpsellMetricsWidget />
         </div>

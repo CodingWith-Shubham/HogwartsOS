@@ -97,9 +97,15 @@ export function ScheduleShootDialog({
     if (!open || !lead) return;
     let quantity = Math.max(1, prefill?.shootCount ?? 1);
     if (!Number.isFinite(quantity)) quantity = 1;
+    
+    // Auto-select the next available podcast if some are already scheduled
+    const leadShootsCount = existingShoots?.filter((s) => s.leadId === lead.leadId).length || 0;
+
     setScheduleForms(
       Array.from({ length: quantity }).map((_, i) => {
-        const dsIndex = (lead.deliverableSets && lead.deliverableSets.length > i) ? i : 0;
+        const nextIndex = leadShootsCount + i;
+        const maxIndex = lead.deliverableSets ? Math.max(0, lead.deliverableSets.length - 1) : 0;
+        const dsIndex = Math.min(nextIndex, maxIndex);
         const ds = lead.deliverableSets ? lead.deliverableSets[dsIndex] : null;
 
         return {

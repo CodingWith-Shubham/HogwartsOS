@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    console.log("Sending proposal for lead:", body.lead_id);
     const lead_id = String(body.lead_id ?? '').trim();
     const client_email = String(body.client_email ?? '').trim();
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
       record_time: String(body.record_time ?? '').trim(),
       studio_time: String(body.studio_time ?? '').trim(),
       salesperson_name: String(body.salesperson_name ?? '').trim(),
+      deliverable_sets: body.deliverable_sets || [],
     };
 
     // Preserve the regular lead payload unchanged unless an upsell/cross-sell

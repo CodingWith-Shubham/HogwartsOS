@@ -122,12 +122,14 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
   if (!lead) return { ...DEFAULT_ASSIGNMENT_DELIVERABLES };
   
   // If we have a shoot with a deliverableSetIndex and the lead has deliverableSets array
-  if (shoot && typeof shoot.deliverableSetIndex === 'number' && lead.deliverableSets && lead.deliverableSets[shoot.deliverableSetIndex]) {
-    const set = lead.deliverableSets[shoot.deliverableSetIndex];
-    return {
-      podcastEdit: '1', // A specific deliverable set corresponds to 1 podcast
-      teaserEdit: normalizeQuantity(set.teaserEdit || '0'),
-      reelEdit: normalizeQuantity(set.reelEdit || '0'),
+  if (shoot && shoot.deliverableSetIndex != null && shoot.deliverableSetIndex !== '') {
+    const dsIndex = Number(shoot.deliverableSetIndex);
+    if (lead.deliverableSets && lead.deliverableSets[dsIndex]) {
+      const set = lead.deliverableSets[dsIndex];
+      return {
+        podcastEdit: '1', // A specific deliverable set corresponds to 1 podcast
+        teaserEdit: normalizeQuantity(set.teaserEdit || '0'),
+        reelEdit: normalizeQuantity(set.reelEdit || '0'),
       thumbnailEdit: normalizeQuantity(set.thumbnailEdit || '0'),
       longFormatVideo: normalizeQuantity(set.longFormatVideo || '0'),
       longFormatDuration: set.longFormatDuration ?? '',
@@ -135,8 +137,9 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
       shortFormatDuration: set.shortFormatDuration ?? '',
     };
   }
+}
 
-  // Fallback to legacy flat fields for old shoots
+// Fallback to legacy flat fields for old shoots
   return {
     podcastEdit: normalizeQuantity(lead.podcastEdit),
     teaserEdit: normalizeQuantity(lead.teaserEdit),

@@ -642,15 +642,19 @@ export default function ManagerPage() {
     setApprovingExtraId(edit.editId);
     try {
       const clientEmail = findClientEmail(edit, leads);
-      await postWebhook('/revision-addon', {
-        edit_id: edit.editId,
-        lead_id: edit.leadId,
-        client_name: edit.clientName,
-        client_email: clientEmail,
-        manager_email: user?.email,
-        extra_revision_cost: extraCosts[edit.editId] ?? edit.extraRevisionCost ?? 0,
-        feedback: extraFeedback[edit.editId] ?? '',
-      });
+      const cost = Number(extraCosts[edit.editId] ?? edit.extraRevisionCost ?? 0);
+
+      if (cost > 0) {
+        await postWebhook('/revision-addon', {
+          edit_id: edit.editId,
+          lead_id: edit.leadId,
+          client_name: edit.clientName,
+          client_email: clientEmail,
+          manager_email: user?.email,
+          extra_revision_cost: cost,
+          feedback: extraFeedback[edit.editId] ?? '',
+        });
+      }
       
       // Update the status in the database so it persists across refreshes
       await authFetch('/api/editing', {
@@ -660,12 +664,12 @@ export default function ManagerPage() {
           taskId: edit.editId, 
           status: 'Extra Revision Approved',
           extraRevisionApproved: true,
-          extraRevisionCost: extraCosts[edit.editId] ?? edit.extraRevisionCost,
+          extraRevisionCost: cost,
           managerComment: extraFeedback[edit.editId] ?? ''
         })
       });
 
-      toast.success('Extra revision approved, editor notified!');
+      toast.success(cost > 0 ? 'Extra revision approved, client notified for payment!' : 'Extra revision approved, editor notified!');
       setEditing((prev) =>
         prev.map((item) =>
           item.editId === edit.editId

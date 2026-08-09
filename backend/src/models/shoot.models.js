@@ -153,7 +153,8 @@ const shootSchema = new Schema({
     },
     // TAT Reminder: R1 level tracked on Shoot since EditProject may not exist yet
     managerAllocationReminderLevel: { type: Number, default: 0 },
-    deliverableSetIndex: { type: Number, default: 0 }
+    deliverableSetIndex: { type: Number, default: 0 },
+    deliverable_set_index: { type: Number }
 }, { timestamps: true });
 
 export const Shoot = mongoose.model("Shoot", shootSchema);

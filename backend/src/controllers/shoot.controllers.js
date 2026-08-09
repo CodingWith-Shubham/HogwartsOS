@@ -27,7 +27,13 @@ const getShootById = asyncHandler(async (req, res) => {
   const { shootId } = req.params;
   const shoot = await Shoot.findOne({ shootId });
   if (!shoot) throw new ApiError(404, 'Shoot not found');
-  return res.status(200).json(new ApiResponse(200, { shoot }, 'Shoot fetched'));
+  
+  const obj = shoot.toObject();
+  if (obj.deliverable_set_index !== undefined) {
+      obj.deliverableSetIndex = obj.deliverable_set_index;
+  }
+  
+  return res.status(200).json(new ApiResponse(200, { shoot: obj }, 'Shoot fetched'));
 });
 
 const getShoots = asyncHandler(async (req, res) => {
@@ -81,6 +87,9 @@ const getShoots = asyncHandler(async (req, res) => {
         obj.id = s._id ? s._id.toString() : obj._id;
         if (obj.clientEmailId && !obj.emailId) {
             obj.emailId = obj.clientEmailId;
+        }
+        if (obj.deliverable_set_index !== undefined) {
+            obj.deliverableSetIndex = obj.deliverable_set_index;
         }
         return obj;
     });

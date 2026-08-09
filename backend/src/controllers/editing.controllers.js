@@ -80,15 +80,37 @@ const getEditingData = asyncHandler(async (req, res) => {
         revisions = revisions.filter(rev => allowedProjectIds.has(rev.projectId));
     }
 
+    const shootIds = [...new Set([...editProjects.map(p => p.shootId), ...editingTasks.map(t => t.shootId)])].filter(Boolean);
+    const { Shoot } = await import("../models/shoot.models.js");
+    const shoots = await Shoot.find({ shootId: { $in: shootIds } });
+    const shootMap = {};
+    shoots.forEach(s => {
+        shootMap[s.shootId] = {
+            shootDate: s.shootDate,
+            shootStartTime: s.shootStartTime,
+            shootEndTime: s.shootEndTime
+        };
+    });
+
     const formattedProjects = editProjects.map(p => {
         const obj = p.toObject ? p.toObject() : p;
         obj.id = p._id ? p._id.toString() : obj._id;
+        if (obj.shootId && shootMap[obj.shootId]) {
+            obj.shootDate = shootMap[obj.shootId].shootDate;
+            obj.shootStartTime = shootMap[obj.shootId].shootStartTime;
+            obj.shootEndTime = shootMap[obj.shootId].shootEndTime;
+        }
         return obj;
     });
 
     const formattedTasks = editingTasks.map(t => {
         const obj = t.toObject ? t.toObject() : t;
         obj.id = t._id ? t._id.toString() : obj._id;
+        if (obj.shootId && shootMap[obj.shootId]) {
+            obj.shootDate = shootMap[obj.shootId].shootDate;
+            obj.shootStartTime = shootMap[obj.shootId].shootStartTime;
+            obj.shootEndTime = shootMap[obj.shootId].shootEndTime;
+        }
         return obj;
     });
 

@@ -562,7 +562,7 @@ export default function AttendancePage() {
         </div>
 
         <TabsContent value="my-attendance" className="mt-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Check-In / Check-Out Action Widget */}
         <Card className="lg:col-span-1 border-border shadow-lg bg-card">
           <CardHeader>

@@ -1103,8 +1103,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   ).length;
   const totalPipeline = salesLeads.reduce((sum, lead) => sum + parseCost(lead.cost), 0);
   const acceptedValue = salesLeads
-    .filter((lead) => lead.proposalAccepted)
-    .reduce((sum, lead) => sum + parseCost(lead.cost), 0);
+    .reduce((sum, lead) => sum + paymentSummary(lead).totalCollected, 0);
 
   const totalUpsells = salesLeads.filter((l) => l.leadType === 'upsell').length;
   const upsellPercentage = totalLeads > 0 ? ((totalUpsells / totalLeads) * 100).toFixed(1) : 0;

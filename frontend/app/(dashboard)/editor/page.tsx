@@ -55,7 +55,7 @@ const statusClass: Record<string, string> = {
   'Draft Sent': 'border-purple-500/40 bg-purple-500/15 text-purple-600',
   'Correction Requested': 'border-red-500/40 bg-red-500/15 text-red-600',
   'In Revision': 'border-orange-500/40 bg-orange-500/15 text-orange-600',
-  'Pending Segregation': 'border-amber-500/40 bg-amber-500/15 text-amber-700',
+  'Pending Segregation': 'border-blue-400/50 bg-blue-500/15 text-blue-500',
   'Pending Extra Revision Approval': 'border-rose-500/40 bg-rose-500/15 text-rose-700',
   'Extra Revision Approved': 'border-teal-500/40 bg-teal-500/15 text-teal-700',
   Delivered: 'border-green-500/40 bg-green-500/15 text-green-600',
@@ -230,117 +230,147 @@ export default function EditorPage() {
 
     if (pendingRevisions.length === 0) return null;
 
+    const revUsed = parseInt(task.revision_count || '0');
+    const revMax = parseInt(task.max_free_revisions || '2');
+    const revPct = Math.round((revUsed / revMax) * 100);
+
     return (
-      <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700/40">
-        <CardContent className="p-4 space-y-4">
+      <Card className="border-blue-500/20 bg-card overflow-hidden shadow-sm">
+        {/* Top accent bar */}
+        <div className="h-0.5 w-full bg-gradient-to-r from-blue-500 via-blue-400 to-indigo-500" />
+        <CardContent className="p-0">
           {/* Header */}
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-base">{task.task_label || task.task_type}</h3>
-              <p className="text-sm text-muted-foreground">{task.client_name} · {task.service_type || 'Edit'}</p>
+          <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/60">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm truncate">{task.task_label || task.task_type}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{task.client_name} · {task.service_type || 'Edit'}</p>
             </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <Badge className="border-amber-500/40 bg-amber-500/15 text-amber-700 shrink-0">
-                <Clock className="w-3 h-3 mr-1" />
-                Pending Segregation
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <Badge className="border-blue-400/40 bg-blue-500/10 text-blue-400 text-[10px] font-semibold gap-1">
+                <Clock className="w-2.5 h-2.5" />
+                Classify Feedback
               </Badge>
-              <span className="text-[10px] font-semibold tracking-wide text-amber-700 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded uppercase">
-                {pendingRevisions.length} feedback item{pendingRevisions.length > 1 ? 's' : ''} to classify
+              <span className="text-[10px] font-bold tracking-wide text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                {pendingRevisions.length} item{pendingRevisions.length > 1 ? 's' : ''} pending
               </span>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 px-2.5 py-1.5 rounded-md border border-red-200 dark:border-red-700/40">
-              <CheckSquare className="w-3.5 h-3.5" />
-              Corrections so far: {task.correction_count || 0}
+          {/* Stats bar */}
+          <div className="grid grid-cols-2 border-b border-border/60">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-r border-border/60">
+              <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <div>
+                <p className="text-[10px] text-muted-foreground leading-none">Corrections</p>
+                <p className="text-sm font-bold text-foreground leading-tight">{task.correction_count || 0}</p>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1.5 rounded-md border border-orange-200 dark:border-orange-700/40">
-              <RotateCcw className="w-3.5 h-3.5" />
-              Revisions used: {task.revision_count || 0}/{task.max_free_revisions || 2}
+            <div className="flex items-center gap-2 px-4 py-2.5">
+              <RotateCcw className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <div className="flex-1">
+                <diclass className="flex items-center justify-between">
+                  <p className="text-[10px] text-muted-foreground leading-none">Revisions</p>
+                  <p className="text-sm font-bold text-foreground leading-tight">{revUsed}<span className="text-xs font-normal text-muted-foreground">/{revMax}</span></p>
+                </diclass>
+                <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all', revPct >= 100 ? 'bg-red-500' : revPct >= 75 ? 'bg-orange-400' : 'bg-blue-500')}
+                    style={{ width: `${Math.min(revPct, 100)}%` }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Feedback items to classify */}
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-              Client Feedback — Classify Each Item:
+          {/* Feedback items */}
+          <div className="px-4 py-3 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 mb-2">
+              Client Feedback — Classify Each Item
             </p>
             {pendingRevisions.map((rev: PendingRevision, idx: number) => {
               const isBusy = segregating[rev._id] != null;
               return (
                 <div
                   key={rev._id}
-                  className="rounded-lg border border-amber-200 dark:border-amber-700/40 bg-white dark:bg-card p-3.5 space-y-3 shadow-sm"
+                  className="rounded-lg border border-border/70 bg-muted/30 overflow-hidden"
                 >
-                  {/* Feedback meta */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      Round {rev.revisionRound} · From {rev.feedbackGivenBy || 'Client'}
+                  {/* Round label */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b border-border/60">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Round {rev.revisionRound} · {rev.feedbackGivenBy || 'Client'}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {rev.feedbackDate ? new Date(rev.feedbackDate).toLocaleDateString('en-IN') : ''}
-                    </span>
+                    {rev.feedbackDate && (
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {new Date(rev.feedbackDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
                   </div>
 
                   {/* Feedback text */}
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground font-medium border-l-4 border-amber-400 pl-3">
+                  <div className="px-3 py-2.5 border-l-2 border-blue-500 ml-0 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
                     {rev.feedback
                       ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
                           part.match(/^https?:\/\//)
-                            ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-600 underline break-all">{part}</a>
+                            ? <a key={i} href={part} target="_blank" rel="noreferrer"
+                                className="text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all text-xs">{part}</a>
                             : part
                         )
-                      : 'No feedback text provided.'}
+                      : <span className="text-muted-foreground italic text-xs">No feedback text provided.</span>}
                   </div>
 
-                  {/* Classification buttons */}
-                  <div className="flex gap-2 flex-wrap pt-1 border-t border-amber-100 dark:border-amber-700/30">
-                    <p className="w-full text-[11px] text-muted-foreground mb-1">
-                      Classify this feedback as:
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 flex-1"
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 border-t border-border/60">
+                    <button
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all border-r border-border/60',
+                        'text-slate-300 hover:bg-slate-500/15 hover:text-white',
+                        isBusy && 'opacity-50 cursor-not-allowed'
+                      )}
                       disabled={isBusy}
                       onClick={() => handleSegregate(rev._id, 'correction', task.task_id)}
                     >
                       {segregating[rev._id] === 'correction'
-                        ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        : <CheckSquare className="w-3.5 h-3.5 mr-1.5" />}
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <CheckSquare className="w-3 h-3" />}
                       Correction
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-900/20 flex-1"
+                    </button>
+                    <button
+                      className={cn(
+                        'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all',
+                        'text-blue-400 hover:bg-blue-500/15 hover:text-blue-300',
+                        isBusy && 'opacity-50 cursor-not-allowed'
+                      )}
                       disabled={isBusy}
                       onClick={() => handleSegregate(rev._id, 'revision', task.task_id)}
                     >
                       {segregating[rev._id] === 'revision'
-                        ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        : <RotateCcw className="w-3.5 h-3.5 mr-1.5" />}
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <RotateCcw className="w-3 h-3" />}
                       Revision
-                    </Button>
+                    </button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    💡 <strong>Correction</strong> = change without using a free revision slot. &nbsp;
-                    <strong>Revision</strong> = counts against your {task.max_free_revisions || 2} free revisions.
-                  </p>
                 </div>
               );
             })}
           </div>
 
+          {/* Hint */}
+          <div className="px-4 pb-3">
+            <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+              <span className="text-slate-400 font-semibold">Correction</span> — no slot used.
+              <span className="text-blue-400 font-semibold ml-1.5">Revision</span> — uses 1 of {revMax} free slots.
+            </p>
+          </div>
+
           {/* Data link */}
           {task.data_link && (
-            <Button size="sm" variant="outline" asChild>
-              <a href={task.data_link} target="_blank" rel="noreferrer">
-                <HardDrive className="mr-1.5 h-3.5 w-3.5" />Data Link
-              </a>
-            </Button>
+            <div className="px-4 pb-4">
+              <Button size="sm" variant="outline" asChild className="h-7 text-xs border-border/60">
+                <a href={task.data_link} target="_blank" rel="noreferrer">
+                  <HardDrive className="mr-1.5 h-3 w-3" />Data Link
+                </a>
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -365,12 +395,12 @@ export default function EditorPage() {
           <div className="flex flex-col items-end gap-1.5">
             <Badge className={cn('shrink-0', statusClass[task.status] ?? '')}>{task.status}</Badge>
             {parseInt(task.revision_count || '0') > 0 && (
-              <span className="text-[10px] font-semibold tracking-wide text-white bg-orange-500 px-1.5 py-0.5 rounded uppercase shadow-sm">
+              <span className="text-[10px] font-semibold tracking-wide text-white bg-blue-500 px-1.5 py-0.5 rounded uppercase shadow-sm">
                 {task.revision_count}/{task.max_free_revisions || '2'} Revisions
               </span>
             )}
             {parseInt(task.correction_count || '0') > 0 && (
-              <span className="text-[10px] font-semibold tracking-wide text-white bg-red-500 px-1.5 py-0.5 rounded uppercase shadow-sm">
+              <span className="text-[10px] font-semibold tracking-wide text-white bg-slate-500 px-1.5 py-0.5 rounded uppercase shadow-sm">
                 {task.correction_count} Correction{parseInt(task.correction_count || '0') > 1 ? 's' : ''}
               </span>
             )}
@@ -572,10 +602,13 @@ export default function EditorPage() {
   // Segregate panel — shows SegregateCard components
   const segregatePanel = (items: EditingTask[]) => {
     if (items.length === 0) return (
-      <Card className="md:col-span-2">
-        <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          <GitFork className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
-          No feedback pending classification. When clients submit feedback, it will appear here for you to segregate.
+      <Card className="border-border/50">
+        <CardContent className="py-14 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <GitFork className="w-5 h-5 text-blue-400" />
+          </div>
+          <p className="text-sm font-medium text-foreground/70">No feedback to classify</p>
+          <p className="text-xs text-muted-foreground mt-1">When clients submit feedback, it will appear here.</p>
         </CardContent>
       </Card>
     );
@@ -587,25 +620,28 @@ export default function EditorPage() {
     }, {} as Record<string, EditingTask[]>);
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700/40 p-4 text-sm text-amber-800 dark:text-amber-300 flex gap-3 items-start">
-          <GitFork className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+        {/* Info banner */}
+        <div className="flex gap-3 items-start rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+          <GitFork className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
           <div>
-            <p className="font-semibold mb-1">Classify Client Feedback</p>
-            <p className="text-amber-700 dark:text-amber-400">
-              Client feedback has arrived. You must classify each item as either a <strong>Correction</strong> (no revision slot used) or a <strong>Revision</strong> (uses one of {groups.segregate[0]?.max_free_revisions || 2} free revision slots). After all items are classified, the task will move to the appropriate tab.
+            <p className="text-sm font-semibold text-foreground">Classify Client Feedback</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+              Each feedback item must be labelled as a <span className="text-slate-300 font-medium">Correction</span> (no slot used)
+              or a <span className="text-blue-400 font-medium">Revision</span> (uses 1 of {groups.segregate[0]?.max_free_revisions || 2} free slots).
+              Once all items are labelled, the task moves to the right tab automatically.
             </p>
           </div>
         </div>
-        <Accordion type="multiple" className="w-full space-y-4" defaultValue={Object.keys(grouped)}>
+        <Accordion type="multiple" className="w-full space-y-3" defaultValue={Object.keys(grouped)}>
           {Object.entries(grouped).map(([client, clientTasks]) => (
-            <AccordionItem key={client} value={client} className="rounded-lg border border-amber-200 dark:border-amber-700/40 bg-card text-card-foreground shadow-sm overflow-hidden">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-amber-50/50 dark:hover:bg-amber-950/20">
-                <div className="flex items-center gap-2 font-semibold">
+            <AccordionItem key={client} value={client} className="rounded-lg border border-border/60 bg-card text-card-foreground shadow-sm overflow-hidden">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+                <div className="flex items-center gap-2 font-semibold text-sm">
                   {client}
-                  <Badge className="ml-2 bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400">{clientTasks.length}</Badge>
+                  <Badge className="ml-2 bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">{clientTasks.length}</Badge>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="p-4 pt-2 border-t border-amber-200 dark:border-amber-700/40">
+              <AccordionContent className="px-4 pb-4 pt-2 border-t border-border/50">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {clientTasks.map((task) => <SegregateCard key={task.task_id} task={task} />)}
                 </div>
@@ -652,7 +688,7 @@ export default function EditorPage() {
           <TabsTrigger value="segregate" className="relative">
             Segregate Feedback
             {groups.segregate.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-amber-500 rounded-full">
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
                 {groups.segregate.length}
               </span>
             )}

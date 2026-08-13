@@ -21,7 +21,7 @@ const getEditingData = asyncHandler(async (req, res) => {
     for (const rev of revisions) {
         // Resolve the actual target ID. If it has a specific taskId, use that, otherwise use projectId
         const actualTargetId = (rev.taskId && rev.taskId.startsWith('TASK_')) ? rev.taskId : rev.projectId;
-        const revKey = `${actualTargetId}_${rev.revisionRound}_${rev.feedback}`;
+        const revKey = `${actualTargetId}_${rev.feedback}`;
         if (!seenRevisions.has(revKey)) {
             seenRevisions.add(revKey);
             uniqueRevisions.push(rev);
@@ -993,7 +993,6 @@ const segregateFeedback = asyncHandler(async (req, res) => {
             { projectId: actualTargetId },
             { taskId: actualTargetId }
         ],
-        revisionRound: revision.revisionRound,
         feedback: revision.feedback,
         segregationType: 'pending'
     }, {
@@ -1150,7 +1149,6 @@ const splitFeedback = asyncHandler(async (req, res) => {
             { projectId: actualTargetId },
             { taskId: actualTargetId }
         ],
-        revisionRound: revision.revisionRound,
         feedback: revision.feedback,
         segregationType: 'pending'
     });

@@ -260,7 +260,7 @@ export default function EditorPage() {
   };
 
   // ─── Segregate Card ──────────────────────────────────────────────────────────
-  const SegregateCard = ({ task }: { task: EditingTask }) => {
+  const renderSegregateCard = (task: EditingTask, key?: string) => {
     const pendingRevisions = (task.revisions || []).filter(
       (r: PendingRevision) => r.segregationType === 'pending' || !r.segregationType
     );
@@ -714,7 +714,11 @@ export default function EditorPage() {
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4 pt-2 border-t border-border/50">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {clientTasks.map((task) => <SegregateCard key={task.task_id} task={task} />)}
+                  {clientTasks.map((task) => (
+                    <div key={task.task_id}>
+                      {renderSegregateCard(task)}
+                    </div>
+                  ))}
                 </div>
               </AccordionContent>
             </AccordionItem>

@@ -41,6 +41,24 @@ const revisionSchema = new Schema({
     timestamp: {
         type: String,
         default: ""
+    },
+    taskId: {
+        type: String,
+        default: "",
+        index: true
+    },
+    segregationType: {
+        type: String,
+        enum: ['pending', 'correction', 'revision'],
+        default: 'pending'
+    },
+    segregatedAt: {
+        type: Date,
+        default: null
+    },
+    segregatedByName: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 

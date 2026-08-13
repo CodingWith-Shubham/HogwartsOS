@@ -163,6 +163,7 @@ export interface EditingProject {
   deadlineNotified: string;
   finalDelivered: boolean;
   revisionFeedback?: string;
+  editorComment?: string;
   searchText: string;
 }
 

@@ -200,7 +200,13 @@ const editingTaskSchema = new Schema({
     managerAllocationReminderLevel: { type: Number, default: 0 },
     editorStartReminderLevel: { type: Number, default: 0 },
     clientResponseReminderLevel: { type: Number, default: 0 },
-    clientApprovalReminderLevel: { type: Number, default: 0 }
+    clientApprovalReminderLevel: { type: Number, default: 0 },
+
+    // Editor comment sent to manager with draft submission
+    editorComment: { type: String, default: '' },
+
+    // Correction/Revision segregation tracking
+    correctionCount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const EditProject = mongoose.model("EditProject", editProjectSchema);

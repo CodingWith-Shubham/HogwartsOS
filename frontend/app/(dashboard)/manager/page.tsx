@@ -454,6 +454,7 @@ export default function ManagerPage() {
         currentDraftLink: t.draftLink || t.draft_link || '',
         revisionCount: t.revisionCount || 0,
         maxFreeRevisions: t.maxFreeRevisions || 0,
+        editorComment: t.editorComment || '',
       }));
       setEditing([...projects, ...mappedTasks]);
     }
@@ -923,6 +924,14 @@ export default function ManagerPage() {
                           <div>
                             <p className="text-sm font-medium">{edit.clientName}</p>
                             <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
+                            {edit.editorComment && (
+                              <div className="flex items-start gap-1.5 mt-1.5 rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-700/40 px-2.5 py-1.5 max-w-sm">
+                                <span className="text-[10px] mt-0.5">💬</span>
+                                <p className="text-xs text-blue-700 dark:text-blue-300 leading-snug">
+                                  <span className="font-semibold">Editor:</span> {edit.editorComment}
+                                </p>
+                              </div>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground">Deadline: {edit.deadlineAt || '-'}</p>
                           <div className="flex flex-wrap items-center gap-2">

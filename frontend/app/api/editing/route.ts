@@ -49,13 +49,16 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const taskId = String(body.taskId ?? '').trim();
 
+    // Build the payload — include editorComment if provided
+    const payload: Record<string, unknown> = { ...body };
+
     const res = await fetch(`${BACKEND_URL}/editing/task/${taskId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
 
     const data = await res.json();
@@ -66,5 +69,41 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Failed to update task in Express:', error);
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const BACKEND_URL = await getBackendUrl();
+    const token = getAccessToken();
+    const body = await request.json();
+
+    // action: 'segregate' — classify client feedback as correction or revision
+    if (body.action === 'segregate') {
+      const { revisionId, type, taskId } = body;
+      const res = await fetch(`${BACKEND_URL}/editing/segregate/${revisionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ type, taskId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return NextResponse.json({ success: true, ...data.data });
+      }
+      return NextResponse.json({ error: data.message || 'Failed to segregate feedback' }, { status: res.status });
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  } catch (error) {
+    console.error('Failed to process editing POST:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

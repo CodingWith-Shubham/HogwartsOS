@@ -1,5 +1,6 @@
 import { EditProject, EditingTask } from "../models/editing.models.js";
 import { Revision } from "../models/revision.models.js";
+import { Correction } from "../models/correction.model.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { Client } from "../models/client.models.js";
@@ -103,6 +104,15 @@ const getEditingData = asyncHandler(async (req, res) => {
         return obj;
     });
 
+    // Count pending-segregation revisions per task
+    const pendingRevisionCounts = {};
+    revisions.forEach(rev => {
+        if (rev.segregationType === 'pending' || !rev.segregationType) {
+            const key = rev.taskId || rev.projectId;
+            if (key) pendingRevisionCounts[key] = (pendingRevisionCounts[key] || 0) + 1;
+        }
+    });
+
     const formattedTasks = editingTasks.map(t => {
         const obj = t.toObject ? t.toObject() : t;
         obj.id = t._id ? t._id.toString() : obj._id;
@@ -111,6 +121,7 @@ const getEditingData = asyncHandler(async (req, res) => {
             obj.shootStartTime = shootMap[obj.shootId].shootStartTime;
             obj.shootEndTime = shootMap[obj.shootId].shootEndTime;
         }
+        obj.pendingFeedbackCount = pendingRevisionCounts[obj.taskId] || 0;
         return obj;
     });
 
@@ -853,4 +864,211 @@ const updateReminderLevel = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { updated }, "Reminder level updated"));
 });
 
-export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel };
+/**
+ * POST /api/v1/editing/client-feedback
+ * Called by n8n when a client clicks "I Need Changes" instead of directly incrementing revision_count.
+ * Creates a Revision with segregationType='pending' and sets the task to 'Pending Segregation'.
+ * The editor will then manually classify the feedback as a correction or revision.
+ */
+const receiveClientFeedback = asyncHandler(async (req, res) => {
+    const body = req.body;
+    const taskId = body.taskId || body.task_id || body.edit_id;
+    const feedback = body.feedback;
+
+    if (!taskId || !feedback) {
+        throw new ApiError(400, "taskId and feedback are required");
+    }
+
+    // Find the task (EditingTask first, then EditProject)
+    let task = await EditingTask.findOne({ taskId });
+    let isProject = false;
+    if (!task) {
+        task = await EditProject.findOne({ editId: taskId });
+        isProject = true;
+    }
+    if (!task) throw new ApiError(404, "Task or Project not found");
+
+    // Determine current revision round (total revisions so far)
+    const existingRevisions = await Revision.countDocuments({
+        $or: [
+            { taskId },
+            { projectId: task.editId || task.taskId }
+        ]
+    });
+
+    const revision = await Revision.create({
+        projectId: task.editId || task.taskId || taskId,
+        taskId: task.taskId || taskId,
+        clientName: body.clientName || task.clientName || '',
+        editorName: body.editorName || task.assignedToName || task.editorName || '',
+        revisionRound: existingRevisions + 1,
+        feedback,
+        feedbackGivenBy: body.feedbackGivenBy || 'Client',
+        feedbackDate: new Date().toISOString(),
+        segregationType: 'pending',
+        timestamp: new Date().toISOString()
+    });
+
+    // Set task status to Pending Segregation (do NOT increment revisionCount)
+    if (isProject) {
+        await EditProject.findOneAndUpdate(
+            { editId: taskId },
+            { $set: { status: 'Pending Segregation' } }
+        );
+    } else {
+        await EditingTask.findOneAndUpdate(
+            { taskId },
+            { $set: { status: 'Pending Segregation', managerComment: '' } }
+        );
+    }
+
+    return res.status(201).json(new ApiResponse(201, { revision }, "Client feedback received — pending editor segregation"));
+});
+
+/**
+ * PUT /api/v1/editing/segregate/:revisionId
+ * Called by the editor to classify a pending feedback item as either a correction or a revision.
+ * Body: { type: 'correction' | 'revision', taskId }
+ *
+ * If correction:
+ *   - Increments correctionCount on task, sets status to 'Correction Requested'
+ *   - Creates a Correction record
+ *   - Updates revision.segregationType = 'correction'
+ *
+ * If revision:
+ *   - Checks revisionCount vs maxFreeRevisions
+ *   - Within limit: increments revisionCount, sets status to 'In Revision'
+ *   - Exceeded: sets status to 'Pending Extra Revision Approval'
+ *   - Updates revision.segregationType = 'revision'
+ */
+const segregateFeedback = asyncHandler(async (req, res) => {
+    const { revisionId } = req.params;
+    const { type, taskId } = req.body;
+
+    if (!['correction', 'revision'].includes(type)) {
+        throw new ApiError(400, "type must be 'correction' or 'revision'");
+    }
+    if (!taskId) {
+        throw new ApiError(400, "taskId is required");
+    }
+
+    // Find the revision record
+    const revision = await Revision.findById(revisionId);
+    if (!revision) throw new ApiError(404, "Revision record not found");
+    if (revision.segregationType !== 'pending') {
+        throw new ApiError(400, "This feedback has already been classified");
+    }
+
+    // Find the task
+    let task = await EditingTask.findOne({ taskId });
+    let isProject = false;
+    if (!task) {
+        task = await EditProject.findOne({ editId: taskId });
+        isProject = true;
+    }
+    if (!task) throw new ApiError(404, "Task not found for segregation");
+
+    const editorName = req.user?.name || task.assignedToName || '';
+    const now = new Date();
+
+    // Update revision record
+    await Revision.findByIdAndUpdate(revisionId, {
+        $set: {
+            segregationType: type,
+            segregatedAt: now,
+            segregatedByName: editorName
+        }
+    });
+
+    // Check if there are still other pending revisions for this task
+    const stillPending = await Revision.countDocuments({
+        $or: [
+            { taskId },
+            { projectId: task.editId || task.taskId || taskId }
+        ],
+        segregationType: 'pending',
+        _id: { $ne: revision._id }
+    });
+
+    let updatedTask;
+    let extraRevisionNeeded = false;
+
+    if (type === 'correction') {
+        // Increment correctionCount, set status to Correction Requested (unless still has pending)
+        const newStatus = stillPending > 0 ? 'Pending Segregation' : 'Correction Requested';
+        if (isProject) {
+            updatedTask = await EditProject.findOneAndUpdate(
+                { editId: taskId },
+                { $inc: { correctionCount: 1 }, $set: { status: newStatus } },
+                { new: true }
+            );
+        } else {
+            updatedTask = await EditingTask.findOneAndUpdate(
+                { taskId },
+                { $inc: { correctionCount: 1 }, $set: { status: newStatus } },
+                { new: true }
+            );
+        }
+
+        // Create a Correction record
+        await Correction.create({
+            projectId: task.editId || task.taskId || taskId,
+            editingTaskId: task.taskId || taskId,
+            editorId: '',
+            editorName: task.assignedToName || task.editorName || '',
+            raisedBy: req.user?._id || 'editor',
+            raisedByName: editorName,
+            note: revision.feedback,
+            round: (updatedTask?.correctionCount || 1)
+        });
+
+    } else if (type === 'revision') {
+        const currentRevisionCount = task.revisionCount || 0;
+        const maxFree = task.maxFreeRevisions || 2;
+        const newRevisionCount = currentRevisionCount + 1;
+
+        if (newRevisionCount > maxFree) {
+            // Exceeds free revisions
+            extraRevisionNeeded = true;
+            const newStatus = stillPending > 0 ? 'Pending Segregation' : 'Pending Extra Revision Approval';
+            if (isProject) {
+                updatedTask = await EditProject.findOneAndUpdate(
+                    { editId: taskId },
+                    { $set: { revisionCount: newRevisionCount, status: newStatus } },
+                    { new: true }
+                );
+            } else {
+                updatedTask = await EditingTask.findOneAndUpdate(
+                    { taskId },
+                    { $set: { revisionCount: newRevisionCount, status: newStatus } },
+                    { new: true }
+                );
+            }
+        } else {
+            // Within free revisions
+            const newStatus = stillPending > 0 ? 'Pending Segregation' : 'In Revision';
+            if (isProject) {
+                updatedTask = await EditProject.findOneAndUpdate(
+                    { editId: taskId },
+                    { $set: { revisionCount: newRevisionCount, status: newStatus } },
+                    { new: true }
+                );
+            } else {
+                updatedTask = await EditingTask.findOneAndUpdate(
+                    { taskId },
+                    { $set: { revisionCount: newRevisionCount, status: newStatus } },
+                    { new: true }
+                );
+            }
+        }
+    }
+
+    return res.status(200).json(new ApiResponse(200, {
+        task: updatedTask,
+        segregationType: type,
+        extraRevisionNeeded,
+        stillPendingCount: stillPending
+    }, `Feedback classified as ${type} successfully`));
+});
+
+export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel, receiveClientFeedback, segregateFeedback };

@@ -81,6 +81,8 @@ export default function EditorPage() {
   const [profileClientInfo, setProfileClientInfo] = useState<any>(null);
   // segregation state: track which pending revisions are being acted on
   const [segregating, setSegregating] = useState<Record<string, 'correction' | 'revision' | null>>({});
+  // split feedback state
+  const [splitState, setSplitState] = useState<Record<string, { isOpen: boolean, text: string, saving?: boolean }>>({});
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.email) return;
@@ -222,6 +224,41 @@ export default function EditorPage() {
     }
   };
 
+  const handleSplit = async (revisionId: string) => {
+    const text = splitState[revisionId]?.text;
+    if (!text?.trim()) return;
+    
+    // Split by lines
+    const items = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (items.length <= 1) {
+      toast.error('Please enter at least two lines to split the feedback');
+      return;
+    }
+
+    setSplitState(prev => ({ ...prev, [revisionId]: { ...prev[revisionId], saving: true } }));
+    try {
+      const response = await authFetch(`/api/editing/segregate/${revisionId}/split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Failed to split feedback');
+      
+      toast.success('Feedback split successfully');
+      setSplitState(prev => {
+        const next = { ...prev };
+        delete next[revisionId];
+        return next;
+      });
+      await refresh(true);
+    } catch (error) {
+      toast.error('Could not split feedback', { description: error instanceof Error ? error.message : 'Unknown error' });
+    } finally {
+      setSplitState(prev => prev[revisionId] ? { ...prev, [revisionId]: { ...prev[revisionId], saving: false } } : prev);
+    }
+  };
+
   // ─── Segregate Card ──────────────────────────────────────────────────────────
   const SegregateCard = ({ task }: { task: EditingTask }) => {
     const pendingRevisions = (task.revisions || []).filter(
@@ -289,6 +326,8 @@ export default function EditorPage() {
             </p>
             {pendingRevisions.map((rev: PendingRevision, idx: number) => {
               const isBusy = segregating[rev._id] != null;
+              const isSplitOpen = splitState[rev._id]?.isOpen;
+              
               return (
                 <div
                   key={rev._id}
@@ -299,56 +338,97 @@ export default function EditorPage() {
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Round {rev.revisionRound} · {rev.feedbackGivenBy || 'Client'}
                     </span>
-                    {rev.feedbackDate && (
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {new Date(rev.feedbackDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          setSplitState(prev => ({
+                            ...prev, 
+                            [rev._id]: { isOpen: !isSplitOpen, text: rev.feedback || '' }
+                          }));
+                        }}
+                        className="text-[10px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                      >
+                        <Scissors className="w-3 h-3" />
+                        {isSplitOpen ? 'Cancel Split' : 'Split Feedback'}
+                      </button>
+                      {rev.feedbackDate && (
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {new Date(rev.feedbackDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Feedback text */}
-                  <div className="px-3 py-2.5 border-l-2 border-blue-500 ml-0 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                    {rev.feedback
-                      ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
-                          part.match(/^https?:\/\//)
-                            ? <a key={i} href={part} target="_blank" rel="noreferrer"
-                                className="text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all text-xs">{part}</a>
-                            : part
-                        )
-                      : <span className="text-muted-foreground italic text-xs">No feedback text provided.</span>}
-                  </div>
+                  {isSplitOpen ? (
+                    <div className="p-3 bg-card border-b border-border/60">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Edit the text below to split into multiple items. Put each item on a <strong className="text-foreground">new line</strong>.
+                      </p>
+                      <Textarea
+                        value={splitState[rev._id]?.text || ''}
+                        onChange={(e) => setSplitState(prev => ({ ...prev, [rev._id]: { ...prev[rev._id], text: e.target.value } }))}
+                        className="text-sm min-h-[120px] resize-none"
+                        placeholder="Item 1...&#10;Item 2..."
+                      />
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          size="sm"
+                          disabled={splitState[rev._id]?.saving || !splitState[rev._id]?.text.includes('\n')}
+                          onClick={() => handleSplit(rev._id)}
+                          className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {splitState[rev._id]?.saving ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Scissors className="w-3 h-3 mr-1.5" />}
+                          Confirm Split
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Feedback text */}
+                      <div className="px-3 py-2.5 border-l-2 border-blue-500 ml-0 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+                        {rev.feedback
+                          ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
+                              part.match(/^https?:\/\//)
+                                ? <a key={i} href={part} target="_blank" rel="noreferrer"
+                                    className="text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all text-xs">{part}</a>
+                                : part
+                            )
+                          : <span className="text-muted-foreground italic text-xs">No feedback text provided.</span>}
+                      </div>
 
-                  {/* Action buttons */}
-                  <div className="grid grid-cols-2 border-t border-border/60">
-                    <button
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all border-r border-border/60',
-                        'text-slate-300 hover:bg-slate-500/15 hover:text-white',
-                        isBusy && 'opacity-50 cursor-not-allowed'
-                      )}
-                      disabled={isBusy}
-                      onClick={() => handleSegregate(rev._id, 'correction', task.task_id)}
-                    >
-                      {segregating[rev._id] === 'correction'
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <CheckSquare className="w-3 h-3" />}
-                      Correction
-                    </button>
-                    <button
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all',
-                        'text-blue-400 hover:bg-blue-500/15 hover:text-blue-300',
-                        isBusy && 'opacity-50 cursor-not-allowed'
-                      )}
-                      disabled={isBusy}
-                      onClick={() => handleSegregate(rev._id, 'revision', task.task_id)}
-                    >
-                      {segregating[rev._id] === 'revision'
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <RotateCcw className="w-3 h-3" />}
-                      Revision
-                    </button>
-                  </div>
+                      {/* Action buttons */}
+                      <div className="grid grid-cols-2 border-t border-border/60">
+                        <button
+                          className={cn(
+                            'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all border-r border-border/60',
+                            'text-slate-300 hover:bg-slate-500/15 hover:text-white',
+                            isBusy && 'opacity-50 cursor-not-allowed'
+                          )}
+                          disabled={isBusy}
+                          onClick={() => handleSegregate(rev._id, 'correction', task.task_id)}
+                        >
+                          {segregating[rev._id] === 'correction'
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <CheckSquare className="w-3 h-3" />}
+                          Correction
+                        </button>
+                        <button
+                          className={cn(
+                            'flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all',
+                            'text-blue-400 hover:bg-blue-500/15 hover:text-blue-300',
+                            isBusy && 'opacity-50 cursor-not-allowed'
+                          )}
+                          disabled={isBusy}
+                          onClick={() => handleSegregate(rev._id, 'revision', task.task_id)}
+                        >
+                          {segregating[rev._id] === 'revision'
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <RotateCcw className="w-3 h-3" />}
+                          Revision
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -412,15 +492,6 @@ export default function EditorPage() {
           <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Assigned to: {task.assigned_to_name || 'Unassigned'}</p>
         )}
 
-        {/* Editor's note to manager (shown when it exists) */}
-        {task.editor_comment && (
-          <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-700/40 px-3 py-2">
-            <MessageSquare className="w-3.5 h-3.5 mt-0.5 text-blue-500 shrink-0" />
-            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-              <span className="font-semibold">Editor note:</span> {task.editor_comment}
-            </p>
-          </div>
-        )}
 
         {/* Extra revision approval notice */}
         {task.status === 'Pending Extra Revision Approval' && (

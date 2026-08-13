@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel, receiveClientFeedback, segregateFeedback } from "../controllers/editing.controllers.js";
+import { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel, receiveClientFeedback, segregateFeedback, splitFeedback } from "../controllers/editing.controllers.js";
 import { verifyJWT, verifyN8n, verifyJWTOrN8N } from "../middlewares/auth.middlewares.js";
 
 const router = Router();
@@ -13,6 +13,7 @@ router.post("/assign-tasks", verifyJWT, assignTasks);
 
 // Editor Segregation (editor classifies client feedback as correction or revision)
 router.put("/segregate/:revisionId", verifyJWT, segregateFeedback);
+router.post("/segregate/:revisionId/split", verifyJWT, splitFeedback);
 
 // N8N Dedicated Endpoints
 router.post("/projects", verifyN8n, createProject);

@@ -43,6 +43,7 @@ const editProjectSchema = new Schema({
     dataLink: { type: String, default: "" },
     status: { type: String, default: "In Progress" },
     totalService: { type: String, default: "" },
+    editorComment: { type: String, default: "" },
     emailId: { type: String, default: "" },
     handoverToClient: { type: String, default: "" },
     editorName: { type: String, default: "" },

@@ -300,7 +300,8 @@ export default function ManagerPage() {
             revisionCount: t.revisionCount || 0,
             maxFreeRevisions: t.maxFreeRevisions || 0,
             extraRevisionApproved: t.extraRevisionApproved || false,
-            extraRevisionCost: t.extraRevisionCost || "0"
+            extraRevisionCost: t.extraRevisionCost || "0",
+            editorComment: t.editorComment || ''
           }));
           setEditing([...projects, ...mappedTasks]);
         }
@@ -925,10 +926,10 @@ export default function ManagerPage() {
                             <p className="text-sm font-medium">{edit.clientName}</p>
                             <p className="text-xs text-muted-foreground">{edit.editorName} · {edit.serviceType || 'Edit'}</p>
                             {edit.editorComment && (
-                              <div className="flex items-start gap-1.5 mt-1.5 rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-700/40 px-2.5 py-1.5 max-w-sm">
+                              <div className="flex items-start gap-2 mt-2 rounded-md border border-blue-500 bg-transparent px-3 py-2 max-w-sm">
                                 <span className="text-[10px] mt-0.5">💬</span>
-                                <p className="text-xs text-blue-700 dark:text-blue-300 leading-snug">
-                                  <span className="font-semibold">Editor:</span> {edit.editorComment}
+                                <p className="text-xs text-white leading-snug">
+                                  <span className="font-semibold text-blue-400">Editor:</span> {edit.editorComment}
                                 </p>
                               </div>
                             )}

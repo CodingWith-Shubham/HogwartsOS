@@ -1071,4 +1071,59 @@ const segregateFeedback = asyncHandler(async (req, res) => {
     }, `Feedback classified as ${type} successfully`));
 });
 
-export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel, receiveClientFeedback, segregateFeedback };
+/**
+ * POST /api/v1/editing/segregate/:revisionId/split
+ * Splits a single pending feedback item into multiple pending feedback items.
+ * Body: { items: string[] }
+ */
+const splitFeedback = asyncHandler(async (req, res) => {
+    const { revisionId } = req.params;
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new ApiError(400, "Items array is required and cannot be empty");
+    }
+
+    const revision = await Revision.findById(revisionId);
+    if (!revision) throw new ApiError(404, "Revision record not found");
+    if (revision.segregationType !== 'pending') {
+        throw new ApiError(400, "Only pending feedback can be split");
+    }
+
+    // Create a new Revision record for each item
+    const newRevisions = [];
+    const now = new Date().toISOString();
+    
+    for (const text of items) {
+        if (!text.trim()) continue;
+        newRevisions.push({
+            projectId: revision.projectId,
+            taskId: revision.taskId,
+            clientName: revision.clientName,
+            editorName: revision.editorName,
+            revisionRound: revision.revisionRound,
+            feedback: text.trim(),
+            feedbackGivenBy: revision.feedbackGivenBy,
+            feedbackDate: revision.feedbackDate,
+            updatedDraftLink: revision.updatedDraftLink,
+            status: revision.status,
+            timestamp: now,
+            segregationType: 'pending'
+        });
+    }
+
+    if (newRevisions.length === 0) {
+        throw new ApiError(400, "No valid text items provided");
+    }
+
+    const createdRevisions = await Revision.insertMany(newRevisions);
+    
+    // Delete the original single revision
+    await Revision.findByIdAndDelete(revisionId);
+
+    return res.status(200).json(new ApiResponse(200, {
+        revisions: createdRevisions
+    }, "Feedback split successfully"));
+});
+
+export { getEditingData, getEditorWorkload, updateTask, addRevision, assignTasks, createProject, getProjects, getProjectById, updateProject, createTask, getTaskById, updateTaskById, createRevision, getReminderCandidates, updateReminderLevel, receiveClientFeedback, segregateFeedback, splitFeedback };

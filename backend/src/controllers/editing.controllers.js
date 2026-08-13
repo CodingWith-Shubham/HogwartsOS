@@ -15,6 +15,18 @@ const getEditingData = asyncHandler(async (req, res) => {
     let editingTasks = await EditingTask.find(taskFilter).sort({ createdAt: -1 });
     let revisions = await Revision.find({}).sort({ createdAt: -1 });
 
+    // Deduplicate revisions to prevent multiple identical client feedbacks from n8n webhook retries
+    const uniqueRevisions = [];
+    const seenRevisions = new Set();
+    for (const rev of revisions) {
+        const revKey = `${rev.projectId}_${rev.taskId}_${rev.revisionRound}_${rev.feedback}`;
+        if (!seenRevisions.has(revKey)) {
+            seenRevisions.add(revKey);
+            uniqueRevisions.push(rev);
+        }
+    }
+    revisions = uniqueRevisions;
+
     const user = req.user;
     if (user && user.role === 'editor') {
         const uemail = user.email?.trim().toLowerCase();
@@ -971,8 +983,14 @@ const segregateFeedback = asyncHandler(async (req, res) => {
     const editorName = req.user?.name || task.assignedToName || '';
     const now = new Date();
 
-    // Update revision record
-    await Revision.findByIdAndUpdate(revisionId, {
+    // Update revision record AND any identical duplicates
+    await Revision.updateMany({
+        projectId: revision.projectId,
+        taskId: revision.taskId,
+        revisionRound: revision.revisionRound,
+        feedback: revision.feedback,
+        segregationType: 'pending'
+    }, {
         $set: {
             segregationType: type,
             segregatedAt: now,
@@ -987,7 +1005,7 @@ const segregateFeedback = asyncHandler(async (req, res) => {
             { projectId: task.editId || task.taskId || taskId }
         ],
         segregationType: 'pending',
-        _id: { $ne: revision._id }
+        feedback: { $ne: revision.feedback } // exclude all with same feedback
     });
 
     let updatedTask;
@@ -1118,8 +1136,14 @@ const splitFeedback = asyncHandler(async (req, res) => {
 
     const createdRevisions = await Revision.insertMany(newRevisions);
     
-    // Delete the original single revision
-    await Revision.findByIdAndDelete(revisionId);
+    // Delete the original single revision AND any identical duplicates
+    await Revision.deleteMany({
+        projectId: revision.projectId,
+        taskId: revision.taskId,
+        revisionRound: revision.revisionRound,
+        feedback: revision.feedback,
+        segregationType: 'pending'
+    });
 
     return res.status(200).json(new ApiResponse(200, {
         revisions: createdRevisions

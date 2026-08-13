@@ -985,11 +985,13 @@ const segregateFeedback = asyncHandler(async (req, res) => {
     const editorName = req.user?.name || task.assignedToName || '';
     const now = new Date();
 
+    const actualTargetId = (revision.taskId && revision.taskId.startsWith('TASK_')) ? revision.taskId : revision.projectId;
+
     // Update revision record AND any identical duplicates
     await Revision.updateMany({
         $or: [
-            { projectId: task.editId || task.taskId || taskId },
-            { taskId: task.taskId || taskId }
+            { projectId: actualTargetId },
+            { taskId: actualTargetId }
         ],
         revisionRound: revision.revisionRound,
         feedback: revision.feedback,
@@ -1140,11 +1142,13 @@ const splitFeedback = asyncHandler(async (req, res) => {
 
     const createdRevisions = await Revision.insertMany(newRevisions);
     
+    const actualTargetId = (revision.taskId && revision.taskId.startsWith('TASK_')) ? revision.taskId : revision.projectId;
+
     // Delete the original single revision AND any identical duplicates
     await Revision.deleteMany({
         $or: [
-            { projectId: task.editId || task.taskId || taskId },
-            { taskId: task.taskId || taskId }
+            { projectId: actualTargetId },
+            { taskId: actualTargetId }
         ],
         revisionRound: revision.revisionRound,
         feedback: revision.feedback,

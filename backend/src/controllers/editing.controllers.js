@@ -19,7 +19,9 @@ const getEditingData = asyncHandler(async (req, res) => {
     const uniqueRevisions = [];
     const seenRevisions = new Set();
     for (const rev of revisions) {
-        const revKey = `${rev.projectId}_${rev.taskId}_${rev.revisionRound}_${rev.feedback}`;
+        // Resolve the actual target ID. If it has a specific taskId, use that, otherwise use projectId
+        const actualTargetId = (rev.taskId && rev.taskId.startsWith('TASK_')) ? rev.taskId : rev.projectId;
+        const revKey = `${actualTargetId}_${rev.revisionRound}_${rev.feedback}`;
         if (!seenRevisions.has(revKey)) {
             seenRevisions.add(revKey);
             uniqueRevisions.push(rev);
@@ -909,8 +911,8 @@ const receiveClientFeedback = asyncHandler(async (req, res) => {
     });
 
     const revision = await Revision.create({
-        projectId: task.editId || task.taskId || taskId,
-        taskId: task.taskId || taskId,
+        projectId: isProject ? task.editId : task.taskId,
+        taskId: isProject ? "" : task.taskId,
         clientName: body.clientName || task.clientName || '',
         editorName: body.editorName || task.assignedToName || task.editorName || '',
         revisionRound: existingRevisions + 1,
@@ -985,8 +987,10 @@ const segregateFeedback = asyncHandler(async (req, res) => {
 
     // Update revision record AND any identical duplicates
     await Revision.updateMany({
-        projectId: revision.projectId,
-        taskId: revision.taskId,
+        $or: [
+            { projectId: task.editId || task.taskId || taskId },
+            { taskId: task.taskId || taskId }
+        ],
         revisionRound: revision.revisionRound,
         feedback: revision.feedback,
         segregationType: 'pending'
@@ -1138,8 +1142,10 @@ const splitFeedback = asyncHandler(async (req, res) => {
     
     // Delete the original single revision AND any identical duplicates
     await Revision.deleteMany({
-        projectId: revision.projectId,
-        taskId: revision.taskId,
+        $or: [
+            { projectId: task.editId || task.taskId || taskId },
+            { taskId: task.taskId || taskId }
+        ],
         revisionRound: revision.revisionRound,
         feedback: revision.feedback,
         segregationType: 'pending'

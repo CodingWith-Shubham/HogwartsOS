@@ -99,6 +99,21 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, ...data.data });
       }
       return NextResponse.json({ error: data.message || 'Failed to segregate feedback' }, { status: res.status });
+    } else if (body.action === 'split') {
+      const { revisionId, items } = body;
+      const res = await fetch(`${BACKEND_URL}/editing/segregate/${revisionId}/split`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return NextResponse.json({ success: true, ...data.data });
+      }
+      return NextResponse.json({ error: data.message || 'Failed to split feedback' }, { status: res.status });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

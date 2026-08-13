@@ -237,10 +237,10 @@ export default function EditorPage() {
 
     setSplitState(prev => ({ ...prev, [revisionId]: { ...prev[revisionId], saving: true } }));
     try {
-      const response = await authFetch(`/api/editing/segregate/${revisionId}/split`, {
+      const response = await authFetch(`/api/editing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ action: 'split', revisionId, items })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to split feedback');

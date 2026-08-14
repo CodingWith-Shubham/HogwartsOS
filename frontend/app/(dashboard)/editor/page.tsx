@@ -163,10 +163,10 @@ export default function EditorPage() {
       task.status === 'Pending Extra Revision Approval' ||
       (['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') > 0)
     ),
-    segregate: tasks.filter((task) =>
-      task.status === 'Pending Segregation' ||
-      ((task.pending_feedback_count ?? 0) > 0)
-    ),
+    segregate: tasks.filter((task) => {
+      const validStatuses = ['Pending Segregation', 'Correction Requested', 'In Revision', 'Pending Extra Revision Approval', 'Extra Revision Approved'];
+      return validStatuses.includes(task.status) && (task.status === 'Pending Segregation' || (task.pending_feedback_count ?? 0) > 0);
+    }),
     delivered: tasks.filter((task) => ['Delivered', 'Client Satisfied', 'Completed'].includes(task.status)),
   }), [tasks]);
 

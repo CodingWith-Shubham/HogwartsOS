@@ -45,6 +45,7 @@ import {
   Link2,
   Unlink,
   X,
+  Send,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -453,6 +454,28 @@ export function ClientProfileModal({
     }
   };
 
+  const [sendingLink, setSendingLink] = useState(false);
+
+  const handleSendOnboardingLink = async (id: string) => {
+    setSendingLink(true);
+    try {
+      const res = await authFetch(`/api/client-profiles/${id}/send-onboarding`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Onboarding link sent to client via email!');
+      } else {
+        toast.error('Failed to send link', { description: data.error });
+      }
+    } catch (err) {
+      console.error('Error sending link:', err);
+      toast.error('Could not send onboarding link');
+    } finally {
+      setSendingLink(false);
+    }
+  };
+
   // ─── Delete Handler ───────────────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -852,15 +875,32 @@ export function ClientProfileModal({
                     <p className="text-xs text-muted-foreground mt-0.5">Share this link with the client to let them fill out their preferences.</p>
                   </div>
                   {effectiveProfileId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyOnboardingLink(effectiveProfileId)}
-                      className="h-8 border-primary/20 text-primary hover:bg-primary/10 shrink-0 ml-4"
-                    >
-                      <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy Link
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopyOnboardingLink(effectiveProfileId)}
+                        className="h-8 border-primary/20 text-primary hover:bg-primary/10"
+                      >
+                        <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy Link
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        disabled={sendingLink}
+                        onClick={() => handleSendOnboardingLink(effectiveProfileId)}
+                        className="h-8 shadow-md"
+                      >
+                        {sendingLink ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <Send className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Send via Email
+                      </Button>
+                    </div>
                   ) : (
                     <span className="text-xs text-muted-foreground italic shrink-0 ml-4">Save profile first to generate link</span>
                   )}

@@ -1,0 +1,62 @@
+{
+  "name": "Onboarding Email Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-onboarding-email",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook: Send Onboarding Email",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "send-onboarding-email-id"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$json.body.client_email}}",
+        "subject": "Welcome to Hogwarts Studio! Please complete your onboarding",
+        "message": "==<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>\n  <h2 style='color: #1a1a2e;'>Hello {{$json.body.client_name}},</h2>\n  <p>Welcome to Hogwarts Studio! We are excited to start working with you.</p>\n\n  <p>To ensure we capture your brand's unique style and preferences, please take a few minutes to complete our onboarding form.</p>\n\n  <div style='margin: 24px 0; text-align: center;'>\n    <a href='{{$json.body.onboarding_link}}'\n       style='display: inline-block; background: #6366f1; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold;'>\n      Complete Onboarding Form\n    </a>\n  </div>\n\n  <p style='color: #666; font-size: 14px;'>\n    If the button above does not work, you can copy and paste this link into your browser:\n    <br>\n    <a href='{{$json.body.onboarding_link}}' style='color: #6366f1;'>{{$json.body.onboarding_link}}</a>\n  </p>\n\n  <p style='color: #999; font-size: 13px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 16px;'>\n    Questions? Reply to this email or contact your account manager directly.\n  </p>\n  <p><strong>Thank You</strong></p>\n  <p>Best regards,<br><strong>Team Hogwarts Studio</strong></p>\n</div>\n",
+        "options": {}
+      },
+      "id": "2",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "80Hu46b0qFNa9Kxl",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: Send Onboarding Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

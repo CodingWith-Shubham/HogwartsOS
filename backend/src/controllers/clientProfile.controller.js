@@ -598,6 +598,57 @@ export const generateOnboardingLink = asyncHandler(async (req, res) => {
   );
 });
 
+export const sendOnboardingLinkViaWebhook = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const profile = await ClientProfile.findById(id);
+  if (!profile) throw new ApiError(404, "Client profile not found");
+
+  if (!profile.email) {
+    throw new ApiError(400, "Client profile does not have an email address to send to.");
+  }
+
+  // Generate a token valid for 7 days
+  const token = jwt.sign(
+    { clientId: profile._id, purpose: 'client_onboarding' },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const onboardingLink = `${frontendUrl}/onboarding/client-profile?token=${token}`;
+  
+  // Use env var if available, otherwise default to the standard Hogwarts Studios n8n webhook URL
+  const webhookUrl = process.env.N8N_ONBOARDING_WEBHOOK_URL || 'https://n8n.hogwartsstudios.com/webhook/send-onboarding-email';
+
+  try {
+    const payload = {
+      client_name: profile.name,
+      client_email: profile.email,
+      onboarding_link: onboardingLink,
+      client_id: profile._id.toString(),
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error("n8n webhook responded with error status:", response.status);
+    }
+  } catch (webhookError) {
+    console.error("Failed to trigger n8n onboarding webhook:", webhookError);
+    // We log the error but still return success to the frontend
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "Onboarding link sent to client successfully")
+  );
+});
+
 export const getPublicProfile = asyncHandler(async (req, res) => {
   // Extract ID from the publicClient object attached by verifyPublicClientToken middleware
   const clientId = req.publicClient.id;

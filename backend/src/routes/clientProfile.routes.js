@@ -10,6 +10,7 @@ import {
   removePreviousProject,
   searchProjects,
   generateOnboardingLink,
+  sendOnboardingLinkViaWebhook,
   getPublicProfile,
   updatePublicProfile,
 } from "../controllers/clientProfile.controller.js";
@@ -28,6 +29,10 @@ router.use(verifyJWT);
 // CRM route to generate the link
 router.route("/:id/generate-link")
   .post(generateOnboardingLink);
+
+// CRM route to send the onboarding link via n8n webhook
+router.route("/:id/send-onboarding")
+  .post(sendOnboardingLinkViaWebhook);
 
 
 router.route("/")

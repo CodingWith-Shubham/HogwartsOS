@@ -45,7 +45,9 @@ const getShoots = asyncHandler(async (req, res) => {
     let shoots = await Shoot.find(filter).sort({ createdAt: -1 });
 
     const user = req.user;
-    if (user && user.role === 'shoot') {
+    if (user && (user.role === 'super_admin' || user.role === 'admin' || user.role === 'manager')) {
+        // Super admins, admins, and managers see all shoots, no filtering required.
+    } else if (user && user.role === 'shoot') {
         const uemail = user.email?.trim().toLowerCase();
         const uname = user.name?.trim().toLowerCase();
         
@@ -57,18 +59,6 @@ const getShoots = asyncHandler(async (req, res) => {
             return memberEmail === uemail || memberName === uname || assignedTo === uname || assignedTo === uemail;
         });
     } else if (user && user.role === 'sales') {
-        const uname = user.name?.trim().toLowerCase();
-        const uemail = user.email?.trim().toLowerCase();
-        const uusername = user.username?.trim().toLowerCase();
-        
-        const allowedLeads = await Client.find({});
-        const myLeadIds = new Set(allowedLeads.filter(lead => {
-            const assigned = (lead.assignedTo || '').trim().toLowerCase();
-            return assigned === uname || assigned === uemail || assigned === uusername;
-        }).map(l => l.leadId));
-        
-        shoots = shoots.filter(shoot => myLeadIds.has(shoot.leadId));
-    } else if (user && user.role === 'admin' && req.query.managerView !== 'true') {
         const uname = user.name?.trim().toLowerCase();
         const uemail = user.email?.trim().toLowerCase();
         const uusername = user.username?.trim().toLowerCase();

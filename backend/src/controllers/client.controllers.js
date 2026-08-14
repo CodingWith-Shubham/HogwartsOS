@@ -20,19 +20,14 @@ const getClients = asyncHandler(async (req, res) => {
 
     let filteredLeads = leads;
 
-    if (user && user.role === 'sales') {
+    if (user && (user.role === 'super_admin' || user.role === 'admin' || user.role === 'manager')) {
+        // Super admins, admins, and managers see all leads, no filtering required.
+        filteredLeads = leads;
+    } else if (user && user.role === 'sales') {
         const uname = user.name?.trim().toLowerCase();
         const uemail = user.email?.trim().toLowerCase();
         const uusername = user.username?.trim().toLowerCase();
 
-        filteredLeads = leads.filter(lead => {
-            const assigned = (lead.assignedTo || '').trim().toLowerCase();
-            return assigned === uname || assigned === uemail || assigned === uusername;
-        });
-    } else if (user && user.role === 'admin' && req.query.managerView !== 'true') {
-        const uname = user.name?.trim().toLowerCase();
-        const uemail = user.email?.trim().toLowerCase();
-        const uusername = user.username?.trim().toLowerCase();
         filteredLeads = leads.filter(lead => {
             const assigned = (lead.assignedTo || '').trim().toLowerCase();
             return assigned === uname || assigned === uemail || assigned === uusername;

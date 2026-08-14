@@ -81,6 +81,7 @@ export function filterSalesLeads<T extends Lead>(
     (lead) =>
       lead.assignedTo === userName ||
       userRole === 'manager' ||
+      userRole === 'super_admin' ||
       userRole === 'sales' ||
       userRole === 'admin'
   );

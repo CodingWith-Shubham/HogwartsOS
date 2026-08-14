@@ -1169,8 +1169,13 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         return (
           <div className="flex flex-col gap-2">
             {(status === 'pending' || status === 'price_set') && (
-              <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setAddonShoot(shoot); setAddonPriceOpen(true); }}>
-                Set Addon Price
+              <Button 
+                size="sm" 
+                variant="outline" 
+                disabled={status === 'price_set'}
+                onClick={(e) => { e.stopPropagation(); setAddonShoot(shoot); setAddonPriceOpen(true); }}
+              >
+                {status === 'price_set' ? 'Addon Price Set' : 'Set Addon Price'}
               </Button>
             )}
             {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (

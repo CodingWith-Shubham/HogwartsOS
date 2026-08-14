@@ -158,6 +158,53 @@ const updateTask = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Editing task or project not found");
     }
 
+    // Notifications for manual updates
+    if (updateData.status === 'Draft Ready') {
+        sendPushNotification({ roles: ['manager', 'admin'] }, {
+            title: 'Draft ready for review',
+            message: `${task.clientName} is ready for manager review.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+    if (updateData.status === 'Revision Requested') {
+        if (task.assignedToEmail || task.editorEmail) {
+            const email = task.assignedToEmail || task.editorEmail;
+            const editorUser = await User.findOne({ email });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'Revision requested',
+                    message: `${task.clientName} needs your changes.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
+    }
+    if (updateData.status === 'Extra Revision Approved') {
+        if (task.assignedToEmail || task.editorEmail) {
+            const email = task.assignedToEmail || task.editorEmail;
+            const editorUser = await User.findOne({ email });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'Extra revision approved',
+                    message: `An extra revision for ${task.clientName} has been approved.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
+    }
+    const newAssignedToEmail = updateData.assignedToEmail || updateData.editorEmail;
+    const oldAssignedToEmail = task.assignedToEmail || task.editorEmail;
+    if (newAssignedToEmail && newAssignedToEmail !== oldAssignedToEmail) {
+        const editorUser = await User.findOne({ email: newAssignedToEmail });
+        if (editorUser) {
+            sendPushNotification({ userIds: [editorUser._id] }, {
+                title: 'New editing task assigned',
+                message: `You have been reassigned to edit ${task.clientName}.`,
+                href: '/editor'
+            }).catch(console.error);
+        }
+    }
+
     // If a task is marked as Completed, check if all sibling tasks are Completed
     if (updateData.status === 'Completed' && task.editId && task.taskId) {
         const siblingTasks = await EditingTask.find({ editId: task.editId });

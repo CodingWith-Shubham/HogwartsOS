@@ -1,5 +1,20 @@
 'use client';
 
+function urlB64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Loader2, Settings2 } from 'lucide-react';
@@ -55,8 +70,30 @@ export function NotificationBell() {
   };
   const enableDeviceAlerts = async () => {
     if (!('Notification' in window)) return;
-    await Notification.requestPermission();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        const response = await fetch('/api/notifications/vapidPublicKey');
+        const { publicKey } = await response.json();
+        
+        const applicationServerKey = urlB64ToUint8Array(publicKey);
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey
+        });
+        
+        await fetch('/api/notifications/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription })
+        });
+      } catch (error) {
+        console.error('Error enabling push notifications:', error);
+      }
+    }
   };
 
   return <Popover onOpenChange={(open) => { if (open && unread.length) markAllRead(); }}>

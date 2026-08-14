@@ -5,6 +5,7 @@ import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { sendPushNotification } from "../services/notification.service.js";
 
 const parseBoolean = (value, defaultValue = false) => {
     if (typeof value === "boolean") return value;
@@ -162,6 +163,16 @@ const updateShoot = asyncHandler(async (req, res) => {
 
     if (!updated) {
         throw new ApiError(404, "Shoot not found");
+    }
+
+    // Notifications
+    if (updates.driveLinkUploaded === true && (!existingShoot || existingShoot.driveLinkUploaded !== true)) {
+        // Shoot footage uploaded, pending assigning the editor
+        sendPushNotification({ roles: ['manager', 'admin'] }, {
+            title: 'Shoot footage uploaded',
+            message: `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
+            href: '/manager'
+        }).catch(console.error);
     }
 
     // Automatically log Addon payment as a MongoDB Payment document

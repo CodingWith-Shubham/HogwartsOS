@@ -5,6 +5,7 @@ import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { sendPushNotification } from "../services/notification.service.js";
 
 // --- Editing-only bypass ---
 // Leads pitched "Only editing" skip the shoot flow entirely. Once their payment
@@ -210,6 +211,11 @@ const verifyPayment = asyncHandler(async (req, res) => {
     let clientStatus;
     if (newPaymentStatus === "Screenshot Received" || newPaymentStatus === "Screenshot Uploaded") {
         clientStatus = "Payment Under Review";
+        sendPushNotification({ roles: ['manager', 'sales', 'admin'] }, {
+            title: 'Payment needs verification',
+            message: `A payment screenshot has been uploaded.`,
+            href: '/manager'
+        }).catch(console.error);
     } else if (newPaymentStatus === "Payment Verified") {
         clientStatus = payment.paymentCompleted ? "Payment Completed" : "Payment Verified";
     } else if (body.paymentCompleted || payment.paymentCompleted) {

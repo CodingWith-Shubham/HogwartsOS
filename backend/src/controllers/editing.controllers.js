@@ -7,6 +7,7 @@ import { Client } from "../models/client.models.js";
 import { User } from "../models/user.models.js";
 import { Payment } from "../models/payment.models.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { sendPushNotification } from "../services/notification.service.js";
 
 const getEditingData = asyncHandler(async (req, res) => {
     const taskFilter = {};
@@ -267,6 +268,18 @@ const assignTasks = asyncHandler(async (req, res) => {
             assignedAt: new Date().toISOString()
         });
         createdTasks.push(newTask);
+        
+        // Notify Editor about assignment
+        if (newTask.assignedToEmail) {
+            const editorUser = await User.findOne({ email: newTask.assignedToEmail });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'New editing task assigned',
+                    message: `You have been assigned to edit ${newTask.clientName}.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
     }
 
     return res.status(201).json(new ApiResponse(201, { tasks: createdTasks }, "Tasks assigned successfully"));
@@ -373,6 +386,27 @@ const updateProject = asyncHandler(async (req, res) => {
         );
     }
     if (!project) throw new ApiError(404, "Project or Task not found");
+
+    // Notifications
+    if (updates.status === 'Draft Ready') {
+        sendPushNotification({ roles: ['manager', 'admin'] }, {
+            title: 'Draft ready for review',
+            message: `${project.clientName} is ready for manager review.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+    if (updates.status === 'Revision Requested') {
+        if (project.assignedToEmail) {
+            const editorUser = await User.findOne({ email: project.assignedToEmail });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'Revision requested',
+                    message: `${project.clientName} needs your changes.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
+    }
 
     // Automatically log Addon payment as a MongoDB Payment document
     const isVerifyingAddon = updates.addonPaymentStatus && updates.addonPaymentStatus.toLowerCase() === "verified";
@@ -519,6 +553,49 @@ const updateTaskById = asyncHandler(async (req, res) => {
 
     if (updates.managerComment === undefined) {
         delete updates.managerComment;
+    }
+
+    // Notifications for manual updates
+    if (updates.status === 'Draft Ready') {
+        sendPushNotification({ roles: ['manager', 'admin'] }, {
+            title: 'Draft ready for review',
+            message: `${task.clientName} is ready for manager review.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+    if (updates.status === 'Revision Requested') {
+        if (task.assignedToEmail) {
+            const editorUser = await User.findOne({ email: task.assignedToEmail });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'Revision requested',
+                    message: `${task.clientName} needs your changes.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
+    }
+    if (updates.assignedToEmail && updates.assignedToEmail !== task.assignedToEmail) {
+        const editorUser = await User.findOne({ email: updates.assignedToEmail });
+        if (editorUser) {
+            sendPushNotification({ userIds: [editorUser._id] }, {
+                title: 'New editing task assigned',
+                message: `You have been reassigned to edit ${task.clientName}.`,
+                href: '/editor'
+            }).catch(console.error);
+        }
+    }
+    if (updates.status === 'Extra Revision Approved') {
+        if (task.assignedToEmail) {
+            const editorUser = await User.findOne({ email: task.assignedToEmail });
+            if (editorUser) {
+                sendPushNotification({ userIds: [editorUser._id] }, {
+                    title: 'Extra revision approved',
+                    message: `An extra revision for ${task.clientName} has been approved.`,
+                    href: '/editor'
+                }).catch(console.error);
+            }
+        }
     }
 
     // TAT Reminder: Auto-set timestamps on status transitions

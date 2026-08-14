@@ -67,6 +67,27 @@ function formatDeadline(value: string) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(date);
 }
 
+function parseFeedbackText(text: string) {
+  if (!text) return { mainText: '', extras: '' };
+  const markers = ['Video References:', 'Attachment Links:'];
+  let minIndex = -1;
+  for (const marker of markers) {
+    const idx = text.indexOf(marker);
+    if (idx !== -1 && (minIndex === -1 || idx < minIndex)) {
+      minIndex = idx;
+    }
+  }
+  
+  if (minIndex !== -1) {
+    return {
+      mainText: text.substring(0, minIndex).trim(),
+      extras: text.substring(minIndex).trim()
+    };
+  }
+  
+  return { mainText: text.trim(), extras: '' };
+}
+
 export default function EditorPage() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<EditingTask[]>([]);
@@ -82,7 +103,7 @@ export default function EditorPage() {
   // segregation state: track which pending revisions are being acted on
   const [segregating, setSegregating] = useState<Record<string, 'correction' | 'revision' | null>>({});
   // split feedback state
-  const [splitState, setSplitState] = useState<Record<string, { isOpen: boolean, text: string, saving?: boolean }>>({});
+  const [splitState, setSplitState] = useState<Record<string, { isOpen: boolean, items: string[], extras: string, saving?: boolean }>>({});
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.email) return;
@@ -225,22 +246,25 @@ export default function EditorPage() {
   };
 
   const handleSplit = async (revisionId: string) => {
-    const text = splitState[revisionId]?.text;
-    if (!text?.trim()) return;
+    const state = splitState[revisionId];
+    if (!state) return;
     
-    // Split by lines
-    const items = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    if (items.length <= 1) {
-      toast.error('Please enter at least two lines to split the feedback');
+    const validItems = state.items.map(l => l.trim()).filter(l => l.length > 0);
+    if (validItems.length <= 1) {
+      toast.error('Please enter at least two parts to split the feedback');
       return;
     }
+
+    const itemsWithExtras = validItems.map(item => {
+      return state.extras ? `${item}\n\n${state.extras}` : item;
+    });
 
     setSplitState(prev => ({ ...prev, [revisionId]: { ...prev[revisionId], saving: true } }));
     try {
       const response = await authFetch(`/api/editing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'split', revisionId, items })
+        body: JSON.stringify({ action: 'split', revisionId, items: itemsWithExtras })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to split feedback');
@@ -341,10 +365,20 @@ export default function EditorPage() {
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => {
-                          setSplitState(prev => ({
-                            ...prev, 
-                            [rev._id]: { isOpen: !isSplitOpen, text: rev.feedback || '' }
-                          }));
+                          setSplitState(prev => {
+                            const isCurrentlyOpen = prev[rev._id]?.isOpen;
+                            if (isCurrentlyOpen) {
+                              const next = { ...prev };
+                              delete next[rev._id];
+                              return next;
+                            } else {
+                              const { mainText, extras } = parseFeedbackText(rev.feedback || '');
+                              return {
+                                ...prev, 
+                                [rev._id]: { isOpen: true, items: [mainText], extras }
+                              };
+                            }
+                          });
                         }}
                         className="text-[10px] font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1"
                       >
@@ -361,21 +395,98 @@ export default function EditorPage() {
 
                   {isSplitOpen ? (
                     <div className="p-3 bg-card border-b border-border/60">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Edit the text below to split into multiple items. Put each item on a <strong className="text-foreground">new line</strong>.
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Divide the feedback into multiple items below. Use the <strong>Add Split</strong> button to create more boxes.
                       </p>
-                      <Textarea
-                        value={splitState[rev._id]?.text || ''}
-                        onChange={(e) => setSplitState(prev => ({ ...prev, [rev._id]: { ...prev[rev._id], text: e.target.value } }))}
-                        className="text-sm min-h-[120px] resize-none"
-                        placeholder="Item 1...&#10;Item 2..."
-                      />
-                      <div className="flex justify-end mt-2">
+                      
+                      <div className="space-y-3">
+                        {splitState[rev._id]?.items.map((item, idx) => (
+                          <div key={idx} className="relative">
+                            <div className="absolute -left-3 top-2 bottom-2 w-1 bg-blue-500/20 rounded-r-md"></div>
+                            <div className="flex gap-2">
+                              <Textarea
+                                value={item}
+                                onChange={(e) => {
+                                  setSplitState(prev => {
+                                    const nextItems = [...(prev[rev._id]?.items || [])];
+                                    nextItems[idx] = e.target.value;
+                                    return { ...prev, [rev._id]: { ...prev[rev._id], items: nextItems } };
+                                  });
+                                }}
+                                className="text-sm min-h-[80px] resize-none"
+                                placeholder={`Feedback Part ${idx + 1}...`}
+                              />
+                              {splitState[rev._id]?.items.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="shrink-0 h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                                  onClick={() => {
+                                    setSplitState(prev => {
+                                      const nextItems = [...(prev[rev._id]?.items || [])];
+                                      nextItems.splice(idx, 1);
+                                      return { ...prev, [rev._id]: { ...prev[rev._id], items: nextItems } };
+                                    });
+                                  }}
+                                >
+                                  <XSquare className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-dashed text-xs h-8"
+                          onClick={() => {
+                            setSplitState(prev => {
+                              const nextItems = [...(prev[rev._id]?.items || []), ''];
+                              return { ...prev, [rev._id]: { ...prev[rev._id], items: nextItems } };
+                            });
+                          }}
+                        >
+                          + Add Split
+                        </Button>
+                      </div>
+
+                      {splitState[rev._id]?.extras && (
+                        <div className="mt-4 p-3 bg-muted/50 rounded-md border border-border/50">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Preserved Links</p>
+                          <div className="text-xs text-muted-foreground whitespace-pre-wrap">
+                            {splitState[rev._id].extras.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
+                              part.match(/^https?:\/\//)
+                                ? <a key={i} href={part} target="_blank" rel="noreferrer"
+                                    className="text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all">{part}</a>
+                                : part
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end mt-4 gap-2">
                         <Button
                           size="sm"
-                          disabled={splitState[rev._id]?.saving || !splitState[rev._id]?.text.includes('\n')}
+                          variant="ghost"
+                          onClick={() => {
+                            setSplitState(prev => {
+                              const next = { ...prev };
+                              delete next[rev._id];
+                              return next;
+                            });
+                          }}
+                          className="h-8 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={splitState[rev._id]?.saving || (splitState[rev._id]?.items.filter(i => i.trim()).length || 0) <= 1}
                           onClick={() => handleSplit(rev._id)}
-                          className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                          className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           {splitState[rev._id]?.saving ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Scissors className="w-3 h-3 mr-1.5" />}
                           Confirm Split
@@ -546,31 +657,31 @@ export default function EditorPage() {
         )}
 
         {task.revisions && task.revisions.filter((r: any) => r.segregationType !== 'pending').length > 0 && (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3 mt-4">
             {task.revisions.filter((r: any) => r.segregationType !== 'pending').map((rev: any, index: number) => (
-              <details key={rev._id || index} className="rounded-md border border-gray-200 bg-white dark:bg-card dark:border-border p-3 text-sm transition-all"
+              <details key={rev._id || index} className="rounded-lg border border-blue-500/20 bg-blue-500/5 overflow-hidden transition-all group"
                 open={['In Revision', 'In Progress', 'Extra Revision Approved', 'Correction Requested'].includes(task.status) && parseInt(task.revision_count || '0') > 0 && index === 0}>
-                <summary className="cursor-pointer font-bold flex items-center select-none">
-                  <span className="mr-2">
+                <summary className="cursor-pointer px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/15 font-semibold text-sm flex items-center select-none border-b border-blue-500/10 group-open:border-blue-500/20">
+                  <span className="mr-2 text-blue-400">
                     {rev.segregationType === 'correction' ? '🔧' : rev.segregationType === 'revision' ? '🔄' : '📝'}
                   </span>
-                  Client Feedback (Round {rev.revisionRound})
+                  <span className="text-foreground/90">Client Feedback (Round {rev.revisionRound})</span>
                   {rev.segregationType && rev.segregationType !== 'pending' && (
-                    <Badge className={cn('ml-2 text-[10px] uppercase', rev.segregationType === 'correction'
-                      ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400'
-                      : 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400')}>
+                    <Badge className={cn('ml-auto text-[10px] uppercase shadow-sm', rev.segregationType === 'correction'
+                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20')}>
                       {rev.segregationType}
                     </Badge>
                   )}
                 </summary>
-                <div className="mt-3 space-y-2 whitespace-pre-wrap leading-relaxed border-t border-gray-200 dark:border-border pt-3 font-medium">
+                <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90 border-l-2 border-blue-500 ml-4 my-2">
                   {rev.feedback
                     ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
                         part.match(/^https?:\/\//)
-                          ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-600 font-semibold hover:underline break-all">{part}</a>
+                          ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-400 font-semibold hover:text-blue-300 hover:underline break-all underline-offset-2">{part}</a>
                           : part
                       )
-                    : 'No feedback text provided.'}
+                    : <span className="italic text-muted-foreground text-xs">No feedback text provided.</span>}
                 </div>
               </details>
             ))}

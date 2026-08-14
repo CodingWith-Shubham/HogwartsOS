@@ -53,6 +53,7 @@ import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, p
 import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
 import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
+import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
 import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
 
@@ -69,6 +70,7 @@ const FILTER_TABS: { value: LeadFilterTab; label: string }[] = [
   { value: 'revoked', label: 'Revoked' },
   { value: 'accepted', label: 'Accepted' },
   { value: 'upsells', label: 'Upsells' },
+  { value: 'addons_payments', label: 'Addons Payments' },
 ];
 
 interface SalesDashboardProps {
@@ -297,6 +299,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [paymentHistory, setPaymentHistory] = useState<Record<string, PaymentInstallment[]>>({});
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
 
+  const [addonPriceOpen, setAddonPriceOpen] = useState(false);
+  const [addonShoot, setAddonShoot] = useState<Shoot | null>(null);
+  const [verifyingAddonId, setVerifyingAddonId] = useState<string | null>(null);
+
   const refreshLeads = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
     try {
@@ -464,6 +470,14 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         return salesLeads;
     }
   }, [salesLeads, filterTab]);
+
+  const shootsWithAddons = useMemo(() => {
+    const leadIds = new Set(salesLeads.map((lead) => lead.leadId));
+    return shoots.filter((shoot) => {
+      const hasAddons = String(shoot.addonHasAddons).toLowerCase() === 'true' || String(shoot.addonHasAddons).toLowerCase() === 'yes';
+      return leadIds.has(shoot.leadId) && hasAddons;
+    });
+  }, [shoots, salesLeads]);
 
   const paymentSummary = (lead: Lead) => {
     const payments = paymentHistory[lead.leadId] ?? [];
@@ -1097,6 +1111,100 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     },
   ];
 
+  const addonColumns: Column<Shoot>[] = [
+    {
+      key: 'client',
+      header: 'Client / Shoot',
+      sortable: true,
+      sortValue: (shoot) => shoot.clientName,
+      cell: (shoot) => (
+        <div>
+          <p className="font-medium">{shoot.clientName}</p>
+          <p className="text-xs text-muted-foreground">{shoot.shootDate}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'details',
+      header: 'Addon Details',
+      cell: (shoot) => (
+        <div className="text-xs space-y-0.5">
+          {shoot.extraCamera && shoot.extraCamera !== '0' && <p>Extra Camera: {shoot.extraCamera}</p>}
+          {shoot.extraTeleprompter && shoot.extraTeleprompter !== '0' && <p>Teleprompter: {shoot.extraTeleprompter}</p>}
+          {shoot.extraDurationHours && shoot.extraDurationHours !== '0' && <p>Extra Hrs: {shoot.extraDurationHours}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (shoot) => {
+        const status = (shoot.addonPaymentStatus || 'pending').toLowerCase();
+        let badgeVariant: 'default' | 'outline' | 'secondary' = 'outline';
+        let label = 'Pending Price';
+        if (status === 'price_set') { badgeVariant = 'secondary'; label = 'Price Set'; }
+        if (status === 'screenshot_received') { badgeVariant = 'default'; label = 'Screenshot Uploaded'; }
+        if (status === 'verified') { badgeVariant = 'default'; label = 'Verified'; }
+
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge variant={badgeVariant}>{label}</Badge>
+            {shoot.additionalCost && shoot.additionalCost !== '0' && (
+              <span className="text-xs font-medium tabular-nums">{formatINR(Number(shoot.additionalCost))}</span>
+            )}
+            {shoot.addonScreenshot && (
+              <a href={shoot.addonScreenshot} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] text-blue-500 hover:underline inline-flex items-center">
+                <ExternalLink className="h-3 w-3 mr-0.5" /> View SS
+              </a>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (shoot) => {
+        const status = (shoot.addonPaymentStatus || 'pending').toLowerCase();
+        return (
+          <div className="flex flex-col gap-2">
+            {(status === 'pending' || status === 'price_set') && (
+              <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setAddonShoot(shoot); setAddonPriceOpen(true); }}>
+                Set Addon Price
+              </Button>
+            )}
+            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
+              <Button size="sm" variant="outline" className="border-green-500/40 text-green-600 hover:bg-green-500/10 text-xs h-8"
+                disabled={verifyingAddonId === shoot.shootId}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setVerifyingAddonId(shoot.shootId);
+                  try {
+                    const res = await authFetch(`/api/shoots`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ shootId: shoot.shootId, addonPaymentStatus: 'verified', verified_by: user.name, verified_at: new Date().toISOString() })
+                    });
+                    if (!res.ok) throw new Error('Failed to verify addon');
+                    toast.success('Addon verified!');
+                    await refreshShoots(true);
+                  } catch (error) {
+                    toast.error('Failed to verify addon');
+                  } finally {
+                    setVerifyingAddonId(null);
+                  }
+                }}
+              >
+                {verifyingAddonId === shoot.shootId ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                Verify Addon
+              </Button>
+            )}
+          </div>
+        );
+      }
+    }
+  ];
+
   const totalLeads = salesLeads.length;
   const proposalsSent = salesLeads.filter(
     (lead) => lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true'
@@ -1177,13 +1285,22 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             </Button>
           </div>
 
-          <DataTable
-            data={filteredLeads}
-            columns={columns}
-            searchKeys={['searchText']}
-            searchPlaceholder="Search by client name or phone..."
-            onRowClick={setPaymentHistoryLead}
-          />
+          {filterTab === 'addons_payments' ? (
+            <DataTable
+              data={shootsWithAddons}
+              columns={addonColumns}
+              searchKeys={['clientName']}
+              searchPlaceholder="Search by client name..."
+            />
+          ) : (
+            <DataTable
+              data={filteredLeads}
+              columns={columns}
+              searchKeys={['searchText']}
+              searchPlaceholder="Search by client name or phone..."
+              onRowClick={setPaymentHistoryLead}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="pipeline" className="mt-4">
@@ -1302,6 +1419,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         onSuccess={async () => {
           await refreshLeads(true);
           await refreshPaymentHistory(true);
+        }}
+      />
+
+      <SetAddonPriceDialog
+        open={addonPriceOpen}
+        onOpenChange={setAddonPriceOpen}
+        shoot={addonShoot}
+        onSuccess={async () => {
+          await refreshShoots(true);
         }}
       />
 

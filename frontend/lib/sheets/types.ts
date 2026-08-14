@@ -91,7 +91,7 @@ export interface Lead {
   deliverableSets?: any[];
 }
 
-export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells';
+export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells' | 'addons_payments';
 
 export interface Shoot {
   id: string;
@@ -126,6 +126,12 @@ export interface Shoot {
   editedByShootTeam: string | boolean;
   searchText: string;
   deliverableSetIndex?: number;
+  addonHasAddons?: string | boolean;
+  addonPaymentStatus?: string;
+  addonScreenshot?: string;
+  addonUtr?: string;
+  addonVerifiedBy?: string;
+  addonVerifiedAt?: string;
 }
 
 export interface EditingProject {

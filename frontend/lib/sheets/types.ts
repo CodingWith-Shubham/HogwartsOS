@@ -170,6 +170,8 @@ export interface EditingProject {
   finalDelivered: boolean;
   revisionFeedback?: string;
   editorComment?: string;
+  addonPaymentStatus?: string;
+  addonScreenshot?: string;
   searchText: string;
 }
 

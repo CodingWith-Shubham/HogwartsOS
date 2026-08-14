@@ -60,6 +60,8 @@ const editProjectSchema = new Schema({
     finalDelivered: { type: Boolean, default: false },
     reelEdit: { type: String, default: "0" },
     managerComment: { type: String, default: "" },
+    addonPaymentStatus: { type: String, default: "" },
+    addonScreenshot: { type: String, default: "" },
 
     // TAT Reminder tracking timestamps
     dataLinkSharedAt: { type: String, default: "" },

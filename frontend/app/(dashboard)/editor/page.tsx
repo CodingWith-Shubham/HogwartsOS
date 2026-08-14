@@ -331,10 +331,10 @@ export default function EditorPage() {
             <div className="flex items-center gap-2 px-4 py-2.5">
               <RotateCcw className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <div className="flex-1">
-                <diclass className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                   <p className="text-[10px] text-muted-foreground leading-none">Revisions</p>
                   <p className="text-sm font-bold text-foreground leading-tight">{revUsed}<span className="text-xs font-normal text-muted-foreground">/{revMax}</span></p>
-                </diclass>
+                </div>
                 <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
                   <div
                     className={cn('h-full rounded-full transition-all', revPct >= 100 ? 'bg-red-500' : revPct >= 75 ? 'bg-orange-400' : 'bg-blue-500')}

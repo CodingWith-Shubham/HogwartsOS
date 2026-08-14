@@ -5,6 +5,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { Client } from "../models/client.models.js";
 import { User } from "../models/user.models.js";
+import { Payment } from "../models/payment.models.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getEditingData = asyncHandler(async (req, res) => {
@@ -360,6 +361,39 @@ const updateProject = asyncHandler(async (req, res) => {
         );
     }
     if (!project) throw new ApiError(404, "Project or Task not found");
+
+    // Automatically log Addon payment as a MongoDB Payment document
+    const isVerifyingAddon = updates.addonPaymentStatus && updates.addonPaymentStatus.toLowerCase() === "verified";
+    const wasAlreadyVerified = projectToUpdate && projectToUpdate.addonPaymentStatus && projectToUpdate.addonPaymentStatus.toLowerCase() === "verified";
+    
+    if (isVerifyingAddon && !wasAlreadyVerified) {
+        const paymentAmount = Number(project.extraRevisionCost || 0);
+        
+        // Calculate amountPaidSoFar by summing up existing payments
+        const previousPayments = await Payment.find({ leadId: project.leadId });
+        const previousAmount = previousPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        await Payment.create({
+            paymentId: `PAY_${Date.now()}_REV_ADDON`,
+            leadId: project.leadId,
+            clientName: project.clientName,
+            amount: paymentAmount,
+            paymentLinkSent: false,
+            paymentStatus: "Payment Verified",
+            verifiedBy: updates.verified_by || "System",
+            verifiedAt: updates.verified_at || new Date().toISOString(),
+            totalCost: paymentAmount,
+            remainingAmount: 0,
+            paymentCompleted: true,
+            installmentNumber: "Revision Addon",
+            installmentLabel: "Revision Addon",
+            paymentMode: "Online",
+            screenshotUrl: project.addonScreenshot || "",
+            utrNumber: "Not provided",
+            amountPaidSoFar: previousAmount + paymentAmount
+        });
+    }
+
     return res.status(200).json(new ApiResponse(200, { project }, "Project updated"));
 });
 

@@ -54,6 +54,7 @@ import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
 import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
 import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
+import { SetRevisionPriceDialog } from '@/components/sales/SetRevisionPriceDialog';
 import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
 
@@ -303,6 +304,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [addonShoot, setAddonShoot] = useState<Shoot | null>(null);
   const [verifyingAddonId, setVerifyingAddonId] = useState<string | null>(null);
 
+  const [revisionPriceOpen, setRevisionPriceOpen] = useState(false);
+  const [revisionAddon, setRevisionAddon] = useState<EditingProject | null>(null);
+  const [verifyingRevisionId, setVerifyingRevisionId] = useState<string | null>(null);
+
   const refreshLeads = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
     try {
@@ -478,6 +483,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       return leadIds.has(shoot.leadId) && hasAddons;
     });
   }, [shoots, salesLeads]);
+
+  const revisionWithAddons = useMemo(() => {
+    return visibleEditing.filter((edit) => edit.extraRevisionApproved);
+  }, [visibleEditing]);
 
   const paymentSummary = (lead: Lead) => {
     const payments = paymentHistory[lead.leadId] ?? [];
@@ -1210,6 +1219,99 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
   ];
 
+  const revisionAddonColumns: Column<EditingProject>[] = [
+    {
+      key: 'client',
+      header: 'Client Info',
+      cell: (edit) => (
+        <div>
+          <p className="font-medium">{edit.clientName}</p>
+          <p className="text-xs text-muted-foreground">{edit.serviceType}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'details',
+      header: 'Revision Details',
+      cell: (edit) => (
+        <div className="text-xs space-y-0.5">
+          <p>Revisions: {edit.revisionCount} / {edit.maxFreeRevisions || 2}</p>
+          {edit.extraRevisionCost && edit.extraRevisionCost !== '0' && <p>Cost: {formatINR(Number(edit.extraRevisionCost))}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (edit) => {
+        const status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        let badgeVariant: 'default' | 'outline' | 'secondary' = 'outline';
+        let label = 'Pending Price';
+        if (status === 'price_set') { badgeVariant = 'secondary'; label = 'Link Sent'; }
+        if (status === 'screenshot_received') { badgeVariant = 'default'; label = 'Screenshot Uploaded'; }
+        if (status === 'verified') { badgeVariant = 'default'; label = 'Verified'; }
+
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge variant={badgeVariant}>{label}</Badge>
+            {edit.addonScreenshot && (
+              <a href={edit.addonScreenshot} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] text-blue-500 hover:underline inline-flex items-center">
+                <ExternalLink className="h-3 w-3 mr-0.5" /> View SS
+              </a>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (edit) => {
+        const status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        return (
+          <div className="flex flex-col gap-2">
+            {(status === 'pending' || status === 'price_set') && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                disabled={status === 'price_set'}
+                onClick={(e) => { e.stopPropagation(); setRevisionAddon(edit); setRevisionPriceOpen(true); }}
+              >
+                {status === 'price_set' ? 'Link Sent' : 'Send Payment Link'}
+              </Button>
+            )}
+            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
+              <Button size="sm" variant="outline" className="border-green-500/40 text-green-600 hover:bg-green-500/10 text-xs h-8"
+                disabled={verifyingRevisionId === edit.editId}
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setVerifyingRevisionId(edit.editId);
+                  try {
+                    const res = await authFetch(`/api/editing/projects/${edit.editId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ addonPaymentStatus: 'verified', verified_by: user.name, verified_at: new Date().toISOString() })
+                    });
+                    if (!res.ok) throw new Error('Failed to verify revision payment');
+                    toast.success('Revision payment verified!');
+                    await refreshEditing(true);
+                  } catch (error) {
+                    toast.error('Failed to verify revision payment');
+                  } finally {
+                    setVerifyingRevisionId(null);
+                  }
+                }}
+              >
+                {verifyingRevisionId === edit.editId ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                Verify Payment
+              </Button>
+            )}
+          </div>
+        );
+      }
+    }
+  ];
+
   const totalLeads = salesLeads.length;
   const proposalsSent = salesLeads.filter(
     (lead) => lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true'
@@ -1291,12 +1393,26 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           </div>
 
           {filterTab === 'addons_payments' ? (
-            <DataTable
-              data={shootsWithAddons}
-              columns={addonColumns}
-              searchKeys={['clientName']}
-              searchPlaceholder="Search by client name..."
-            />
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-lg font-medium mb-3">Shoot Addons</h3>
+                <DataTable
+                  data={shootsWithAddons}
+                  columns={addonColumns}
+                  searchKeys={['clientName']}
+                  searchPlaceholder="Search shoot addons..."
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium mb-3">Revision Addons</h3>
+                <DataTable
+                  data={revisionWithAddons}
+                  columns={revisionAddonColumns}
+                  searchKeys={['clientName']}
+                  searchPlaceholder="Search revision addons..."
+                />
+              </div>
+            </div>
           ) : (
             <DataTable
               data={filteredLeads}
@@ -1433,6 +1549,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         shoot={addonShoot}
         onSuccess={async () => {
           await refreshShoots(true);
+        }}
+      />
+
+      <SetRevisionPriceDialog
+        open={revisionPriceOpen}
+        onOpenChange={setRevisionPriceOpen}
+        project={revisionAddon}
+        onSuccess={async () => {
+          await refreshEditing(true);
         }}
       />
 

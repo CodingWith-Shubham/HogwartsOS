@@ -186,6 +186,44 @@ const updateTask = asyncHandler(async (req, res) => {
         }
     }
 
+    // Auto-create Payment log if verified
+    if (updateData.addonPaymentStatus === 'verified' && task.extraRevisionCost && task.extraRevisionCost !== "0") {
+        const { Payment } = await import("../models/payment.models.js");
+        const { Lead } = await import("../models/lead.models.js");
+        
+        // Find existing payment for this revision addon to avoid duplicates
+        const existingPayment = await Payment.findOne({
+            leadId: task.leadId,
+            description: `Revision Addon: ${task.clientName}`
+        });
+
+        if (!existingPayment) {
+            const costNum = Number(task.extraRevisionCost);
+            await Payment.create({
+                amount: costNum,
+                leadId: task.leadId,
+                clientName: task.clientName,
+                paymentMode: "Bank Transfer",
+                date: new Date().toISOString(),
+                status: "verified",
+                description: `Revision Addon: ${task.clientName}`,
+                verifiedBy: updateData.addonVerifiedBy || req.user?.name || "Sales",
+                screenshot: task.addonScreenshot || "",
+                utr: task.addonUtr || ""
+            });
+
+            // Update collected amount on Lead
+            const lead = await Lead.findOne({ leadId: task.leadId });
+            if (lead) {
+                const currentCollected = Number(lead.collectedAmount) || 0;
+                await Lead.findOneAndUpdate(
+                    { leadId: task.leadId },
+                    { $set: { collectedAmount: (currentCollected + costNum).toString() } }
+                );
+            }
+        }
+    }
+
     return res.status(200).json(new ApiResponse(200, { task }, "Task updated successfully"));
 });
 

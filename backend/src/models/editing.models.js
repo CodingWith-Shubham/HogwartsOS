@@ -62,6 +62,9 @@ const editProjectSchema = new Schema({
     managerComment: { type: String, default: "" },
     addonPaymentStatus: { type: String, default: "" },
     addonScreenshot: { type: String, default: "" },
+    addonUtr: { type: String, default: "" },
+    addonVerifiedBy: { type: String, default: "" },
+    addonVerifiedAt: { type: String, default: "" },
 
     // TAT Reminder tracking timestamps
     dataLinkSharedAt: { type: String, default: "" },
@@ -160,6 +163,15 @@ const editingTaskSchema = new Schema({
         type: Boolean,
         default: false
     },
+    extraRevisionCost: {
+        type: String,
+        default: "0"
+    },
+    addonPaymentStatus: { type: String, default: "" },
+    addonScreenshot: { type: String, default: "" },
+    addonUtr: { type: String, default: "" },
+    addonVerifiedBy: { type: String, default: "" },
+    addonVerifiedAt: { type: String, default: "" },
     assignedAt: {
         type: String,
         default: ""

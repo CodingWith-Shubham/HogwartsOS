@@ -667,6 +667,7 @@ export default function ManagerPage() {
           status: 'Extra Revision Approved',
           extraRevisionApproved: true,
           extraRevisionCost: cost,
+          addonPaymentStatus: cost > 0 ? 'price_set' : undefined,
           managerComment: extraFeedback[edit.editId] ?? ''
         })
       });
@@ -679,6 +680,7 @@ export default function ManagerPage() {
                 ...item,
                 status: 'Extra Revision Approved',
                 extraRevisionApproved: true,
+                addonPaymentStatus: cost > 0 ? 'price_set' : item.addonPaymentStatus,
                 revisionFeedback: extraFeedback[edit.editId] ?? item.revisionFeedback,
               }
             : item

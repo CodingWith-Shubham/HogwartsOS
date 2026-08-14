@@ -1287,10 +1287,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                   e.stopPropagation();
                   setVerifyingRevisionId(edit.editId);
                   try {
-                    const res = await authFetch(`/api/editing/projects/${edit.editId}`, {
+                    const res = await authFetch(`/api/editing`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ addonPaymentStatus: 'verified', verified_by: user.name, verified_at: new Date().toISOString() })
+                      body: JSON.stringify({ taskId: edit.editId, addonPaymentStatus: 'verified', addonVerifiedBy: user.name, addonVerifiedAt: new Date().toISOString() })
                     });
                     if (!res.ok) throw new Error('Failed to verify revision payment');
                     toast.success('Revision payment verified!');

@@ -445,6 +445,7 @@ export default function ManagerPage() {
       const parentEditIds = new Set(tasks.map((t: any) => t.editId));
       const projects = rawProjects.filter((p: any) => !parentEditIds.has(p.editId));
       const mappedTasks = tasks.map((t: any) => ({
+        ...t,
         editId: t.taskId || t._id || Math.random().toString(),
         shootId: t.shootId || t.shoot_id,
         clientName: t.clientName || t.client_name || '',
@@ -457,7 +458,11 @@ export default function ManagerPage() {
         maxFreeRevisions: t.maxFreeRevisions || 0,
         editorComment: t.editorComment || '',
       }));
-      setEditing([...projects, ...mappedTasks]);
+      const mappedProjects = projects.map((p: any) => ({
+        ...p,
+        editId: p.editId || p._id || Math.random().toString(),
+      }));
+      setEditing([...mappedProjects, ...mappedTasks]);
     }
   };
 

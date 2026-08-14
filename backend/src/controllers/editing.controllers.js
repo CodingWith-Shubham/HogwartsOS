@@ -378,8 +378,10 @@ const updateProject = asyncHandler(async (req, res) => {
 
     // Automatically enforce Revision Requested status if exceeding free revisions
     if (updates.revisionCount !== undefined && updates.revisionCount > (projectToUpdate.maxFreeRevisions || 2)) {
-        updates.status = 'Revision Requested';
-        updates.extraRevisionApproved = false; // Reset approval
+        if (updates.revisionCount > (projectToUpdate.revisionCount || 0)) {
+            updates.status = 'Revision Requested';
+            updates.extraRevisionApproved = false; // Reset approval ONLY if a new revision was actually added
+        }
     }
 
     if (updates.managerComment === undefined) {

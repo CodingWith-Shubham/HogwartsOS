@@ -353,7 +353,27 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to refresh editing rows');
       }
-      setEditing(data.editing ?? []);
+      const rawProjects = data.editingProjects ?? data.editing ?? [];
+      const tasks = data.tasks ?? [];
+      const parentEditIds = new Set(tasks.map((t: any) => t.editId));
+      const projects = rawProjects.filter((p: any) => !parentEditIds.has(p.editId));
+      
+      const mappedTasks = tasks.map((t: any) => ({
+        ...t,
+        editId: t.taskId || t._id || Math.random().toString(),
+        shootId: t.shootId || t.shoot_id,
+        clientName: t.clientName || t.client_name || '',
+        editorName: t.assignedToName || t.editor_name || '',
+        serviceType: t.taskLabel || t.taskType || t.serviceType || t.task_type || '',
+        status: t.status || 'Assigned',
+      }));
+      
+      const mappedProjects = projects.map((p: any) => ({
+        ...p,
+        editId: p.editId || p._id || Math.random().toString(),
+      }));
+      
+      setEditing([...mappedProjects, ...mappedTasks]);
     } catch (error) {
       if (!silent) {
         toast.error('Failed to refresh editing rows', {
@@ -448,7 +468,8 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [leads, user?.name, user?.role]);
 
   const visibleEditing = useMemo(() => {
-    if (user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') return editing;
+    const role = user?.role?.toLowerCase();
+    if (role === 'manager' || role === 'admin' || role === 'super_admin') return editing;
     const leadIds = new Set(salesLeads.map((lead) => lead.leadId));
     return editing.filter((edit) => leadIds.has(edit.leadId));
   }, [editing, salesLeads, user?.role]);
@@ -477,16 +498,14 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [salesLeads, filterTab]);
 
   const shootsWithAddons = useMemo(() => {
-    const leadIds = new Set(salesLeads.map((lead) => lead.leadId));
     return shoots.filter((shoot) => {
-      const hasAddons = String(shoot.addonHasAddons).toLowerCase() === 'true' || String(shoot.addonHasAddons).toLowerCase() === 'yes';
-      return leadIds.has(shoot.leadId) && hasAddons;
+      return String(shoot.addonHasAddons).toLowerCase() === 'true' || String(shoot.addonHasAddons).toLowerCase() === 'yes';
     });
-  }, [shoots, salesLeads]);
+  }, [shoots]);
 
   const revisionWithAddons = useMemo(() => {
-    return visibleEditing.filter((edit) => edit.extraRevisionApproved);
-  }, [visibleEditing]);
+    return editing.filter((edit) => edit.extraRevisionApproved);
+  }, [editing]);
 
   const paymentSummary = (lead: Lead) => {
     const payments = paymentHistory[lead.leadId] ?? [];
@@ -1187,7 +1206,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 {status === 'price_set' ? 'Addon Price Set' : 'Set Addon Price'}
               </Button>
             )}
-            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
+            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes((user.role ?? '').toLowerCase()) && (
               <Button size="sm" variant="outline" className="border-green-500/40 text-green-600 hover:bg-green-500/10 text-xs h-8"
                 disabled={verifyingAddonId === shoot.shootId}
                 onClick={async (e) => {
@@ -1280,7 +1299,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 {status === 'price_set' ? 'Link Sent' : 'Send Payment Link'}
               </Button>
             )}
-            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
+            {status === 'screenshot_received' && user && ['manager', 'sales', 'admin', 'super_admin'].includes((user.role ?? '').toLowerCase()) && (
               <Button size="sm" variant="outline" className="border-green-500/40 text-green-600 hover:bg-green-500/10 text-xs h-8"
                 disabled={verifyingRevisionId === edit.editId}
                 onClick={async (e) => {
@@ -1616,7 +1635,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                            {/* Show Verify button for installments pending verification */}
                            {['screenshot received', 'screenshot uploaded', 'pending verification', 'screenshot uploaded - pending verification'].includes(
                              (payment.payment_status ?? '').trim().toLowerCase()
-                           ) && user && ['manager', 'sales', 'admin', 'super_admin'].includes(user.role ?? '') && (
+                           ) && user && ['manager', 'sales', 'admin', 'super_admin'].includes((user.role ?? '').toLowerCase()) && (
                              <Button
                                size="sm"
                                variant="outline"

@@ -616,13 +616,27 @@ export const getPublicProfile = asyncHandler(async (req, res) => {
 export const updatePublicProfile = asyncHandler(async (req, res) => {
   const clientId = req.publicClient.id;
   
-  // Prevent clients from updating sensitive/internal fields
-  const updates = { ...req.body };
-  delete updates.internalNotes;
-  delete updates.clientStatus;
-  delete updates.editorPreferences;
-  delete updates.previousProjects;
-  delete updates._id;
+  // Only allow updating preference fields
+  const allowedFields = [
+    "preferredEditingStyle",
+    "preferredLanguage",
+    "brandingGuidelines",
+    "colorPreferences",
+    "fontPreferences",
+    "musicPreferences",
+    "subtitlePreferences",
+    "deliveryFormat",
+    "revisionExpectations",
+    "turnaroundPreference",
+    "additionalPreferences",
+  ];
+  
+  const updates = {};
+  allowedFields.forEach((field) => {
+    if (req.body[field] !== undefined) {
+      updates[field] = req.body[field];
+    }
+  });
 
   const profile = await ClientProfile.findByIdAndUpdate(
     clientId,

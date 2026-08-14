@@ -19,7 +19,6 @@ function OnboardingForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
   const [lockedFields, setLockedFields] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState({
@@ -180,73 +179,11 @@ function OnboardingForm() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex justify-center mb-8">
-              <TabsList className="bg-black/40 border border-border/50 backdrop-blur-xl h-14 p-1 rounded-full shadow-2xl">
-                <TabsTrigger value="basic" className="rounded-full px-6 text-sm data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300">
-                  <User className="w-4 h-4 mr-2" /> Basic Info
-                </TabsTrigger>
-                <TabsTrigger value="branding" className="rounded-full px-6 text-sm data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all duration-300">
-                  <Sliders className="w-4 h-4 mr-2" /> Preferences
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <Card className="bg-black/40 border-border/50 backdrop-blur-xl shadow-2xl overflow-hidden rounded-2xl">
+          <div className="w-full">
+            <Card className="bg-black/40 border-border/50 backdrop-blur-xl shadow-2xl overflow-hidden rounded-2xl mt-8">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/0 via-primary to-primary/0 opacity-30" />
               
-              <TabsContent value="basic" className="m-0 focus-visible:outline-none">
-                <CardHeader>
-                  <CardTitle>Basic Information</CardTitle>
-                  <CardDescription>Your contact details and company information.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6 pb-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="name" className="text-muted-foreground">Full Name *</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="name" name="name" value={formData.name} onChange={handleChange} readOnly={lockedFields.name} required className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.name ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="John Doe" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="text-muted-foreground">Email Address</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} readOnly={lockedFields.email} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.email ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="john@example.com" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone" className="text-muted-foreground">Phone Number</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} readOnly={lockedFields.phone} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.phone ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="+1 234 567 890" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName" className="text-muted-foreground">Company / Channel Name</Label>
-                      <div className="relative">
-                        <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="companyName" name="companyName" value={formData.companyName} onChange={handleChange} readOnly={lockedFields.companyName} className={`pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30 ${lockedFields.companyName ? 'opacity-70 cursor-not-allowed' : ''}`} placeholder="My Awesome Channel" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country" className="text-muted-foreground">Country</Label>
-                      <div className="relative">
-                        <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                        <Input id="country" name="country" value={formData.country} onChange={handleChange} className="pl-9 bg-black/20 border-border/50 focus-visible:ring-primary/30" placeholder="United States" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-end pt-4">
-                    <Button type="button" onClick={() => setActiveTab('branding')} className="rounded-full px-8 shadow-lg shadow-primary/20">
-                      Next: Preferences
-                    </Button>
-                  </div>
-                </CardContent>
-              </TabsContent>
-
-              <TabsContent value="branding" className="m-0 focus-visible:outline-none">
+              <div className="m-0 focus-visible:outline-none">
                 <CardHeader>
                   <CardTitle>Style & Branding</CardTitle>
                   <CardDescription>Tell us how you want your videos to look and feel.</CardDescription>
@@ -304,10 +241,7 @@ function OnboardingForm() {
                     </div>
                   </div>
                   
-                  <div className="flex justify-between pt-6 border-t border-border/30 mt-8">
-                    <Button type="button" variant="ghost" onClick={() => setActiveTab('basic')} className="text-muted-foreground">
-                      Back
-                    </Button>
+                  <div className="flex justify-end pt-6 border-t border-border/30 mt-8">
                     <Button type="submit" disabled={saving} className="rounded-full px-10 shadow-lg shadow-primary/30 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
                       {saving ? (
                         <>
@@ -320,9 +254,9 @@ function OnboardingForm() {
                     </Button>
                   </div>
                 </CardContent>
-              </TabsContent>
+              </div>
             </Card>
-          </Tabs>
+          </div>
         </form>
       </div>
     </div>

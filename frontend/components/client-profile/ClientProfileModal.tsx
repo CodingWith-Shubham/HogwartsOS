@@ -432,6 +432,27 @@ export function ClientProfileModal({
     }
   };
 
+  // ─── Copy Link Handler ────────────────────────────────────────────────────
+
+  const handleCopyOnboardingLink = async (id: string) => {
+    try {
+      const res = await authFetch(`/api/client-profiles/${id}/generate-link`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        const url = `${window.location.origin}/onboarding/client-profile?token=${data.token}`;
+        await navigator.clipboard.writeText(url);
+        toast.success('Onboarding link copied to clipboard!');
+      } else {
+        toast.error('Failed to generate link', { description: data.error });
+      }
+    } catch (err) {
+      console.error('Error generating link:', err);
+      toast.error('Could not generate onboarding link');
+    }
+  };
+
   // ─── Delete Handler ───────────────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -825,6 +846,26 @@ export function ClientProfileModal({
 
               {/* SECTION 3: CLIENT PREFERENCES */}
               <TabsContent value="preferences" className="space-y-4 pt-4">
+                <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20 mb-4">
+                  <div>
+                    <h4 className="text-sm font-semibold">Copy Onboarding Link</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">Share this link with the client to let them fill out their preferences.</p>
+                  </div>
+                  {effectiveProfileId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyOnboardingLink(effectiveProfileId)}
+                      className="h-8 border-primary/20 text-primary hover:bg-primary/10 shrink-0 ml-4"
+                    >
+                      <Link2 className="mr-1.5 h-3.5 w-3.5" /> Copy Link
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic shrink-0 ml-4">Save profile first to generate link</span>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Preferred Editing Style</Label>

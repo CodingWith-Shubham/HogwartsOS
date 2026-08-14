@@ -55,13 +55,59 @@ export function NotificationBell() {
     } catch { /* keep the last successful list while offline */ } finally { setLoading(false); }
   }, [notifyDevice]);
 
+  const setupPushSubscription = useCallback(async () => {
+    if (!('serviceWorker' in navigator && 'PushManager' in window)) return;
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      const response = await fetch('/api/notifications/vapidPublicKey');
+      const { publicKey } = await response.json();
+      
+      const applicationServerKey = urlB64ToUint8Array(publicKey);
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+      
+      await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription })
+      });
+    } catch (error) {
+      console.error('Error enabling push notifications:', error);
+    }
+  }, []);
+
   useEffect(() => {
     setRead(stored(READ_KEY));
     refresh();
+    
+    // Auto-subscribe if they already granted permission previously
+    if ('Notification' in window && Notification.permission === 'granted') {
+      setupPushSubscription();
+    }
+
     const interval = window.setInterval(refresh, 30_000);
     const update = () => refresh();
     window.addEventListener('leads-updated', update);
     return () => { window.clearInterval(interval); window.removeEventListener('leads-updated', update); };
+  }, [refresh, setupPushSubscription]);
+
+  useEffect(() => {
+    // Listen for push events from the service worker to update UI immediately
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'NEW_NOTIFICATION') {
+        refresh(); // Refresh the list from the server to get the new item in the bell
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+    }
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleMessage);
+      }
+    };
   }, [refresh]);
   const markAllRead = () => {
     const next = Array.from(new Set([...read, ...items.map((item) => item.id)]));
@@ -71,28 +117,8 @@ export function NotificationBell() {
   const enableDeviceAlerts = async () => {
     if (!('Notification' in window)) return;
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
-    
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
-        const response = await fetch('/api/notifications/vapidPublicKey');
-        const { publicKey } = await response.json();
-        
-        const applicationServerKey = urlB64ToUint8Array(publicKey);
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey
-        });
-        
-        await fetch('/api/notifications/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription })
-        });
-      } catch (error) {
-        console.error('Error enabling push notifications:', error);
-      }
+    if (permission === 'granted') {
+      await setupPushSubscription();
     }
   };
 

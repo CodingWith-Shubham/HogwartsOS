@@ -1,15 +1,25 @@
 import { NextResponse } from 'next/server';
 import type { Lead, Shoot, EditingProject } from '@/lib/sheets/types';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { headers } from 'next/headers';
 import { isPendingPaymentVerification } from '@/lib/sheets/payment-utils';
 import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
-async function fetchFromExpress(endpoint: string) {
+async function fetchFromExpress(endpoint: string, token: string | null) {
   try {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}${endpoint}`, { cache: 'no-store' });
+    const headersInit: HeadersInit = {
+      'Cache-Control': 'no-store'
+    };
+    if (token) {
+      headersInit['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${baseUrl}${endpoint}`, { 
+      cache: 'no-store',
+      headers: headersInit
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -31,13 +41,16 @@ function hoursUntil(value: string): number | null {
 }
 
 export async function GET() {
-  const user = getAuthenticatedUser();
+  const reqHeaders = headers();
+  const user = getAuthenticatedUser(reqHeaders);
+  const token = getAccessToken(reqHeaders);
+  
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   try {
     const [leadsRes, shootsRes, editingRes] = await Promise.all([
-      fetchFromExpress('/clients'),
-      fetchFromExpress('/shoots'),
-      fetchFromExpress('/editing')
+      fetchFromExpress('/clients', token),
+      fetchFromExpress('/shoots', token),
+      fetchFromExpress('/editing', token)
     ]);
 
     const leads: Lead[] = leadsRes?.leads || [];

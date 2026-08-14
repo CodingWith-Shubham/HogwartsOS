@@ -1017,8 +1017,13 @@ const segregateFeedback = asyncHandler(async (req, res) => {
     let extraRevisionNeeded = false;
 
     if (type === 'correction') {
-        // Increment correctionCount, set status to Correction Requested (unless still has pending)
-        const newStatus = stillPending > 0 ? 'Pending Segregation' : 'Correction Requested';
+        // Increment correctionCount, set status to Correction Requested immediately
+        // but if it's already In Revision, keep that status (Revision > Correction)
+        let newStatus = 'Correction Requested';
+        if (task.status === 'In Revision' || task.status === 'Pending Extra Revision Approval') {
+            newStatus = task.status;
+        }
+        
         if (isProject) {
             updatedTask = await EditProject.findOneAndUpdate(
                 { editId: taskId },
@@ -1053,7 +1058,7 @@ const segregateFeedback = asyncHandler(async (req, res) => {
         if (newRevisionCount > maxFree) {
             // Exceeds free revisions
             extraRevisionNeeded = true;
-            const newStatus = stillPending > 0 ? 'Pending Segregation' : 'Pending Extra Revision Approval';
+            const newStatus = 'Pending Extra Revision Approval';
             if (isProject) {
                 updatedTask = await EditProject.findOneAndUpdate(
                     { editId: taskId },
@@ -1069,7 +1074,7 @@ const segregateFeedback = asyncHandler(async (req, res) => {
             }
         } else {
             // Within free revisions
-            const newStatus = stillPending > 0 ? 'Pending Segregation' : 'In Revision';
+            const newStatus = 'In Revision';
             if (isProject) {
                 updatedTask = await EditProject.findOneAndUpdate(
                     { editId: taskId },

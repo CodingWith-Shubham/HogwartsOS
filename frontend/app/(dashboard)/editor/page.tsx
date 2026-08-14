@@ -656,37 +656,44 @@ export default function EditorPage() {
           </details>
         )}
 
-        {task.revisions && task.revisions.filter((r: any) => r.segregationType !== 'pending').length > 0 && (
-          <div className="space-y-3 mt-4">
-            {task.revisions.filter((r: any) => r.segregationType !== 'pending').map((rev: any, index: number) => (
-              <details key={rev._id || index} className="rounded-lg border border-blue-500/20 bg-blue-500/5 overflow-hidden transition-all group"
-                open={['In Revision', 'In Progress', 'Extra Revision Approved', 'Correction Requested'].includes(task.status) && parseInt(task.revision_count || '0') > 0 && index === 0}>
-                <summary className="cursor-pointer px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/15 font-semibold text-sm flex items-center select-none border-b border-blue-500/10 group-open:border-blue-500/20">
-                  <span className="mr-2 text-blue-400">
-                    {rev.segregationType === 'correction' ? '🔧' : rev.segregationType === 'revision' ? '🔄' : '📝'}
-                  </span>
-                  <span className="text-foreground/90">Client Feedback (Round {rev.revisionRound})</span>
-                  {rev.segregationType && rev.segregationType !== 'pending' && (
-                    <Badge className={cn('ml-auto text-[10px] uppercase shadow-sm', rev.segregationType === 'correction'
-                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20')}>
-                      {rev.segregationType}
-                    </Badge>
-                  )}
-                </summary>
-                <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90 border-l-2 border-blue-500 ml-4 my-2">
-                  {rev.feedback
-                    ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
-                        part.match(/^https?:\/\//)
-                          ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-400 font-semibold hover:text-blue-300 hover:underline break-all underline-offset-2">{part}</a>
-                          : part
-                      )
-                    : <span className="italic text-muted-foreground text-xs">No feedback text provided.</span>}
-                </div>
-              </details>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const activeRevs = (task.revisions || []).filter((r: any) => r.segregationType !== 'pending');
+          if (activeRevs.length === 0) return null;
+          const maxRound = Math.max(...activeRevs.map((r: any) => r.revisionRound || 1));
+          const currentRevs = activeRevs.filter((r: any) => r.revisionRound === maxRound);
+          
+          return (
+            <div className="space-y-3 mt-4">
+              {currentRevs.map((rev: any, index: number) => (
+                <details key={rev._id || index} className="rounded-lg border border-blue-500/20 bg-blue-500/5 overflow-hidden transition-all group"
+                  open={['In Revision', 'In Progress', 'Extra Revision Approved', 'Correction Requested'].includes(task.status) && parseInt(task.revision_count || '0') > 0 && index === 0}>
+                  <summary className="cursor-pointer px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/15 font-semibold text-sm flex items-center select-none border-b border-blue-500/10 group-open:border-blue-500/20">
+                    <span className="mr-2 text-blue-400">
+                      {rev.segregationType === 'correction' ? '🔧' : rev.segregationType === 'revision' ? '🔄' : '📝'}
+                    </span>
+                    <span className="text-foreground/90">Client Feedback (Round {rev.revisionRound})</span>
+                    {rev.segregationType && rev.segregationType !== 'pending' && (
+                      <Badge className={cn('ml-auto text-[10px] uppercase shadow-sm', rev.segregationType === 'correction'
+                        ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                        : 'bg-orange-500/10 text-orange-400 border-orange-500/20')}>
+                        {rev.segregationType}
+                      </Badge>
+                    )}
+                  </summary>
+                  <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90 border-l-2 border-blue-500 ml-4 my-2">
+                    {rev.feedback
+                      ? rev.feedback.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) =>
+                          part.match(/^https?:\/\//)
+                            ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-400 font-semibold hover:text-blue-300 hover:underline break-all underline-offset-2">{part}</a>
+                            : part
+                        )
+                      : <span className="italic text-muted-foreground text-xs">No feedback text provided.</span>}
+                  </div>
+                </details>
+              ))}
+            </div>
+          );
+        })()}
 
         {task.status === 'Assigned' && (
           <Button size="sm" onClick={() => updateStatus(task, 'In Progress')} disabled={saving === task.task_id}>

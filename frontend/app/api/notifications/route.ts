@@ -20,9 +20,15 @@ async function fetchFromExpress(endpoint: string, token: string | null) {
       cache: 'no-store',
       headers: headersInit
     });
-    if (!res.ok) return null;
-    return await res.json();
+    if (!res.ok) {
+      console.error(`[notifications] fetchFromExpress failed for ${endpoint}: ${res.status} ${res.statusText}`);
+      return null;
+    }
+    const data = await res.json();
+    console.log(`[notifications] fetchFromExpress success for ${endpoint}`);
+    return data;
   } catch (err) {
+    console.error(`[notifications] fetchFromExpress error for ${endpoint}:`, err);
     return null;
   }
 }
@@ -45,7 +51,10 @@ export async function GET() {
   const user = getAuthenticatedUser(reqHeaders);
   const token = getAccessToken(reqHeaders);
   
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) {
+    console.error('[notifications] Unauthorized: No user found');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const [leadsRes, shootsRes, editingRes] = await Promise.all([
       fetchFromExpress('/clients', token),
@@ -55,7 +64,9 @@ export async function GET() {
 
     const leads: Lead[] = leadsRes?.leads || [];
     const shoots: Shoot[] = shootsRes?.shoots || [];
-    const editing: EditingProject[] = editingRes?.editing || [];
+    const editing: EditingProject[] = editingRes?.editingProjects || editingRes?.editing || [];
+    
+    console.log(`[notifications] Fetched ${leads.length} leads, ${shoots.length} shoots, ${editing.length} editing projects. User role: ${user.role}`);
     const notifications: AppNotification[] = [];
     const isManager = user.role === 'manager' || user.role === 'admin';
     const equal = (first: string, second: string) => first.trim().toLowerCase() === second.trim().toLowerCase();

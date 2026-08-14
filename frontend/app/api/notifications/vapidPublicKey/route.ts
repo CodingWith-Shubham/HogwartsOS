@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const baseUrl = await getBackendUrl();
-    const res = await fetch(`${baseUrl}/api/v1/notifications/vapidPublicKey`, { cache: 'no-store' });
+    const res = await fetch(`${baseUrl}/notifications/vapidPublicKey`, { cache: 'no-store' });
     if (!res.ok) {
       throw new Error(`Failed to fetch from backend: ${res.statusText}`);
     }

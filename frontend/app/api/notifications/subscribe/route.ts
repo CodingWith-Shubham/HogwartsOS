@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const baseUrl = await getBackendUrl();
     
     // We pass the auth-user header so the backend knows who is subscribing
-    const res = await fetch(`${baseUrl}/api/v1/notifications/subscribe`, {
+    const res = await fetch(`${baseUrl}/notifications/subscribe`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -188,8 +188,10 @@ export default function EditorPage() {
       const payload: Record<string, unknown> = {
         taskId: task.task_id,
         status,
-        ...(includeDraft ? { draftLink: draft_link } : {}),
-        ...(editorComments[task.task_id]?.trim() ? { editorComment: editorComments[task.task_id].trim() } : {})
+        ...(includeDraft ? { 
+          draftLink: draft_link,
+          editorComment: editorComments[task.task_id]?.trim() || ''
+        } : {})
       };
 
       const response = await authFetch('/api/editing', {

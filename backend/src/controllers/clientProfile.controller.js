@@ -614,7 +614,7 @@ export const sendOnboardingLinkViaWebhook = asyncHandler(async (req, res) => {
     { expiresIn: '7d' }
   );
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://crm.hogwartsmedia.com';
   const onboardingLink = `${frontendUrl}/onboarding/client-profile?token=${token}`;
   
   // Use env var if available, otherwise default to the standard Hogwarts Studios n8n webhook URL

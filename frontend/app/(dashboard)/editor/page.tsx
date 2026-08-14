@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
 import { postWebhook } from '@/lib/editing';
@@ -104,6 +105,13 @@ export default function EditorPage() {
   const [segregating, setSegregating] = useState<Record<string, 'correction' | 'revision' | null>>({});
   // split feedback state
   const [splitState, setSplitState] = useState<Record<string, { isOpen: boolean, items: string[], extras: string, saving?: boolean }>>({});
+
+  const [assignedPage, setAssignedPage] = useState(1);
+  const [correctionsPage, setCorrectionsPage] = useState(1);
+  const [draftsPage, setDraftsPage] = useState(1);
+  const [revisionsPage, setRevisionsPage] = useState(1);
+  const [segregatePage, setSegregatePage] = useState(1);
+  const [deliveredPage, setDeliveredPage] = useState(1);
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.email) return;
@@ -757,7 +765,31 @@ export default function EditorPage() {
     </div>
   );
 
-  const panel = (items: EditingTask[], empty: string) => {
+  const renderPagination = (page: number, setPage: (p: number) => void, totalItems: number, pageSize: number = 10) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious onClick={() => setPage(Math.max(1, page - 1))} className={page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <PaginationItem key={p}>
+              <PaginationLink isActive={page === p} onClick={() => setPage(p)} className="cursor-pointer">
+                {p}
+              </PaginationLink>
+            </PaginationItem>
+          ))}
+          <PaginationItem>
+            <PaginationNext onClick={() => setPage(Math.min(totalPages, page + 1))} className={page === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
+
+  const panel = (items: EditingTask[], empty: string, page: number, setPage: (p: number) => void) => {
     if (items.length === 0) return (
       <Card className="md:col-span-2">
         <CardContent className="py-12 text-center text-sm text-muted-foreground">{empty}</CardContent>
@@ -769,29 +801,40 @@ export default function EditorPage() {
       acc[client].push(task);
       return acc;
     }, {} as Record<string, EditingTask[]>);
+    
+    const clientKeys = Object.keys(grouped);
+    const pageSize = 10;
+    const paginatedKeys = clientKeys.slice((page - 1) * pageSize, page * pageSize);
+
     return (
-      <Accordion type="multiple" className="w-full space-y-4" defaultValue={Object.keys(grouped)}>
-        {Object.entries(grouped).map(([client, clientTasks]) => (
-          <AccordionItem key={client} value={client} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-            <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
-              <div className="flex items-center gap-2 font-semibold">
-                {client}
-                <Badge variant="secondary" className="ml-2">{clientTasks.length}</Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="p-4 pt-2 border-t">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {clientTasks.map((task) => TaskCard({ task }))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+      <div className="space-y-4">
+        <Accordion type="multiple" className="w-full space-y-4" defaultValue={paginatedKeys}>
+          {paginatedKeys.map((client) => {
+            const clientTasks = grouped[client];
+            return (
+              <AccordionItem key={client} value={client} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
+                  <div className="flex items-center gap-2 font-semibold">
+                    {client}
+                    <Badge variant="secondary" className="ml-2">{clientTasks.length}</Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-4 pt-2 border-t">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {clientTasks.map((task) => TaskCard({ task }))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+        {renderPagination(page, setPage, clientKeys.length, pageSize)}
+      </div>
     );
   };
 
   // Segregate panel — shows SegregateCard components
-  const segregatePanel = (items: EditingTask[]) => {
+  const segregatePanel = (items: EditingTask[], page: number, setPage: (p: number) => void) => {
     if (items.length === 0) return (
       <Card className="border-border/50">
         <CardContent className="py-14 text-center">
@@ -823,27 +866,42 @@ export default function EditorPage() {
             </p>
           </div>
         </div>
-        <Accordion type="multiple" className="w-full space-y-3" defaultValue={Object.keys(grouped)}>
-          {Object.entries(grouped).map(([client, clientTasks]) => (
-            <AccordionItem key={client} value={client} className="rounded-lg border border-border/60 bg-card text-card-foreground shadow-sm overflow-hidden">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  {client}
-                  <Badge className="ml-2 bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">{clientTasks.length}</Badge>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4 pt-2 border-t border-border/50">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {clientTasks.map((task) => (
-                    <div key={task.task_id}>
-                      {renderSegregateCard(task)}
-                    </div>
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        
+        {(() => {
+          const clientKeys = Object.keys(grouped);
+          const pageSize = 10;
+          const paginatedKeys = clientKeys.slice((page - 1) * pageSize, page * pageSize);
+
+          return (
+            <div className="space-y-4">
+              <Accordion type="multiple" className="w-full space-y-3" defaultValue={paginatedKeys}>
+                {paginatedKeys.map((client) => {
+                  const clientTasks = grouped[client];
+                  return (
+                    <AccordionItem key={client} value={client} className="rounded-lg border border-border/60 bg-card text-card-foreground shadow-sm overflow-hidden">
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/40">
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                          {client}
+                          <Badge className="ml-2 bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">{clientTasks.length}</Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-4 pt-2 border-t border-border/50">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {clientTasks.map((task) => (
+                            <div key={task.task_id}>
+                              {renderSegregateCard(task)}
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+              {renderPagination(page, setPage, clientKeys.length, pageSize)}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -876,10 +934,38 @@ export default function EditorPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="assigned">Assigned</TabsTrigger>
-          <TabsTrigger value="corrections">Corrections</TabsTrigger>
-          <TabsTrigger value="drafts">Drafts</TabsTrigger>
-          <TabsTrigger value="revisions">Revisions</TabsTrigger>
+          <TabsTrigger value="assigned" className="relative">
+            Assigned
+            {groups.assigned.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.assigned.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="corrections" className="relative">
+            Corrections
+            {groups.corrections.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.corrections.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="drafts" className="relative">
+            Drafts
+            {groups.drafts.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.drafts.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="revisions" className="relative">
+            Revisions
+            {groups.revisions.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.revisions.length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="segregate" className="relative">
             Segregate Feedback
             {groups.segregate.length > 0 && (
@@ -888,15 +974,22 @@ export default function EditorPage() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="delivered">Delivered</TabsTrigger>
+          <TabsTrigger value="delivered" className="relative">
+            Delivered
+            {groups.delivered.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.delivered.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.')}</TabsContent>
-        <TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.')}</TabsContent>
-        <TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.')}</TabsContent>
-        <TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.')}</TabsContent>
-        <TabsContent value="segregate" className="mt-4">{segregatePanel(groups.segregate)}</TabsContent>
-        <TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.')}</TabsContent>
+        <TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.', assignedPage, setAssignedPage)}</TabsContent>
+        <TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.', correctionsPage, setCorrectionsPage)}</TabsContent>
+        <TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.', draftsPage, setDraftsPage)}</TabsContent>
+        <TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.', revisionsPage, setRevisionsPage)}</TabsContent>
+        <TabsContent value="segregate" className="mt-4">{segregatePanel(groups.segregate, segregatePage, setSegregatePage)}</TabsContent>
+        <TabsContent value="delivered" className="mt-4">{panel(groups.delivered, 'No delivered tasks.', deliveredPage, setDeliveredPage)}</TabsContent>
       </Tabs>
 
       <ClientProfileModal

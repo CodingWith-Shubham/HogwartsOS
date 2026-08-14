@@ -23,6 +23,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { formatINR, formatDate } from '@/lib/formatter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useWorkflow } from '@/hooks/use-workflow';
 import { useAuth } from '@/lib/auth-context';
 import type { EditingProject, Lead, Shoot } from '@/lib/sheets/types';
@@ -254,6 +255,12 @@ export default function ManagerPage() {
   const [assignUpsell, setAssignUpsell] = useState<PendingAssignmentEntry | null>(null);
   const [upsellEditor, setUpsellEditor] = useState('');
   const [assigningUpsell, setAssigningUpsell] = useState(false);
+
+  const [footageReadyPage, setFootageReadyPage] = useState(1);
+  const [upsellPage, setUpsellPage] = useState(1);
+  const [draftReadyPage, setDraftReadyPage] = useState(1);
+  const [extraRevisionNeededPage, setExtraRevisionNeededPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
   
   const [assignForm, setAssignForm] = useState({
     serviceType: '',
@@ -762,6 +769,30 @@ export default function ManagerPage() {
     return <ManagerShimmer />;
   }
 
+  const renderPagination = (page: number, setPage: (p: number) => void, totalItems: number, pageSize: number = 10) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious onClick={() => setPage(Math.max(1, page - 1))} className={page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <PaginationItem key={p}>
+              <PaginationLink isActive={page === p} onClick={() => setPage(p)} className="cursor-pointer">
+                {p}
+              </PaginationLink>
+            </PaginationItem>
+          ))}
+          <PaginationItem>
+            <PaginationNext onClick={() => setPage(Math.min(totalPages, page + 1))} className={page === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
+
   return (
     <div>
       <PageHeader title="Manager" description="Assignments and approvals" />
@@ -776,13 +807,48 @@ export default function ManagerPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
-          <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted">Assign Editor</TabsTrigger>
-<TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted">Upsells &amp; Cross-Sells</TabsTrigger>
+          <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted relative">
+            Assign Editor
+            {footageReady.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {footageReady.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted relative">
+            Upsells &amp; Cross-Sells
+            {(upsellEntries.length + pendingUpsells.length) > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {upsellEntries.length + pendingUpsells.length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="task_board" className="data-[state=active]:bg-muted">Task Board</TabsTrigger>
           <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted">Editor Workload</TabsTrigger>
-          <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted">Verify Editor Work</TabsTrigger>
-          <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted">Revision Approval</TabsTrigger>
-          <TabsTrigger value="completed" className="data-[state=active]:bg-muted">Completed</TabsTrigger>
+          <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted relative">
+            Verify Editor Work
+            {draftReady.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {draftReady.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted relative">
+            Revision Approval
+            {extraRevisionNeeded.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {extraRevisionNeeded.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="data-[state=active]:bg-muted relative">
+            Completed
+            {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="assign_editor" className="mt-0">
@@ -796,7 +862,7 @@ export default function ManagerPage() {
               No uploaded footage waiting for review.
             </p>
           ) : (
-            footageReady.map((shoot) => (
+            footageReady.slice((footageReadyPage - 1) * 10, footageReadyPage * 10).map((shoot) => (
               <div
                 key={shoot.id}
                 className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -842,12 +908,14 @@ export default function ManagerPage() {
           )}
         </CardContent>
       </Card>
+      {renderPagination(footageReadyPage, setFootageReadyPage, footageReady.length)}
     </TabsContent>
 
     <TabsContent value="upsell_crosssell" className="mt-0 space-y-6">
       <UpsellCrossSellAnalyticsWidget />
-      <UpsellCrossSellPipeline
-        entries={upsellEntries}
+      <div>
+        <UpsellCrossSellPipeline
+          entries={upsellEntries.slice((upsellPage - 1) * 10, upsellPage * 10)}
         showClientName
         canDelete={['manager', 'admin', 'super_admin'].includes(user?.role || '')}
         pendingAssignment={pendingUpsells}
@@ -857,6 +925,8 @@ export default function ManagerPage() {
         }}
         onRefresh={refreshUpsells}
       />
+      {renderPagination(upsellPage, setUpsellPage, upsellEntries.length)}
+      </div>
     </TabsContent>
 
     <TabsContent value="task_board" className="mt-0">
@@ -909,15 +979,23 @@ export default function ManagerPage() {
           {draftReady.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No drafts ready for manager review.</p>
           ) : (
-            <Accordion type="multiple" className="w-full space-y-4">
-              {Object.entries(
-                draftReady.reduce((acc, edit) => {
-                  const client = edit.clientName || 'Unknown Client';
-                  if (!acc[client]) acc[client] = [];
-                  acc[client].push(edit);
-                  return acc;
-                }, {} as Record<string, EditingProject[]>)
-              ).map(([client, drafts]) => (
+            (() => {
+              const grouped = draftReady.reduce((acc, edit) => {
+                const client = edit.clientName || 'Unknown Client';
+                if (!acc[client]) acc[client] = [];
+                acc[client].push(edit);
+                return acc;
+              }, {} as Record<string, EditingProject[]>);
+              
+              const clientKeys = Object.keys(grouped);
+              const paginatedKeys = clientKeys.slice((draftReadyPage - 1) * 10, draftReadyPage * 10);
+              
+              return (
+                <div className="space-y-4">
+                  <Accordion type="multiple" className="w-full space-y-4">
+                    {paginatedKeys.map(client => {
+                      const drafts = grouped[client];
+                      return (
                 <AccordionItem key={client} value={client} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
                   <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
                     <div className="flex items-center gap-2 font-semibold">
@@ -967,9 +1045,14 @@ export default function ManagerPage() {
                       ))}
                     </div>
                   </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                      </AccordionItem>
+                    );
+                  })}
+                  </Accordion>
+                  {renderPagination(draftReadyPage, setDraftReadyPage, clientKeys.length)}
+                </div>
+              );
+            })()
           )}
         </CardContent>
       </Card>
@@ -980,11 +1063,13 @@ export default function ManagerPage() {
         <CardHeader>
           <CardTitle className="text-base">Extra Revision Approval</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-4">
           {extraRevisionNeeded.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No extra revision approvals pending.</p>
           ) : (
-            extraRevisionNeeded.map((edit) => (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {extraRevisionNeeded.slice((extraRevisionNeededPage - 1) * 10, extraRevisionNeededPage * 10).map((edit) => (
               <div key={edit.editId} className="flex flex-col gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
                 <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
                   <div>
@@ -1023,7 +1108,10 @@ export default function ManagerPage() {
                   />
                 </div>
               </div>
-            ))
+            ))}
+            </div>
+            {renderPagination(extraRevisionNeededPage, setExtraRevisionNeededPage, extraRevisionNeeded.length)}
+          </div>
           )}
         </CardContent>
       </Card>
@@ -1034,13 +1122,16 @@ export default function ManagerPage() {
         <CardHeader>
           <CardTitle className="text-base">Final Delivery & Completed</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-4">
           {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No completed tasks pending final delivery.</p>
           ) : (
-            editing
-              .filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status))
-              .map((edit) => (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {editing
+                  .filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status))
+                  .slice((completedPage - 1) * 10, completedPage * 10)
+                  .map((edit) => (
                 <div key={edit.editId} className="flex flex-col gap-3 rounded-md border p-3 bg-muted/20">
                   <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_120px_auto] lg:items-center">
                     <div>
@@ -1078,7 +1169,10 @@ export default function ManagerPage() {
                     </div>
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
+              {renderPagination(completedPage, setCompletedPage, editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length)}
+            </div>
           )}
         </CardContent>
       </Card>

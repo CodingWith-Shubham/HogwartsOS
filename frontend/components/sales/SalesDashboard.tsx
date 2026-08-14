@@ -1384,21 +1384,45 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         <TabsContent value="leads" className="mt-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
-              {FILTER_TABS.map((tab) => (
+              {FILTER_TABS.map((tab) => {
+                let count = 0;
+                if (tab.value === 'addons_payments') {
+                  count = shootsWithAddons.length + revisionWithAddons.length;
+                } else if (tab.value === 'new_leads') {
+                  count = salesLeads.filter(l => l.status === 'New Lead').length;
+                } else if (tab.value === 'proposal_sent') {
+                  count = salesLeads.filter(l => l.status === 'Proposal Sent' || String(l.proposalSent).toLowerCase() === 'true').length;
+                } else if (tab.value === 'revoked') {
+                  count = salesLeads.filter(l => l.status === 'Revoked').length;
+                } else if (tab.value === 'accepted') {
+                  count = salesLeads.filter(l => l.proposalAccepted).length;
+                } else if (tab.value === 'upsells') {
+                  count = salesLeads.filter(l => l.leadType === 'upsell').length;
+                } else if (tab.value === 'all') {
+                  count = salesLeads.length;
+                }
+
+                return (
                 <button
                   key={tab.value}
                   type="button"
                   onClick={() => setFilterTab(tab.value)}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors relative flex items-center',
                     filterTab === tab.value
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                   )}
                 >
                   {tab.label}
+                  {count > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                      {count}
+                    </span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
             <Button
               variant="outline"

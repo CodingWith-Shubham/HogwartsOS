@@ -63,7 +63,7 @@ export function SetAddonPriceDialog({
       await postWebhook('/send-addon-payment-link', {
         shoot_id: shoot.shootId,
         client_name: shoot.clientName,
-        client_email: shoot.clientEmailId || shoot.emailId || '',
+        client_email: shoot.emailId || '',
         extra_camera: shoot.extraCamera || '0',
         extra_teleprompter: shoot.extraTeleprompter || '0',
         extra_duration_hours: shoot.extraDurationHours || '0',

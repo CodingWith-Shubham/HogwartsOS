@@ -17,10 +17,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { Calendar, Camera, CheckCircle, Clock, ExternalLink, Upload } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import type { Shoot } from '@/lib/sheets/types';
 import type { User } from '@/lib/types';
@@ -466,6 +467,10 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
     shootNotes: '',
   });
 
+  const [todayPage, setTodayPage] = useState(1);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+
   const refreshShoots = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
     try {
@@ -638,7 +643,31 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
     }
   };
 
-  const renderList = (items: Shoot[], empty: string) => {
+  const renderPagination = (page: number, setPage: (p: number) => void, totalItems: number, pageSize: number = 10) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious onClick={() => setPage(Math.max(1, page - 1))} className={page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <PaginationItem key={p}>
+              <PaginationLink isActive={page === p} onClick={() => setPage(p)} className="cursor-pointer">
+                {p}
+              </PaginationLink>
+            </PaginationItem>
+          ))}
+          <PaginationItem>
+            <PaginationNext onClick={() => setPage(Math.min(totalPages, page + 1))} className={page === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'} />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    );
+  };
+
+  const renderList = (items: Shoot[], empty: string, page: number, setPage: (p: number) => void) => {
     if (items.length === 0) {
       return (
         <Card>
@@ -650,34 +679,40 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       );
     }
 
+    const pageSize = 10;
+    const paginatedItems = items.slice((page - 1) * pageSize, page * pageSize);
+
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {items.map((shoot) => (
-          <ShootCard
-            key={shoot.id}
-            shoot={shoot}
-            onEdit={openEdit}
-            onUpload={uploadDriveLink}
-            onConfirmHandover={confirmHandover}
-            uploadValue={driveLinks[shoot.shootId] ?? ''}
-            onUploadValueChange={(shootId, value) =>
-              setDriveLinks((prev) => ({ ...prev, [shootId]: value }))
-            }
-            uploading={uploadingId === shoot.shootId}
-            handoverRecipients={handoverRecipients}
-            selectedHandover={selectedHandovers[shoot.shootId]}
-            onHandoverRecipientChange={(shootId, recipientKey) => {
-              const recipient = recipientKey === 'client'
-                ? { key: 'client', name: shoot.clientName || 'Client', email: shoot.emailId }
-                : handoverRecipients.find((user) => user.key === recipientKey);
-              if (recipient) {
-                setSelectedHandovers((prev) => ({ ...prev, [shootId]: recipient }));
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {paginatedItems.map((shoot) => (
+            <ShootCard
+              key={shoot.id}
+              shoot={shoot}
+              onEdit={openEdit}
+              onUpload={uploadDriveLink}
+              onConfirmHandover={confirmHandover}
+              uploadValue={driveLinks[shoot.shootId] ?? ''}
+              onUploadValueChange={(shootId, value) =>
+                setDriveLinks((prev) => ({ ...prev, [shootId]: value }))
               }
-            }}
-            handingOver={handingOverId === shoot.shootId}
-            confirmedHandover={confirmedHandovers[shoot.shootId]}
-          />
-        ))}
+              uploading={uploadingId === shoot.shootId}
+              handoverRecipients={handoverRecipients}
+              selectedHandover={selectedHandovers[shoot.shootId]}
+              onHandoverRecipientChange={(shootId, recipientKey) => {
+                const recipient = recipientKey === 'client'
+                  ? { key: 'client', name: shoot.clientName || 'Client', email: shoot.emailId }
+                  : handoverRecipients.find((user) => user.key === recipientKey);
+                if (recipient) {
+                  setSelectedHandovers((prev) => ({ ...prev, [shootId]: recipient }));
+                }
+              }}
+              handingOver={handingOverId === shoot.shootId}
+              confirmedHandover={confirmedHandovers[shoot.shootId]}
+            />
+          ))}
+        </div>
+        {renderPagination(page, setPage, items.length, pageSize)}
       </div>
     );
   };
@@ -716,14 +751,35 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       <div ref={tabsRef} className="scroll-mt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="today">Today</TabsTrigger>
+            <TabsTrigger value="today" className="relative">
+              Today
+              {todaysShoots.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {todaysShoots.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="calendar">Calendar</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="upcoming" className="relative">
+              Upcoming
+              {upcoming.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {upcoming.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="relative">
+              Completed
+              {completed.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {completed.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="today" className="mt-4">
-            {renderList(todaysShoots, 'No shoots scheduled for today.')}
+            {renderList(todaysShoots, 'No shoots scheduled for today.', todayPage, setTodayPage)}
           </TabsContent>
 
           <TabsContent value="calendar" className="mt-4">
@@ -731,11 +787,11 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
           </TabsContent>
 
           <TabsContent value="upcoming" className="mt-4">
-            {renderList(upcoming, 'No upcoming pending shoots.')}
+            {renderList(upcoming, 'No upcoming pending shoots.', upcomingPage, setUpcomingPage)}
           </TabsContent>
 
           <TabsContent value="completed" className="mt-4">
-            {renderList(completed, 'No completed shoots yet.')}
+            {renderList(completed, 'No completed shoots yet.', completedPage, setCompletedPage)}
           </TabsContent>
         </Tabs>
       </div>
@@ -831,7 +887,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
               <Textarea
                 id="testimonials"
                 value={postShootForm.testimonials}
-                onChange={(event) =>
+                onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
                   setPostShootForm((prev) => ({ ...prev, testimonials: event.target.value }))
                 }
               />
@@ -841,7 +897,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
               <Textarea
                 id="shootNotes"
                 value={postShootForm.shootNotes}
-                onChange={(event) =>
+                onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
                   setPostShootForm((prev) => ({ ...prev, shootNotes: event.target.value }))
                 }
               />

@@ -115,7 +115,8 @@ export function ClientProfileModal({
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
+  const hideContactInfo = userRole === 'shoot' || userRole === 'editor';
+  const [activeTab, setActiveTab] = useState(hideContactInfo ? 'preferences' : 'basic');
 
   // Resolved profile ID (for when we load an existing profile via duplicate check)
   const [resolvedProfileId, setResolvedProfileId] = useState<string | null>(null);
@@ -664,12 +665,16 @@ export function ClientProfileModal({
           <form onSubmit={handleSave} className="space-y-6 pt-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-6 bg-muted/60 p-1 rounded-lg">
-                <TabsTrigger value="basic" className="text-xs md:text-sm">
-                  Basic Info
-                </TabsTrigger>
-                <TabsTrigger value="sales" className="text-xs md:text-sm">
-                  Sales Details
-                </TabsTrigger>
+                {!hideContactInfo && (
+                  <>
+                    <TabsTrigger value="basic" className="text-xs md:text-sm">
+                      Basic Info
+                    </TabsTrigger>
+                    <TabsTrigger value="sales" className="text-xs md:text-sm">
+                      Sales Details
+                    </TabsTrigger>
+                  </>
+                )}
                 <TabsTrigger value="preferences" className="text-xs md:text-sm">
                   Client Prefs
                 </TabsTrigger>
@@ -688,7 +693,8 @@ export function ClientProfileModal({
               </TabsList>
 
               {/* SECTION 1: BASIC INFORMATION */}
-              <TabsContent value="basic" className="space-y-4 pt-4">
+              {!hideContactInfo && (
+                <TabsContent value="basic" className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
@@ -779,9 +785,11 @@ export function ClientProfileModal({
                   </div>
                 </div>
               </TabsContent>
+              )}
 
               {/* SECTION 2: SALES & MANAGER DETAILS */}
-              <TabsContent value="sales" className="space-y-4 pt-4">
+              {!hideContactInfo && (
+                <TabsContent value="sales" className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
@@ -866,6 +874,7 @@ export function ClientProfileModal({
                   />
                 </div>
               </TabsContent>
+              )}
 
               {/* SECTION 3: CLIENT PREFERENCES */}
               <TabsContent value="preferences" className="space-y-4 pt-4">

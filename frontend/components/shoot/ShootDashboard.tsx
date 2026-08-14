@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '@/lib/auth-fetch';
+import { useAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { Badge } from '@/components/ui/badge';
@@ -327,6 +328,8 @@ function ShootCard({
   handingOver: boolean;
   confirmedHandover?: HandoverRecipient;
 }) {
+  const { user } = useAuth();
+  const hideContactInfo = user?.role === 'shoot' || user?.role === 'editor';
   const uploaded = isTrue(shoot.driveLinkUploaded);
 
   return (
@@ -340,7 +343,9 @@ function ShootCard({
                 <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">Edited</Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">{shoot.contactNum || '-'}</p>
+            {!hideContactInfo && (
+              <p className="text-sm text-muted-foreground">{shoot.contactNum || '-'}</p>
+            )}
           </div>
           <UploadStatusBadge shoot={shoot} />
         </div>
@@ -443,6 +448,8 @@ function ShootCard({
 }
 
 export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
+  const { user } = useAuth();
+  const hideContactInfo = user?.role === 'shoot' || user?.role === 'editor';
   const [shoots, setShoots] = useState<Shoot[]>(initialShoots);
   const [refreshing, setRefreshing] = useState(false);
   const [detail, setDetail] = useState<Shoot | null>(null);
@@ -805,8 +812,12 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
                 <DialogDescription>Full shoot details</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Contact:</span> {detail.contactNum || '-'}</div>
-                <div><span className="text-muted-foreground">Email:</span> {detail.emailId || '-'}</div>
+                {!hideContactInfo && (
+                  <>
+                    <div><span className="text-muted-foreground">Contact:</span> {detail.contactNum || '-'}</div>
+                    <div><span className="text-muted-foreground">Email:</span> {detail.emailId || '-'}</div>
+                  </>
+                )}
                 <div><span className="text-muted-foreground">Date:</span> {formatDate(detail.shootDate)}</div>
                 <div><span className="text-muted-foreground">Time:</span> {detail.shootStartTime} - {detail.shootEndTime}</div>
                 <div><span className="text-muted-foreground">Camera:</span> {detail.camera || '1'}</div>

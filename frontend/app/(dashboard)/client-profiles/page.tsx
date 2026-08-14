@@ -94,7 +94,7 @@ export default function ClientProfilesPage() {
       });
       const data = await res.json();
       if (res.ok && data.token) {
-        const url = `${window.location.origin}/onboarding/client-profile?token=${data.token}`;
+        const url = `https://crm.hogwartsmedia.com/onboarding/client-profile?token=${data.token}`;
         await navigator.clipboard.writeText(url);
         toast.success('Onboarding link copied to clipboard!');
       } else {

@@ -10,6 +10,7 @@ export interface User {
   redirectTo: string;
   phone?: string;
   designation?: string;
+  isActive?: boolean;
 }
 
 export interface AuthContextValue {

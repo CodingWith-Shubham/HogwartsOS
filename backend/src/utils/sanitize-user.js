@@ -15,5 +15,6 @@ export const sanitizeUser = (user) => {
         avatar: user.avatar || "https://placehold.co/200x200",
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        isActive: user.isActive,
     };
 };

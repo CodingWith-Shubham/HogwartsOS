@@ -106,6 +106,9 @@ const loginUser = asyncHandler(async (req, res, next) => {
   if (!user) {
     throw new ApiError(401, "Invalid email or password", []);
   }
+  if (user.isActive === false) {
+    throw new ApiError(403, "Your account has been deactivated. Please contact an administrator.", []);
+  }
   const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid email or password", []);

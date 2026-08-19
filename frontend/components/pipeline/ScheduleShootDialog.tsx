@@ -85,7 +85,7 @@ export function ScheduleShootDialog({
   const { users } = useAuth();
 
   const shootMembers = useMemo(() => {
-    const list = users.filter((u) => u.role === 'shoot');
+    const list = users.filter((u) => u.role === 'shoot' && u.isActive !== false);
     return list.length > 0 ? list.map(u => ({ name: u.name, email: u.email })) : FALLBACK_SHOOT_MEMBERS;
   }, [users]);
 

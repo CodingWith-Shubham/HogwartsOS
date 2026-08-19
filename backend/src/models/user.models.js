@@ -80,6 +80,10 @@ const userSchema = new Schema({
     isEmailVerified: {
         type: Boolean,
         default: false
+    },
+    isActive: {
+        type: Boolean,
+        default: true
     }
 }, { timestamps: true });
 

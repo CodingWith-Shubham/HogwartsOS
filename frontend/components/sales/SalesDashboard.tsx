@@ -257,7 +257,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const { user, users } = useAuth();
 
   const salesMembers = useMemo(() => {
-    const list = users.filter((u) => u.role === 'sales' || u.role === 'manager' || u.role === 'admin' || u.role === 'super_admin');
+    const list = users.filter((u) => (u.role === 'sales' || u.role === 'manager' || u.role === 'admin' || u.role === 'super_admin') && u.isActive !== false);
     return list.length > 0 ? list.map(u => u.name) : FALLBACK_SALES_MEMBERS;
   }, [users]);
 

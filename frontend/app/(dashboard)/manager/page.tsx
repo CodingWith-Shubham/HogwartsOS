@@ -223,7 +223,7 @@ export default function ManagerPage() {
   const { user, users } = useAuth();
 
   const editors = useMemo(() => {
-    const list = users.filter((u) => u.role === 'editor');
+    const list = users.filter((u) => u.role === 'editor' && u.isActive !== false);
     return list.length > 0 ? list.map(u => ({ name: u.name, email: u.email })) : [
       { name: 'Shubham Singh Rana', email: 'mamgai75@gmail.com' },
       { name: 'Deepak Sharma', email: 'mamgai75@gmail.com' }

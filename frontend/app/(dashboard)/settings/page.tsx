@@ -59,6 +59,7 @@ export default function SettingsPage() {
   const [empUsername, setEmpUsername] = useState('');
   const [empRedirect, setEmpRedirect] = useState('/sales');
   const [empPassword, setEmpPassword] = useState('');
+  const [empIsActive, setEmpIsActive] = useState(true);
   const [empSubmitting, setEmpSubmitting] = useState(false);
 
   // Delete Employee Confirmation Dialog States
@@ -103,6 +104,7 @@ export default function SettingsPage() {
     setEmpRole('sales');
     setEmpUsername('');
     setEmpRedirect('/sales');
+    setEmpIsActive(true);
     setEmpPassword('');
     setSheetOpen(true);
   };
@@ -117,6 +119,7 @@ export default function SettingsPage() {
     setEmpRole(emp.role || 'sales');
     setEmpUsername(emp.username || '');
     setEmpRedirect(emp.redirectTo || '/sales');
+    setEmpIsActive(emp.isActive !== false);
     setEmpPassword(''); // Clear password (optional on edit)
     setSheetOpen(true);
   };
@@ -136,6 +139,7 @@ export default function SettingsPage() {
         role: empRole,
         username: empUsername,
         redirectTo: empRedirect,
+        isActive: empIsActive,
         password: empPassword || undefined,
       };
 
@@ -255,6 +259,15 @@ export default function SettingsPage() {
       cell: (emp) => (
         <span className="inline-block text-[11px] uppercase tracking-wider bg-secondary/80 border border-border px-2 py-0.5 rounded-full font-medium">
           {emp.role}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (emp) => (
+        <span className={`inline-block text-[11px] uppercase tracking-wider border px-2 py-0.5 rounded-full font-medium ${emp.isActive !== false ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
+          {emp.isActive !== false ? 'Active' : 'Inactive'}
         </span>
       ),
     },
@@ -496,6 +509,18 @@ export default function SettingsPage() {
                       {path.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="empIsActive">Account Status</Label>
+              <Select value={empIsActive ? 'true' : 'false'} onValueChange={(v) => setEmpIsActive(v === 'true')}>
+                <SelectTrigger id="empIsActive">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Active (Included in workflows)</SelectItem>
+                  <SelectItem value="false">Inactive (Excluded from workflows)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

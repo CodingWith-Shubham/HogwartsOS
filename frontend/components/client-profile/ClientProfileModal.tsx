@@ -137,6 +137,7 @@ export function ClientProfileModal({
     timezone: '',
     preferredCommunication: '',
     alternateContact: '',
+    onboardingEmailSent: false,
 
     // Sales & Manager Details
     budgetRange: '',
@@ -222,6 +223,7 @@ export function ClientProfileModal({
       timezone: '',
       preferredCommunication: 'Email',
       alternateContact: '',
+      onboardingEmailSent: false,
       budgetRange: '',
       paymentMethod: '',
       leadSource: '',
@@ -321,6 +323,7 @@ export function ClientProfileModal({
       timezone: p.timezone || '',
       preferredCommunication: p.preferredCommunication || '',
       alternateContact: p.alternateContact || '',
+      onboardingEmailSent: p.onboardingEmailSent || false,
       budgetRange: p.budgetRange || '',
       paymentMethod: p.paymentMethod || '',
       leadSource: p.leadSource || '',
@@ -538,6 +541,7 @@ export function ClientProfileModal({
       const data = await res.json();
       if (res.ok) {
         toast.success('Onboarding link sent to client via email!');
+        setFormData((prev) => ({ ...prev, onboardingEmailSent: true }));
       } else {
         toast.error('Failed to send link', { description: data.error });
       }
@@ -1007,7 +1011,7 @@ export function ClientProfileModal({
                         ) : (
                           <Send className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        Send via Email
+                        {formData.onboardingEmailSent ? 'Send email again' : 'Send via Email'}
                       </Button>
                     </div>
                   ) : (

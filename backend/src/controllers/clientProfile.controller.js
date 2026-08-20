@@ -647,6 +647,9 @@ export const sendOnboardingLinkViaWebhook = asyncHandler(async (req, res) => {
 
     if (!response.ok) {
       console.error("n8n webhook responded with error status:", response.status);
+    } else {
+      profile.onboardingEmailSent = true;
+      await profile.save();
     }
   } catch (webhookError) {
     console.error("Failed to trigger n8n onboarding webhook:", webhookError);

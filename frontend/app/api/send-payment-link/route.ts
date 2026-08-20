@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       'payment_mode',
       'cash_collected_by',
       'installment_label',
+      'bank_account',
     ];
 
     payload.append('lead_id', lead_id);

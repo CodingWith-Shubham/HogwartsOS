@@ -1141,7 +1141,7 @@ export default function AttendancePage() {
                         </DialogTrigger>
                         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>{summary.name}'s Attendance</DialogTitle>
+                            <DialogTitle>{summary.name}&apos;s Attendance</DialogTitle>
                             <DialogDescription>{summary.email}</DialogDescription>
                           </DialogHeader>
                           <div className="mt-4">

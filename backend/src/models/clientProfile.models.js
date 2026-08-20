@@ -122,6 +122,14 @@ const clientProfileSchema = new Schema(
       type: String,
       default: "",
     },
+    referenceLinks: {
+      type: String,
+      default: "",
+    },
+    attachments: {
+      type: [String],
+      default: [],
+    },
 
     // 4. Editor Preferences
     editorPreferences: {

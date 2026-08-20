@@ -131,6 +131,8 @@ export const createClientProfile = asyncHandler(async (req, res) => {
     revisionExpectations,
     turnaroundPreference,
     additionalPreferences,
+    referenceLinks,
+    attachments,
     editorPreferences,
     allowDuplicate,
   } = req.body;
@@ -187,6 +189,8 @@ export const createClientProfile = asyncHandler(async (req, res) => {
     revisionExpectations: revisionExpectations || "",
     turnaroundPreference: turnaroundPreference || "",
     additionalPreferences: additionalPreferences || "",
+    referenceLinks: referenceLinks || "",
+    attachments: attachments || [],
     editorPreferences: editorPreferences || {},
     previousProjects: [],
     createdBy: req.user._id,
@@ -397,6 +401,8 @@ export const updateClientProfile = asyncHandler(async (req, res) => {
     "revisionExpectations",
     "turnaroundPreference",
     "additionalPreferences",
+    "referenceLinks",
+    "attachments",
   ];
 
   allowedFields.forEach((field) => {
@@ -680,6 +686,8 @@ export const updatePublicProfile = asyncHandler(async (req, res) => {
     "revisionExpectations",
     "turnaroundPreference",
     "additionalPreferences",
+    "referenceLinks",
+    "attachments",
   ];
   
   const updates = {};
@@ -701,3 +709,37 @@ export const updatePublicProfile = asyncHandler(async (req, res) => {
     new ApiResponse(200, { profile }, "Profile updated successfully")
   );
 });
+
+import path from "path";
+import fs from "fs";
+
+const uploadsDir = path.resolve("uploads", "client-attachments");
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+export const uploadAttachment = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "No file uploaded");
+  }
+  
+  const fileUrl = `/api/v1/client-profiles/attachments/${req.file.filename}`;
+  
+  return res.status(200).json(
+    new ApiResponse(200, { 
+      url: fileUrl, 
+      filename: req.file.originalname,
+      size: req.file.size
+    }, "Attachment uploaded successfully")
+  );
+});
+
+export const getAttachment = asyncHandler(async (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.resolve(uploadsDir, filename);
+  
+  if (!fs.existsSync(filePath)) {
+    throw new ApiError(404, "Attachment not found");
+  }
+  
+  res.sendFile(filePath);
+});
+

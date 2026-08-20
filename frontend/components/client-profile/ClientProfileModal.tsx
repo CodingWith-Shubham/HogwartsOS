@@ -112,6 +112,7 @@ export function ClientProfileModal({
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -155,6 +156,8 @@ export function ClientProfileModal({
     revisionExpectations: '',
     turnaroundPreference: '',
     additionalPreferences: '',
+    referenceLinks: '',
+    attachments: [] as string[],
 
     // Editor Preferences
     editorPreferences: {
@@ -233,6 +236,8 @@ export function ClientProfileModal({
       revisionExpectations: '',
       turnaroundPreference: '',
       additionalPreferences: '',
+      referenceLinks: '',
+      attachments: [],
       editorPreferences: {
         editingStyleNotes: '',
         transitionPreferences: '',
@@ -329,6 +334,8 @@ export function ClientProfileModal({
       revisionExpectations: p.revisionExpectations || '',
       turnaroundPreference: p.turnaroundPreference || '',
       additionalPreferences: p.additionalPreferences || '',
+      referenceLinks: p.referenceLinks || '',
+      attachments: p.attachments || [],
       editorPreferences: {
         editingStyleNotes: p.editorPreferences?.editingStyleNotes || '',
         transitionPreferences: p.editorPreferences?.transitionPreferences || '',
@@ -360,6 +367,36 @@ export function ClientProfileModal({
         [field]: val,
       },
     }));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAttachment(true);
+    const form = new FormData();
+    form.append('attachment', file);
+
+    try {
+      const res = await authFetch('/api/client-profiles/upload-attachment', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setFormData((prev) => ({
+          ...prev,
+          attachments: [...prev.attachments, data.url],
+        }));
+        toast.success('Attachment uploaded successfully');
+      } else {
+        toast.error(data.error || 'Failed to upload attachment');
+      }
+    } catch (err) {
+      toast.error('An error occurred during upload');
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   // ─── Client-side validation ───────────────────────────────────────────────
@@ -1006,6 +1043,56 @@ export function ClientProfileModal({
                     rows={2}
                     placeholder="Requires 24h turnaround for drafts; expects precise timestamps..."
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Reference Links</Label>
+                    <Textarea
+                      value={formData.referenceLinks}
+                      onChange={(e) => handleChange('referenceLinks', e.target.value)}
+                      disabled={!canEditAllFields}
+                      rows={3}
+                      placeholder="Add reference video links, inspiration channels..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Attachments</Label>
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        type="file"
+                        onChange={handleFileUpload}
+                        disabled={!canEditAllFields || uploadingAttachment}
+                      />
+                      {uploadingAttachment && <p className="text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin inline mr-1" /> Uploading...</p>}
+                      {formData.attachments && formData.attachments.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {formData.attachments.map((url, i) => (
+                            <div key={i} className="flex items-center justify-between p-2 rounded border border-border bg-muted/20 text-xs">
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[200px]">
+                                {url.split('/').pop()}
+                              </a>
+                              {canEditAllFields && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                                  onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    attachments: prev.attachments.filter((_, index) => index !== i)
+                                  }))}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
 

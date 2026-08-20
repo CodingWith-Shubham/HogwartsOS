@@ -19,6 +19,7 @@ function OnboardingForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [lockedFields, setLockedFields] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState({
@@ -41,6 +42,8 @@ function OnboardingForm() {
     turnaroundPreference: '',
     revisionExpectations: '',
     additionalPreferences: '',
+    referenceLinks: '',
+    attachments: [] as string[],
   });
 
   useEffect(() => {
@@ -82,6 +85,39 @@ function OnboardingForm() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !token) return;
+
+    setUploadingAttachment(true);
+    const form = new FormData();
+    form.append('attachment', file);
+
+    try {
+      const res = await fetch('/api/public/upload-attachment', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: form,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setFormData((prev) => ({
+          ...prev,
+          attachments: [...(prev.attachments || []), data.url],
+        }));
+        toast.success('Attachment uploaded successfully');
+      } else {
+        toast.error(data.error || 'Failed to upload attachment');
+      }
+    } catch (err) {
+      toast.error('An error occurred during upload');
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -238,6 +274,47 @@ function OnboardingForm() {
                     <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="additionalPreferences" className="text-muted-foreground">Any other notes or preferences?</Label>
                       <Textarea id="additionalPreferences" name="additionalPreferences" value={formData.additionalPreferences} onChange={handleChange} className="min-h-[100px] bg-black/20 border-border/50 resize-y focus-visible:ring-primary/30" placeholder="Channels you like, things to avoid, general vibe you are going for..." />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="referenceLinks" className="text-muted-foreground">Reference Links</Label>
+                      <Textarea id="referenceLinks" name="referenceLinks" value={formData.referenceLinks} onChange={handleChange} className="min-h-[100px] bg-black/20 border-border/50 resize-y focus-visible:ring-primary/30" placeholder="Add reference video links, inspiration channels..." />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Attachments</Label>
+                      <div className="flex flex-col gap-2">
+                        <Input
+                          type="file"
+                          onChange={handleFileUpload}
+                          disabled={uploadingAttachment}
+                          className="bg-black/20 border-border/50 focus-visible:ring-primary/30"
+                        />
+                        {uploadingAttachment && <p className="text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin inline mr-1" /> Uploading...</p>}
+                        {formData.attachments && formData.attachments.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {formData.attachments.map((url, i) => (
+                              <div key={i} className="flex items-center justify-between p-2 rounded border border-border/50 bg-black/20 text-xs">
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[200px]">
+                                  {url.split('/').pop()}
+                                </a>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                                  onClick={() => setFormData(prev => ({
+                                    ...prev,
+                                    attachments: prev.attachments.filter((_, index) => index !== i)
+                                  }))}
+                                >
+                                  ×
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   

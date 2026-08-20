@@ -880,8 +880,9 @@ export function ClientProfileModal({
                       placeholder="Assistant / Manager phone"
                     />
                   </div>
-                </div>
-              </TabsContent>
+                    </div>
+                  </div>
+                </TabsContent>
               )}
 
               {/* SECTION 2: SALES & MANAGER DETAILS */}

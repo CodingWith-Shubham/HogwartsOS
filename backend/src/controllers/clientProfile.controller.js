@@ -135,6 +135,7 @@ export const createClientProfile = asyncHandler(async (req, res) => {
     attachments,
     editorPreferences,
     allowDuplicate,
+    profileImage,
   } = req.body;
 
   // Field validation
@@ -191,6 +192,7 @@ export const createClientProfile = asyncHandler(async (req, res) => {
     additionalPreferences: additionalPreferences || "",
     referenceLinks: referenceLinks || "",
     attachments: attachments || [],
+    profileImage: profileImage || "",
     editorPreferences: editorPreferences || {},
     previousProjects: [],
     createdBy: req.user._id,
@@ -403,6 +405,7 @@ export const updateClientProfile = asyncHandler(async (req, res) => {
     "additionalPreferences",
     "referenceLinks",
     "attachments",
+    "profileImage",
   ];
 
   allowedFields.forEach((field) => {

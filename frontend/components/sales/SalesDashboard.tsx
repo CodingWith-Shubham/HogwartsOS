@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { LeadStatusBadge } from '@/components/shared/Badges';
@@ -29,7 +29,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -269,6 +269,25 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [refreshing, setRefreshing] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
   const [reachoutDone, setReachoutDone] = useState<'yes' | 'no'>('no');
+
+  // Bulk upload state
+  const [leadSheetMode, setLeadSheetMode] = useState<'manual' | 'bulk'>('manual');
+  type BulkLeadRow = {
+    company: string;
+    contact: string;
+    whatsapp?: string;
+    clientEmail?: string;
+    cost?: string;
+    assignedTo?: string;
+    reachoutDone?: string;
+    _status?: 'pending' | 'uploading' | 'success' | 'error';
+    _error?: string;
+  };
+  const [bulkRows, setBulkRows] = useState<BulkLeadRow[]>([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
+  const [bulkParsing, setBulkParsing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [assignedTo, setAssignedTo] = useState<string>(DEFAULT_ASSIGNED_TO);
 
   useEffect(() => {
@@ -575,6 +594,135 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     if (open) {
       setReachoutDone('no');
       setAssignedTo(DEFAULT_ASSIGNED_TO);
+      setLeadSheetMode('manual');
+      setBulkRows([]);
+      setBulkProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExcelFile = async (file: File) => {
+    setBulkParsing(true);
+    setBulkRows([]);
+    try {
+      const { read, utils } = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const wb = read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw: Record<string, any>[] = utils.sheet_to_json(ws, { defval: '' });
+
+      const HEADER_MAP: Record<string, keyof BulkLeadRow> = {
+        'company name': 'company',
+        'company': 'company',
+        'name': 'company',
+        'contact number': 'contact',
+        'contact': 'contact',
+        'phone': 'contact',
+        'phone number': 'contact',
+        'whatsapp username': 'whatsapp',
+        'whatsapp': 'whatsapp',
+        'client email': 'clientEmail',
+        'email': 'clientEmail',
+        'cost': 'cost',
+        'cost in ₹': 'cost',
+        'cost (₹)': 'cost',
+        'assigned to': 'assignedTo',
+        'assign to': 'assignedTo',
+        'reachout done': 'reachoutDone',
+        'reachout': 'reachoutDone',
+      };
+
+      const mapped: BulkLeadRow[] = raw.map((row) => {
+        const result: BulkLeadRow = { company: '', contact: '', _status: 'pending' };
+        for (const [rawKey, rawVal] of Object.entries(row)) {
+          const normalized = String(rawKey).trim().toLowerCase();
+          const field = HEADER_MAP[normalized];
+          if (field) (result as any)[field] = String(rawVal ?? '').trim();
+        }
+        return result;
+      }).filter((r) => r.company || r.contact);
+
+      if (mapped.length === 0) {
+        toast.error('No valid rows found', { description: 'Make sure the Excel has Company Name and Contact Number columns.' });
+      }
+      setBulkRows(mapped);
+    } catch {
+      toast.error('Failed to parse Excel file', { description: 'Ensure the file is a valid .xlsx or .xls file.' });
+    } finally {
+      setBulkParsing(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const headers = ['Company Name', 'Contact Number', 'WhatsApp Username', 'Client Email', 'Cost in ₹', 'Assigned To', 'Reachout Done'];
+    const example = ['Acme Corp', '+919999999999', '@acmecorp', 'contact@acme.com', '15000', salesMembers[0] || 'Sales Member', 'No'];
+    const csvContent = [headers.join(','), example.join(',')].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leads_upload_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBulkUpload = async () => {
+    if (bulkRows.length === 0) return;
+    const invalid = bulkRows.filter(r => !r.company.trim() || !r.contact.trim() || !r.clientEmail?.trim());
+    if (invalid.length > 0) {
+      toast.error(`${invalid.length} row(s) missing required fields`, {
+        description: 'Company Name, Contact Number and Client Email are all mandatory.',
+      });
+      return;
+    }
+    setBulkUploading(true);
+    setBulkProgress(0);
+    let successCount = 0;
+    let errorCount = 0;
+
+    const updatedRows = [...bulkRows];
+    for (let i = 0; i < updatedRows.length; i++) {
+      updatedRows[i] = { ...updatedRows[i], _status: 'uploading' };
+      setBulkRows([...updatedRows]);
+      try {
+        const row = updatedRows[i];
+        const response = await authFetch('/api/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: row.company,
+            phoneNumber: row.contact,
+            whatsapp: row.whatsapp || '',
+            clientEmail: row.clientEmail || '',
+            cost: row.cost || '0',
+            assignedTo: row.assignedTo || salesMembers[0] || DEFAULT_ASSIGNED_TO,
+            reachoutDone: row.reachoutDone || 'No',
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          updatedRows[i] = { ...updatedRows[i], _status: 'error', _error: data.error || 'Failed' };
+          errorCount++;
+        } else {
+          updatedRows[i] = { ...updatedRows[i], _status: 'success' };
+          successCount++;
+        }
+      } catch {
+        updatedRows[i] = { ...updatedRows[i], _status: 'error', _error: 'Network error' };
+        errorCount++;
+      }
+      setBulkRows([...updatedRows]);
+      setBulkProgress(Math.round(((i + 1) / updatedRows.length) * 100));
+    }
+
+    setBulkUploading(false);
+    if (successCount > 0) {
+      toast.success(`${successCount} lead(s) created successfully!`, {
+        description: errorCount > 0 ? `${errorCount} lead(s) failed — check the table for details.` : undefined,
+      });
+      await refreshLeads(true);
+    } else {
+      toast.error('All leads failed to upload', { description: 'Check the error details in the table.' });
     }
   };
 
@@ -1735,69 +1883,269 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       />
 
       <Sheet open={leadOpen} onOpenChange={handleLeadOpenChange}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>New Lead</SheetTitle>
             <SheetDescription>Capture a new lead from WhatsApp Business</SheetDescription>
           </SheetHeader>
-          <form onSubmit={handleCreateLead} className="space-y-4 mt-6">
-            <div className="space-y-2">
-              <Label htmlFor="company">Company Name</Label>
-              <Input id="company" name="company" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact">Contact Number</Label>
-              <Input id="contact" name="contact" placeholder="+91 ..." required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp">WhatsApp Username</Label>
-              <Input id="whatsapp" name="whatsapp" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientEmail">Client Email</Label>
-              <Input id="clientEmail" name="clientEmail" type="email" placeholder="client@example.com" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cost">Cost in ₹</Label>
-              <Input id="cost" name="cost" type="number" min="0" step="0.01" placeholder="0" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="assignTo">Assign To</Label>
-              <Select value={assignedTo} onValueChange={setAssignedTo} name="assignTo" required>
-                <SelectTrigger id="assignTo">
-                  <SelectValue placeholder="Select sales member" />
-                </SelectTrigger>
-                <SelectContent>
-                  {salesMembers.map((member) => (
-                    <SelectItem key={member} value={member}>
-                      {member}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reachoutDone">Reachout Done</Label>
-              <Select value={reachoutDone} onValueChange={(v) => setReachoutDone(v as 'yes' | 'no')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no">No</SelectItem>
-                  <SelectItem value="yes">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <SheetFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setLeadOpen(false)}>
-                Cancel
+
+          {/* Mode toggle */}
+          <div className="flex mt-5 mb-1 rounded-lg border border-border p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setLeadSheetMode('manual')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium transition-colors',
+                leadSheetMode === 'manual'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Manual Entry
+            </button>
+            <button
+              type="button"
+              onClick={() => setLeadSheetMode('bulk')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium transition-colors',
+                leadSheetMode === 'bulk'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Bulk Upload
+            </button>
+          </div>
+
+          {/* ── MANUAL ENTRY ── */}
+          {leadSheetMode === 'manual' && (
+            <form onSubmit={handleCreateLead} className="space-y-4 mt-5">
+              <div className="space-y-2">
+                <Label htmlFor="company">Company Name</Label>
+                <Input id="company" name="company" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact">Contact Number</Label>
+                <Input id="contact" name="contact" placeholder="+91 ..." required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp">WhatsApp Username</Label>
+                <Input id="whatsapp" name="whatsapp" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clientEmail">Client Email</Label>
+                <Input id="clientEmail" name="clientEmail" type="email" placeholder="client@example.com" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cost">Cost in ₹</Label>
+                <Input id="cost" name="cost" type="number" min="0" step="0.01" placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assignTo">Assign To</Label>
+                <Select value={assignedTo} onValueChange={setAssignedTo} name="assignTo" required>
+                  <SelectTrigger id="assignTo">
+                    <SelectValue placeholder="Select sales member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesMembers.map((member) => (
+                      <SelectItem key={member} value={member}>
+                        {member}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reachoutDone">Reachout Done</Label>
+                <Select value={reachoutDone} onValueChange={(v) => setReachoutDone(v as 'yes' | 'no')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="yes">Yes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <SheetFooter className="mt-6">
+                <Button type="button" variant="outline" onClick={() => setLeadOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={creatingLead}>
+                  {creatingLead ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+                  Create Lead
+                </Button>
+              </SheetFooter>
+            </form>
+          )}
+
+          {/* ── BULK UPLOAD ── */}
+          {leadSheetMode === 'bulk' && (
+            <div className="mt-5 space-y-5">
+              {/* Info banner */}
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                <p className="font-medium flex items-center gap-1.5"><AlertCircle className="h-4 w-4 shrink-0" />Required columns</p>
+                <p className="text-xs leading-relaxed">
+                  <span className="font-semibold">Company Name</span>, <span className="font-semibold">Contact Number</span>, <span className="font-semibold">Client Email</span> — mandatory<br />
+                  WhatsApp Username, Cost in ₹, Assigned To, Reachout Done — optional
+                </p>
+              </div>
+
+              {/* Template download */}
+              <Button variant="outline" size="sm" className="w-full gap-2" onClick={downloadTemplate}>
+                <Download className="h-4 w-4" />
+                Download Template (CSV)
               </Button>
-              <Button type="submit" disabled={creatingLead}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Create Lead
-              </Button>
-            </SheetFooter>
-          </form>
+
+              {/* File drop zone */}
+              <div
+                className={cn(
+                  'relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 gap-3 transition-colors cursor-pointer',
+                  bulkParsing ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-primary/60 hover:bg-muted/40'
+                )}
+                onClick={() => !bulkParsing && !bulkUploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleExcelFile(file);
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleExcelFile(file);
+                  }}
+                />
+                {bulkParsing ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Parsing file…</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-full bg-primary/10 p-3">
+                      <Upload className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Click or drag & drop your Excel / CSV file</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">.xlsx, .xls, .csv supported</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Preview table */}
+              {bulkRows.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">
+                      {bulkRows.length} lead{bulkRows.length !== 1 ? 's' : ''} ready to upload
+                    </p>
+                    {!bulkUploading && (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => { setBulkRows([]); setBulkProgress(0); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  {bulkUploading && (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Uploading…</span>
+                        <span>{bulkProgress}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-300"
+                          style={{ width: `${bulkProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="max-h-60 overflow-y-auto rounded-lg border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-muted">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground w-6">#</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Company</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Contact</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground">Email</th>
+                          <th className="px-3 py-2 text-left font-medium text-muted-foreground w-8">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.map((row, idx) => (
+                          <tr key={idx} className={cn('border-t border-border', row._status === 'error' && 'bg-red-500/5')}>
+                            <td className="px-3 py-2 text-muted-foreground">{idx + 1}</td>
+                            <td className="px-3 py-2 font-medium max-w-[120px] truncate">
+                              {row.company || <span className="text-red-500">Missing</span>}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground max-w-[110px] truncate">
+                              {row.contact || <span className="text-red-500">Missing</span>}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">
+                              {row.clientEmail ? row.clientEmail : <span className="text-red-500 font-medium">Missing</span>}
+                            </td>
+                            <td className="px-3 py-2">
+                              {row._status === 'pending' && <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40" />}
+                              {row._status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                              {row._status === 'success' && <CheckCircle className="h-3.5 w-3.5 text-green-500" />}
+                              {row._status === 'error' && (
+                                <span title={row._error}>
+                                  <XCircle className="h-3.5 w-3.5 text-red-500" />
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Error summary */}
+                  {bulkRows.some(r => r._status === 'error') && (
+                    <div className="space-y-1">
+                      {bulkRows.filter(r => r._status === 'error').map((r, i) => (
+                        <p key={i} className="text-xs text-red-500">
+                          Row {bulkRows.indexOf(r) + 1} ({r.company}): {r._error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <SheetFooter className="mt-2">
+                <Button type="button" variant="outline" onClick={() => setLeadOpen(false)} disabled={bulkUploading}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={bulkRows.length === 0 || bulkUploading || bulkParsing}
+                  onClick={handleBulkUpload}
+                >
+                  {bulkUploading ? (
+                    <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Uploading…</>
+                  ) : (
+                    <><Upload className="mr-1.5 h-4 w-4" />Upload {bulkRows.length > 0 ? `${bulkRows.length} Lead${bulkRows.length !== 1 ? 's' : ''}` : 'Leads'}</>
+                  )}
+                </Button>
+              </SheetFooter>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 

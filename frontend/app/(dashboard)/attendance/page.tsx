@@ -191,6 +191,7 @@ function PaginationBar({
 export default function AttendancePage() {
   const { user } = useAuth();
   const [time, setTime] = useState<string>('');
+  const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
   const [workLocation, setWorkLocation] = useState<'Office' | 'Remote' | 'On-site Shoot'>('Office');
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
@@ -288,16 +289,33 @@ export default function AttendancePage() {
     }
   }, [user, fetchSummaries]);
 
-  // Live Digital Clock
+  // Live Digital Clock & Shift Timer
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       setTime(now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+      if (todayRecord?.checkIn) {
+        const checkInTime = new Date(todayRecord.checkIn).getTime();
+        const endTime = todayRecord.checkOut ? new Date(todayRecord.checkOut).getTime() : now.getTime();
+        
+        let diff = endTime - checkInTime;
+        if (diff < 0) diff = 0;
+        
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        const formatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        setElapsedTime(formatted);
+      } else {
+        setElapsedTime('00:00:00');
+      }
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [todayRecord]);
 
   // Pre-fetch location when page loads (so it's ready when they punch)
   useEffect(() => {
@@ -530,6 +548,10 @@ export default function AttendancePage() {
           </p>
         </div>
         <div className="flex items-center gap-4 bg-background/40 backdrop-blur px-4 py-2 rounded-lg border border-white/10">
+          <div className="text-right pr-4 border-r border-white/10">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Shift Duration</p>
+            <p className="text-xl font-extrabold text-emerald-400 font-mono">{elapsedTime}</p>
+          </div>
           <div className="text-right">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Current Time</p>
             <p className="text-xl font-extrabold text-indigo-400 font-mono">{time || '00:00:00 AM'}</p>
@@ -547,13 +569,18 @@ export default function AttendancePage() {
             {user?.role === 'super_admin' && (
               <TabsTrigger value="full-day-requests" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchFullDayRequests}>
                 Full Day Requests
-                {fullDayRequests.length > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold">{fullDayRequests.length}</span>
+                {fullDayRequests.filter(r => r.fullDayRequestStatus === 'Pending').length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold">{fullDayRequests.filter(r => r.fullDayRequestStatus === 'Pending').length}</span>
                 )}
               </TabsTrigger>
             )}
             {user?.role === 'super_admin' && (
-              <TabsTrigger value="lop-overrides" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchLopOverrides}>LOP Overrides</TabsTrigger>
+              <TabsTrigger value="lop-overrides" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchLopOverrides}>
+                LOP Overrides
+                {lopOverrides.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold">{lopOverrides.length}</span>
+                )}
+              </TabsTrigger>
             )}
             {user?.role === 'super_admin' && (
               <TabsTrigger value="employee-summaries" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" onClick={fetchSummaries}>Employee Summaries</TabsTrigger>

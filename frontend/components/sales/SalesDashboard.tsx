@@ -1443,7 +1443,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         const payments = paymentHistory[edit.leadId] || [];
         const hasPastRevisionPayment = payments.some(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
         
-        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || edit.extraRevisionCost === 0) && hasPastRevisionPayment) {
+        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || Number(edit.extraRevisionCost) === 0) && hasPastRevisionPayment) {
            status = 'verified';
         }
 
@@ -1474,7 +1474,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         const payments = paymentHistory[edit.leadId] || [];
         const hasPastRevisionPayment = payments.some(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
         
-        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || edit.extraRevisionCost === 0) && hasPastRevisionPayment) {
+        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || Number(edit.extraRevisionCost) === 0) && hasPastRevisionPayment) {
            status = 'verified';
         }
 

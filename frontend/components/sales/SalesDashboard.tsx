@@ -516,7 +516,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         return salesLeads;
     }
   }, [salesLeads, filterTab]);
-
   const shootsWithAddons = useMemo(() => {
     return shoots.filter((shoot) => {
       return String(shoot.addonHasAddons).toLowerCase() === 'true' || String(shoot.addonHasAddons).toLowerCase() === 'yes';
@@ -524,8 +523,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [shoots]);
 
   const revisionWithAddons = useMemo(() => {
-    return editing.filter((edit) => edit.extraRevisionApproved);
-  }, [editing]);
+    return editing.filter((edit) => {
+      if (edit.extraRevisionApproved) return true;
+      const payments = paymentHistory[edit.leadId] || [];
+      return payments.some(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
+    });
+  }, [editing, paymentHistory]);
 
   const paymentSummary = (lead: Lead) => {
     const payments = paymentHistory[lead.leadId] ?? [];
@@ -1415,18 +1418,35 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'details',
       header: 'Revision Details',
-      cell: (edit) => (
-        <div className="text-xs space-y-0.5">
-          <p>Revisions: {edit.revisionCount} / {edit.maxFreeRevisions || 2}</p>
-          {edit.extraRevisionCost && edit.extraRevisionCost !== '0' && <p>Cost: {formatINR(Number(edit.extraRevisionCost))}</p>}
-        </div>
-      ),
+      cell: (edit) => {
+        const payments = paymentHistory[edit.leadId] || [];
+        const pastRevisionPayments = payments.filter(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
+        const totalPastCost = pastRevisionPayments.reduce((sum, p) => sum + p.amount, 0);
+        const currentCost = Number(edit.extraRevisionCost || 0);
+        
+        const displayCost = currentCost > 0 ? currentCost : totalPastCost;
+
+        return (
+          <div className="text-xs space-y-0.5">
+            <p>Revisions: {edit.revisionCount} / {edit.maxFreeRevisions || 2}</p>
+            {displayCost > 0 && <p>Cost: {formatINR(displayCost)}</p>}
+          </div>
+        );
+      },
     },
     {
       key: 'status',
       header: 'Status',
       cell: (edit) => {
-        const status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        let status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        
+        const payments = paymentHistory[edit.leadId] || [];
+        const hasPastRevisionPayment = payments.some(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
+        
+        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || edit.extraRevisionCost === 0) && hasPastRevisionPayment) {
+           status = 'verified';
+        }
+
         let badgeVariant: 'default' | 'outline' | 'secondary' = 'outline';
         let label = 'Pending Price';
         if (status === 'price_set') { badgeVariant = 'secondary'; label = 'Link Sent'; }
@@ -1436,7 +1456,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         return (
           <div className="flex flex-col items-start gap-1">
             <Badge variant={badgeVariant}>{label}</Badge>
-            {edit.addonScreenshot && (
+            {edit.addonScreenshot && status !== 'verified' && (
               <a href={edit.addonScreenshot} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[10px] text-blue-500 hover:underline inline-flex items-center">
                 <ExternalLink className="h-3 w-3 mr-0.5" /> View SS
               </a>
@@ -1449,7 +1469,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       key: 'actions',
       header: 'Actions',
       cell: (edit) => {
-        const status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        let status = (edit.addonPaymentStatus || 'pending').toLowerCase();
+        
+        const payments = paymentHistory[edit.leadId] || [];
+        const hasPastRevisionPayment = payments.some(p => p.installment_label === 'Revision Addon' && isVerifiedInstallment(p));
+        
+        if ((!edit.extraRevisionCost || edit.extraRevisionCost === '0' || edit.extraRevisionCost === 0) && hasPastRevisionPayment) {
+           status = 'verified';
+        }
+
         return (
           <div className="flex flex-col gap-2">
             {(status === 'pending' || status === 'price_set') && (

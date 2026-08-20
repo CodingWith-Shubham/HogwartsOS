@@ -159,6 +159,25 @@ export function SendProposalDialog({
     e.preventDefault();
     if (!lead) return;
 
+    const parseDurationToMinutes = (val: string) => {
+      const s = String(val || '').toLowerCase().trim();
+      const num = parseFloat(s) || 0;
+      if (s.includes('min')) return num;
+      if (s.includes('hr') || s.includes('hour')) return num * 60;
+      return num > 12 ? num : num * 60;
+    };
+
+    for (let i = 0; i < deliverableSets.length; i++) {
+      const set = deliverableSets[i];
+      const recordMins = parseDurationToMinutes(set.recordTime);
+      const studioMins = parseDurationToMinutes(set.studioTime);
+      
+      if (recordMins > 0 && studioMins > 0 && studioMins < recordMins) {
+        toast.error(`Deliverable Set ${i + 1}: Studio Time (${set.studioTime || studioMins + ' min'}) cannot be less than Record Time (${set.recordTime || recordMins + ' min'}).`);
+        return;
+      }
+    }
+
     const deliverablesPayload = Object.fromEntries(
       DELIVERABLE_FIELDS.map((field) => [
         field.payloadKey,

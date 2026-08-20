@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle, CheckCircle, ExternalLink, FileText, HardDrive,
   Scissors, Send, UserCheck, GitFork, MessageSquare, RotateCcw,
-  CheckSquare, XSquare, Clock, Loader2
+  CheckSquare, XSquare, Clock, Loader2, PlayCircle
 } from 'lucide-react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
@@ -107,6 +107,7 @@ export default function EditorPage() {
   const [splitState, setSplitState] = useState<Record<string, { isOpen: boolean, items: string[], extras: string, saving?: boolean }>>({});
 
   const [assignedPage, setAssignedPage] = useState(1);
+  const [inProgressPage, setInProgressPage] = useState(1);
   const [correctionsPage, setCorrectionsPage] = useState(1);
   const [draftsPage, setDraftsPage] = useState(1);
   const [revisionsPage, setRevisionsPage] = useState(1);
@@ -162,7 +163,8 @@ export default function EditorPage() {
   }, [refresh]);
 
   const groups = useMemo(() => ({
-    assigned: tasks.filter((task) => ['Assigned', 'In Progress'].includes(task.status) && parseInt(task.revision_count || '0') === 0),
+    assigned: tasks.filter((task) => task.status === 'Assigned' && parseInt(task.revision_count || '0') === 0),
+    inProgress: tasks.filter((task) => task.status === 'In Progress' && parseInt(task.revision_count || '0') === 0),
     corrections: tasks.filter((task) => task.status === 'Correction Requested'),
     drafts: tasks.filter((task) => ['Draft Ready', 'Draft Sent'].includes(task.status)),
     revisions: tasks.filter((task) =>
@@ -917,8 +919,9 @@ export default function EditorPage() {
       />
 
       {/* Stat Cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <StatCard title="Assigned" value={groups.assigned.filter((t) => t.status === 'Assigned').length} icon={Scissors} onClick={() => setActiveTab('assigned')} />
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-7">
+        <StatCard title="Assigned" value={groups.assigned.length} icon={Scissors} onClick={() => setActiveTab('assigned')} />
+        <StatCard title="In Progress" value={groups.inProgress.length} icon={PlayCircle} onClick={() => setActiveTab('in-progress')} />
         <StatCard title="Corrections" value={groups.corrections.length} icon={AlertCircle} onClick={() => setActiveTab('corrections')} />
         <StatCard title="Drafts Sent" value={groups.drafts.length} icon={FileText} onClick={() => setActiveTab('drafts')} />
         <StatCard title="In Revision" value={groups.revisions.length} icon={RotateCcw} onClick={() => setActiveTab('revisions')} />
@@ -939,6 +942,14 @@ export default function EditorPage() {
             {groups.assigned.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
                 {groups.assigned.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="in-progress" className="relative">
+            In Progress
+            {groups.inProgress.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                {groups.inProgress.length}
               </span>
             )}
           </TabsTrigger>
@@ -985,6 +996,7 @@ export default function EditorPage() {
         </TabsList>
 
         <TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.', assignedPage, setAssignedPage)}</TabsContent>
+        <TabsContent value="in-progress" className="mt-4">{panel(groups.inProgress, 'No in progress tasks.', inProgressPage, setInProgressPage)}</TabsContent>
         <TabsContent value="corrections" className="mt-4">{panel(groups.corrections, 'No corrections pending.', correctionsPage, setCorrectionsPage)}</TabsContent>
         <TabsContent value="drafts" className="mt-4">{panel(groups.drafts, 'No drafts sent yet.', draftsPage, setDraftsPage)}</TabsContent>
         <TabsContent value="revisions" className="mt-4">{panel(groups.revisions, 'No revisions pending.', revisionsPage, setRevisionsPage)}</TabsContent>

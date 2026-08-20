@@ -1398,20 +1398,18 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
               {FILTER_TABS.map((tab) => {
                 let count = 0;
+                let showCount = false;
+                
                 if (tab.value === 'addons_payments') {
-                  count = shootsWithAddons.length + revisionWithAddons.length;
-                } else if (tab.value === 'new_leads') {
-                  count = salesLeads.filter(l => l.status === 'New Lead').length;
-                } else if (tab.value === 'proposal_sent') {
-                  count = salesLeads.filter(l => l.status === 'Proposal Sent' || String(l.proposalSent).toLowerCase() === 'true').length;
-                } else if (tab.value === 'revoked') {
-                  count = salesLeads.filter(l => l.status === 'Revoked').length;
-                } else if (tab.value === 'accepted') {
-                  count = salesLeads.filter(l => l.proposalAccepted).length;
-                } else if (tab.value === 'upsells') {
-                  count = salesLeads.filter(l => l.leadType === 'upsell').length;
+                  const needsAction = (item: any) => {
+                    const status = (item.addonPaymentStatus || 'pending').toLowerCase();
+                    return status === 'pending' || status === 'screenshot_received';
+                  };
+                  count = shootsWithAddons.filter(needsAction).length + revisionWithAddons.filter(needsAction).length;
+                  showCount = true;
                 } else if (tab.value === 'all') {
-                  count = salesLeads.length;
+                  count = salesLeads.filter(l => isPendingPaymentVerification(l)).length;
+                  showCount = true;
                 }
 
                 return (
@@ -1427,7 +1425,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                   )}
                 >
                   {tab.label}
-                  {count > 0 && (
+                  {showCount && count > 0 && (
                     <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
                       {count}
                     </span>

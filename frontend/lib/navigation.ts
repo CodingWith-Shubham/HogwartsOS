@@ -24,7 +24,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Sales', href: '/sales', icon: Briefcase, roles: ['manager', 'admin', 'super_admin', 'sales'] },
   { label: 'Manager', href: '/manager', icon: LayoutDashboard, roles: ['manager', 'admin', 'super_admin'] },
   { label: 'Shoot', href: '/shoot', icon: Camera, roles: ['manager', 'super_admin', 'shoot'] },
+  { label: 'Shoot Dashboard', href: '/shoot-dashboard', icon: LayoutDashboard, roles: ['super_admin', 'shoot'] },
   { label: 'Editor', href: '/editor', icon: Scissors, roles: ['manager', 'super_admin', 'editor'] },
+  { label: 'Editor Dashboard', href: '/editor-dashboard', icon: LayoutDashboard, roles: ['super_admin', 'editor'] },
   { label: 'Clients', href: '/clients', icon: Users, roles: ['manager', 'admin', 'super_admin', 'sales'] },
 
   { label: 'Attendance', href: '/attendance', icon: Clock, roles: ['manager', 'admin', 'super_admin', 'sales', 'shoot', 'editor'] },

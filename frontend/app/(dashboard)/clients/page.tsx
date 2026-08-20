@@ -276,6 +276,12 @@ export default function ClientsPage() {
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 409) {
+          toast.warning('Duplicate Lead Detected', {
+            description: data.error ?? 'A lead with this phone number or email already exists.',
+          });
+          return;
+        }
         throw new Error(data.error ?? 'Failed to save client');
       }
 

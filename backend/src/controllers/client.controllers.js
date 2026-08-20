@@ -93,6 +93,21 @@ const createClient = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Client name and contact number are required");
     }
 
+    const phoneNumber = body.phoneNumber || body.contact || "";
+    const clientEmail = body.clientEmail || body.email || "";
+
+    const duplicateQuery = { $or: [] };
+    if (phoneNumber) duplicateQuery.$or.push({ phoneNumber });
+    if (clientEmail) duplicateQuery.$or.push({ clientEmail });
+
+    if (duplicateQuery.$or.length > 0) {
+        const existingClient = await Client.findOne(duplicateQuery);
+        if (existingClient) {
+            const matchType = existingClient.phoneNumber === phoneNumber ? 'phone number' : 'email address';
+            throw new ApiError(409, `A lead with this ${matchType} already exists (Lead ID: ${existingClient.leadId}).`);
+        }
+    }
+
     const count = await Client.countDocuments();
     const leadId = body.leadId || `HL-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
@@ -126,6 +141,26 @@ const updateClient = asyncHandler(async (req, res) => {
         const existing = await Client.findOne({ leadId });
         if (!existing) throw new ApiError(404, "Client not found");
         return res.status(200).json(new ApiResponse(200, { lead: existing }, "Ignored main lead update since this is an upsell payment"));
+    }
+
+    const phoneNumber = updateData.phoneNumber || updateData.contact || "";
+    const clientEmail = updateData.clientEmail || updateData.email || "";
+
+    const duplicateQuery = { $or: [] };
+    if (phoneNumber) duplicateQuery.$or.push({ phoneNumber });
+    if (clientEmail) duplicateQuery.$or.push({ clientEmail });
+
+    if (duplicateQuery.$or.length > 0) {
+        const existingClient = await Client.findOne({
+            $and: [
+                { leadId: { $ne: leadId } },
+                duplicateQuery
+            ]
+        });
+        if (existingClient) {
+            const matchType = existingClient.phoneNumber === phoneNumber ? 'phone number' : 'email address';
+            throw new ApiError(409, `Another lead with this ${matchType} already exists (Lead ID: ${existingClient.leadId}).`);
+        }
     }
 
     const updated = await Client.findOneAndUpdate(

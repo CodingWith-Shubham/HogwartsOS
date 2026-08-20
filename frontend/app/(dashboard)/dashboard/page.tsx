@@ -110,7 +110,10 @@ export default function DashboardPage() {
   // 4. Upcoming Shoots
   const upcomingShoots = shoots
     .filter((s) => s.shootDate && s.shootDate >= todayStr && !isTrue(s.driveLinkUploaded))
-    .sort((a, b) => a.shootDate.localeCompare(b.shootDate))
+    .sort((a, b) => {
+      const cmp = a.shootDate.localeCompare(b.shootDate);
+      return cmp !== 0 ? cmp : (a.shootStartTime || '').localeCompare(b.shootStartTime || '');
+    })
     .slice(0, 4);
 
   // 5. New metric groups from realtime-data

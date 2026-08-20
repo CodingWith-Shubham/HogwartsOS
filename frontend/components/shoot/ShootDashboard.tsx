@@ -530,11 +530,23 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   }, []);
 
   const today = todayKey();
-  const todaysShoots = shoots.filter((shoot) => shoot.shootDate === today);
-  const upcoming = shoots.filter(
-    (shoot) => shoot.shootDate > today && !isTrue(shoot.driveLinkUploaded)
-  );
-  const completed = shoots.filter((shoot) => isTrue(shoot.driveLinkUploaded));
+  const todaysShoots = shoots
+    .filter((shoot) => shoot.shootDate === today)
+    .sort((a, b) => (a.shootStartTime || '').localeCompare(b.shootStartTime || ''));
+    
+  const upcoming = shoots
+    .filter((shoot) => shoot.shootDate > today && !isTrue(shoot.driveLinkUploaded))
+    .sort((a, b) => {
+      const cmp = (a.shootDate || '').localeCompare(b.shootDate || '');
+      return cmp !== 0 ? cmp : (a.shootStartTime || '').localeCompare(b.shootStartTime || '');
+    });
+    
+  const completed = shoots
+    .filter((shoot) => isTrue(shoot.driveLinkUploaded))
+    .sort((a, b) => {
+      const cmp = (b.shootDate || '').localeCompare(a.shootDate || '');
+      return cmp !== 0 ? cmp : (b.shootStartTime || '').localeCompare(a.shootStartTime || '');
+    });
   const pendingUploads = shoots.filter((shoot) => !isTrue(shoot.driveLinkUploaded)).length;
 
   const openEdit = (shoot: Shoot) => {

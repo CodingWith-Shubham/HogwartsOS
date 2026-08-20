@@ -138,6 +138,7 @@ export function ClientProfileModal({
     preferredCommunication: '',
     alternateContact: '',
     onboardingEmailSent: false,
+    onboardingCompleted: false,
 
     // Sales & Manager Details
     budgetRange: '',
@@ -224,6 +225,7 @@ export function ClientProfileModal({
       preferredCommunication: 'Email',
       alternateContact: '',
       onboardingEmailSent: false,
+      onboardingCompleted: false,
       budgetRange: '',
       paymentMethod: '',
       leadSource: '',
@@ -324,6 +326,7 @@ export function ClientProfileModal({
       preferredCommunication: p.preferredCommunication || '',
       alternateContact: p.alternateContact || '',
       onboardingEmailSent: p.onboardingEmailSent || false,
+      onboardingCompleted: p.onboardingCompleted || false,
       budgetRange: p.budgetRange || '',
       paymentMethod: p.paymentMethod || '',
       leadSource: p.leadSource || '',
@@ -984,7 +987,14 @@ export function ClientProfileModal({
               <TabsContent value="preferences" className="space-y-4 pt-4">
                 <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20 mb-4">
                   <div>
-                    <h4 className="text-sm font-semibold">Copy Onboarding Link</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold">Copy Onboarding Link</h4>
+                      {formData.onboardingCompleted ? (
+                        <Badge variant="outline" className="border-green-500 text-green-600 bg-green-500/10 text-[10px] h-5 py-0">Onboarding completed by the client</Badge>
+                      ) : formData.onboardingEmailSent ? (
+                        <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10 text-[10px] h-5 py-0">Onboarding pending from client side</Badge>
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">Share this link with the client to let them fill out their preferences.</p>
                   </div>
                   {effectiveProfileId ? (

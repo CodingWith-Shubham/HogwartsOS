@@ -53,6 +53,10 @@ const clientProfileSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
+    },
 
     // 2. Sales / Manager Details
     budgetRange: {

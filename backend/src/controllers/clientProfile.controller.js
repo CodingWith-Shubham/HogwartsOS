@@ -406,6 +406,8 @@ export const updateClientProfile = asyncHandler(async (req, res) => {
     "referenceLinks",
     "attachments",
     "profileImage",
+    "onboardingEmailSent",
+    "onboardingCompleted",
   ];
 
   allowedFields.forEach((field) => {
@@ -696,7 +698,7 @@ export const updatePublicProfile = asyncHandler(async (req, res) => {
     "attachments",
   ];
   
-  const updates = {};
+  const updates = { onboardingCompleted: true };
   allowedFields.forEach((field) => {
     if (req.body[field] !== undefined) {
       updates[field] = req.body[field];

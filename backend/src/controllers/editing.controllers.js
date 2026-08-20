@@ -410,10 +410,10 @@ const updateProject = asyncHandler(async (req, res) => {
     }
     if (!projectToUpdate) throw new ApiError(404, "Project or Task not found");
 
-    // Automatically enforce Revision Requested status if exceeding free revisions
+    // Automatically enforce Extra Revision flow if exceeding free revisions
     if (updates.revisionCount !== undefined && updates.revisionCount > (projectToUpdate.maxFreeRevisions || 2)) {
         if (updates.revisionCount > (projectToUpdate.revisionCount || 0)) {
-            updates.status = 'Revision Requested';
+            updates.status = 'Pending Extra Revision Approval';
             updates.extraRevisionApproved = false; // Reset approval ONLY if a new revision was actually added
         }
     }
@@ -583,9 +583,22 @@ const updateTaskById = asyncHandler(async (req, res) => {
             updates.allocationHistory = typeof updates.allocation_history === 'string' ? JSON.parse(updates.allocation_history) : updates.allocation_history;
         } catch(e) {}
     }
+    
+    if (updates.revision_count !== undefined) updates.revisionCount = Number(updates.revision_count);
+    if (updates.current_draft_link !== undefined) updates.draftLink = updates.current_draft_link;
+    if (updates.extra_revision_approved !== undefined) updates.extraRevisionApproved = updates.extra_revision_approved === 'true' || updates.extra_revision_approved === true;
+    if (updates.extra_revision_cost !== undefined) updates.extraRevisionCost = updates.extra_revision_cost;
 
     const task = await EditingTask.findOne({ taskId: task_id });
     if (!task) throw new ApiError(404, "Task not found");
+
+    // Automatically enforce Extra Revision flow if exceeding free revisions
+    if (updates.revisionCount !== undefined && updates.revisionCount > (task.maxFreeRevisions || 2)) {
+        if (updates.revisionCount > (task.revisionCount || 0)) {
+            updates.status = 'Pending Extra Revision Approval';
+            updates.extraRevisionApproved = false; // Reset approval ONLY if a new revision was actually added
+        }
+    }
 
     if (updates.assignedToEmail && updates.assignedToEmail !== task.assignedToEmail) {
         const historyEntry = {

@@ -75,6 +75,9 @@ export type ProposalFormValues = {
   salesNotes: string;
   longFormatDuration: string;
   shortFormatDuration: string;
+  camera: string;
+  recordTime: string;
+  studioTime: string;
 } & Record<DeliverableKey, string>;
 
 export const DEFAULT_DELIVERABLES: Record<DeliverableKey, string> = {

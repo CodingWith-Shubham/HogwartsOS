@@ -33,6 +33,7 @@ export interface ProposalDialogLead {
   servicePitched: string;
   cost: string;
   assignedTo: string;
+  deliverableSets?: any[];
 }
 
 export interface SendProposalDialogProps {
@@ -80,22 +81,40 @@ export function SendProposalDialog({
     setProposalForm({
       clientEmail: lead.clientEmail,
       cost: lead.cost,
-      serviceNotes: [],
-      salesNotes: '',
+      serviceNotes: defaults?.serviceNotes ?? [],
+      salesNotes: defaults?.salesNotes ?? '',
       podcastEdit: defaults?.podcastEdit ?? '0',
     });
-    setDeliverableSets([{
-      reelEdit: defaults?.reelEdit ?? '0',
-      longFormatVideo: defaults?.longFormatVideo ?? '0',
-      shortFormatVideo: defaults?.shortFormatVideo ?? '0',
-      teaserEdit: defaults?.teaserEdit ?? '0',
-      thumbnailEdit: defaults?.thumbnailEdit ?? '0',
-      longFormatDuration: defaults?.longFormatDuration ?? '',
-      shortFormatDuration: defaults?.shortFormatDuration ?? '',
-      camera: '',
-      recordTime: '',
-      studioTime: '',
-    }]);
+    if (lead.deliverableSets && lead.deliverableSets.length > 0) {
+      setDeliverableSets(lead.deliverableSets.map((set: any, index: number) => {
+        const fb = index === 0 ? defaults : {};
+        return {
+          reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '0',
+          longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '0',
+          shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '0',
+          teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '0',
+          thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '0',
+          longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
+          shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
+          camera: set.camera || fb?.camera || '',
+          recordTime: set.recordTime || set.record_time || fb?.recordTime || '',
+          studioTime: set.studioTime || set.studio_time || fb?.studioTime || '',
+        };
+      }));
+    } else {
+      setDeliverableSets([{
+        reelEdit: defaults?.reelEdit ?? '0',
+        longFormatVideo: defaults?.longFormatVideo ?? '0',
+        shortFormatVideo: defaults?.shortFormatVideo ?? '0',
+        teaserEdit: defaults?.teaserEdit ?? '0',
+        thumbnailEdit: defaults?.thumbnailEdit ?? '0',
+        longFormatDuration: defaults?.longFormatDuration ?? '',
+        shortFormatDuration: defaults?.shortFormatDuration ?? '',
+        camera: defaults?.camera ?? '',
+        recordTime: defaults?.recordTime ?? '',
+        studioTime: defaults?.studioTime ?? '',
+      }]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

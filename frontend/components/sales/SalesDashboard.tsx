@@ -535,15 +535,18 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       podcastEdit: lead.podcastEdit || '0',
       reelEdit: lead.reelEdit || '0',
       longFormatVideo: lead.longFormatVideo || '0',
-      shortFormatVideo: '0',
-      teaserEdit: lead.teaserDemo || '0',
-      thumbnailEdit: lead.thumbnail || '0',
+      shortFormatVideo: lead.shortFormatVideo || '0',
+      teaserEdit: lead.teaserEdit || lead.teaserDemo || '0',
+      thumbnailEdit: lead.thumbnailEdit || lead.thumbnail || '0',
       serviceNotes: lead.serviceNotes 
         ? lead.serviceNotes.split(',').map(s => s.trim()).filter(s => SERVICE_NOTE_OPTIONS.includes(s as any))
         : [],
       salesNotes: lead.salesNotes || '',
-      longFormatDuration: '',
-      shortFormatDuration: '',
+      longFormatDuration: lead.longFormatDuration || '',
+      shortFormatDuration: lead.shortFormatDuration || '',
+      camera: lead.camera || '',
+      recordTime: lead.recordTime || '',
+      studioTime: lead.studioTime || '',
     });
     setProposalOpen(true);
   };

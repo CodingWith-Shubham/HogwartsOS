@@ -179,14 +179,16 @@ const updateTask = asyncHandler(async (req, res) => {
             }
         }
     }
-    if (updateData.status === 'Extra Revision Approved') {
+    if (updateData.status === 'Extra Revision Approved' || updateData.status === 'In Revision') {
         if (task.assignedToEmail || task.editorEmail) {
             const email = task.assignedToEmail || task.editorEmail;
             const editorUser = await User.findOne({ email });
             if (editorUser) {
                 sendPushNotification({ userIds: [editorUser._id] }, {
-                    title: 'Extra revision approved',
-                    message: `An extra revision for ${task.clientName} has been approved.`,
+                    title: updateData.status === 'Extra Revision Approved' ? 'Extra revision approved' : 'Revision approved',
+                    message: updateData.status === 'Extra Revision Approved' 
+                        ? `An extra revision for ${task.clientName} has been approved.`
+                        : `A revision for ${task.clientName} has been approved.`,
                     href: '/editor'
                 }).catch(console.error);
             }

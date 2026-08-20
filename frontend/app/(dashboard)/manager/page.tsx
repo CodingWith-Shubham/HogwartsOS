@@ -676,8 +676,8 @@ export default function ManagerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           taskId: edit.editId, 
-          status: 'Extra Revision Approved',
-          extraRevisionApproved: true,
+          status: cost > 0 ? 'Extra Revision Approved' : 'In Revision',
+          extraRevisionApproved: cost > 0,
           extraRevisionCost: cost,
           addonPaymentStatus: cost > 0 ? 'price_set' : undefined,
           managerComment: extraFeedback[edit.editId] ?? ''
@@ -690,8 +690,8 @@ export default function ManagerPage() {
           item.editId === edit.editId
             ? {
                 ...item,
-                status: 'Extra Revision Approved',
-                extraRevisionApproved: true,
+                status: cost > 0 ? 'Extra Revision Approved' : 'In Revision',
+                extraRevisionApproved: cost > 0,
                 addonPaymentStatus: cost > 0 ? 'price_set' : item.addonPaymentStatus,
                 revisionFeedback: extraFeedback[edit.editId] ?? item.revisionFeedback,
               }

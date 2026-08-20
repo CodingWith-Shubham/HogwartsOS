@@ -215,6 +215,7 @@ export function ClientProfileModal({
     setFormData({
       name: clientInfo?.name || '',
       email: clientInfo?.email || '',
+      profileImage: '',
       phone: clientInfo?.phone || '',
       companyName: clientInfo?.companyName || '',
       country: '',
@@ -313,6 +314,7 @@ export function ClientProfileModal({
     setFormData({
       name: p.name || '',
       email: p.email || '',
+      profileImage: p.profileImage || '',
       phone: p.phone || '',
       companyName: p.companyName || '',
       country: p.country || '',

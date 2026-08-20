@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -1105,10 +1106,21 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       header: 'Client',
       sortable: true,
       sortValue: (lead) => lead.name,
-      cell: (lead) => (
-        <div>
-          <p className="font-medium">{lead.name}</p>
-          <p className="text-xs text-muted-foreground">{lead.phoneNumber}</p>
+      cell: (lead: any) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            {lead.profileImage ? (
+              <img src={lead.profileImage} alt={lead.name} className="h-full w-full object-cover" />
+            ) : (
+              <AvatarFallback className="bg-secondary border border-border text-xs">
+                {lead.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          <div>
+            <p className="font-medium">{lead.name}</p>
+            <p className="text-xs text-muted-foreground">{lead.phoneNumber}</p>
+          </div>
         </div>
       ),
     },

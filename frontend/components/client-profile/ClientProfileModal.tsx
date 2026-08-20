@@ -46,6 +46,7 @@ import {
   Unlink,
   X,
   Send,
+  Camera,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -113,6 +114,7 @@ export function ClientProfileModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -128,6 +130,7 @@ export function ClientProfileModal({
     // Basic Info
     name: '',
     email: '',
+    profileImage: '',
     phone: '',
     companyName: '',
     country: '',
@@ -367,6 +370,36 @@ export function ClientProfileModal({
         [field]: val,
       },
     }));
+  };
+
+  const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingProfilePic(true);
+    const form = new FormData();
+    form.append('attachment', file);
+
+    try {
+      const res = await fetch('/api/client-profiles/upload-attachment', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: data.url,
+        }));
+        toast.success('Profile picture uploaded successfully');
+      } else {
+        toast.error(data.error || 'Failed to upload profile picture');
+      }
+    } catch (err) {
+      toast.error('An error occurred during upload');
+    } finally {
+      setUploadingProfilePic(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -731,9 +764,36 @@ export function ClientProfileModal({
 
               {/* SECTION 1: BASIC INFORMATION */}
               {!hideContactInfo && (
-                <TabsContent value="basic" className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                <TabsContent value="basic" className="space-y-6 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-6 items-start">
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="relative h-24 w-24 rounded-full border-2 border-border overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                        {formData.profileImage ? (
+                          <img src={formData.profileImage} alt="Profile" className="h-full w-full object-cover" />
+                        ) : (
+                          <User className="h-10 w-10 text-muted-foreground" />
+                        )}
+                      </div>
+                      {canEditAllFields && (
+                        <div className="flex flex-col items-center w-full">
+                          <Label htmlFor="profile-pic-upload" className="cursor-pointer text-xs text-primary hover:underline font-medium flex items-center">
+                            {uploadingProfilePic ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Camera className="w-3 h-3 mr-1" />}
+                            {uploadingProfilePic ? 'Uploading...' : 'Change Photo'}
+                          </Label>
+                          <Input
+                            id="profile-pic-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleProfilePicUpload}
+                            disabled={uploadingProfilePic}
+                            className="hidden"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                      <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
                       <User className="h-3.5 w-3.5 text-muted-foreground" /> Client Name *
                     </Label>

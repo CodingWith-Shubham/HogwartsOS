@@ -4,6 +4,7 @@ import { Shoot } from "../models/shoot.models.js";
 import { Payment } from "../models/payment.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
+import { ClientProfile } from "../models/clientProfile.models.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getClients = asyncHandler(async (req, res) => {
@@ -74,13 +75,32 @@ const getClients = asyncHandler(async (req, res) => {
         }
     });
 
+    const clientEmails = filteredLeads.map(l => (l.clientEmail || l.email || '').trim().toLowerCase()).filter(Boolean);
+    const clientPhones = filteredLeads.map(l => (l.phoneNumber || l.contact || '').trim()).filter(Boolean);
+    
+    const profiles = await ClientProfile.find({
+        $or: [
+            { email: { $in: clientEmails } },
+            { phone: { $in: clientPhones } }
+        ]
+    }).select("email phone profileImage").lean();
+
     const result = filteredLeads.map(l => {
-        const obj = l.toObject();
+        const obj = typeof l.toObject === 'function' ? l.toObject() : { ...l };
         obj.id = l._id.toString();
         obj.payment = paymentMap.get(l.leadId) || null;
         if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
             obj.deliverableSets = obj.deliverable_sets;
         }
+
+        const lEmail = (l.clientEmail || l.email || '').trim().toLowerCase();
+        const lPhone = (l.phoneNumber || l.contact || '').trim();
+        const profile = profiles.find(p => 
+            (p.email && p.email.toLowerCase() === lEmail) || 
+            (p.phone && p.phone === lPhone)
+        );
+        obj.profileImage = profile ? profile.profileImage : "";
+
         return obj;
     });
 

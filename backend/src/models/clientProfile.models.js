@@ -9,6 +9,10 @@ const clientProfileSchema = new Schema(
       trim: true,
       index: true,
     },
+    profileImage: {
+      type: String,
+      default: "",
+    },
     email: {
       type: String,
       trim: true,

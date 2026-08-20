@@ -89,6 +89,7 @@ export interface Lead {
   payment: Payment | null;
   payment_status?: string;
   deliverableSets?: any[];
+  profileImage?: string;
 }
 
 export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells' | 'addons_payments';

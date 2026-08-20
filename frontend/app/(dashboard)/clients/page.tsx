@@ -332,6 +332,7 @@ export default function ClientsPage() {
       totalRevenue: clientRevenue,
       status: lead.status || 'New Lead',
       whatsapp: lead.whatsapp || '',
+      profileImage: lead.profileImage || '',
       ucxBadges: ucxClients
         .filter((summary) => summary.clientLeadId === lead.leadId)
         .flatMap((summary) => {
@@ -365,9 +366,13 @@ export default function ClientsPage() {
       cell: (c) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-secondary border border-border text-xs">
-              {c.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
-            </AvatarFallback>
+            {c.profileImage ? (
+              <img src={c.profileImage} alt={c.name} className="h-full w-full object-cover" />
+            ) : (
+              <AvatarFallback className="bg-secondary border border-border text-xs">
+                {c.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div>
             <p className="font-medium">{c.name}</p>

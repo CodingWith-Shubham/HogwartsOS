@@ -66,6 +66,7 @@ export function SendPaymentLinkDialog({
   const [additionalEmails, setAdditionalEmails] = useState('');
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [sendingPaymentLink, setSendingPaymentLink] = useState(false);
+  const [bankAccount, setBankAccount] = useState<'ICICI Bank' | 'Axis Bank'>('ICICI Bank');
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +77,7 @@ export function SendPaymentLinkDialog({
     setCashCollectedBy(user?.name ?? '');
     setAdditionalEmails('');
     setInvoiceFile(null);
+    setBankAccount('ICICI Bank');
     // Reset to defaults each time the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -84,6 +86,7 @@ export function SendPaymentLinkDialog({
     onOpenChange(false);
     setAdditionalEmails('');
     setInvoiceFile(null);
+    setBankAccount('ICICI Bank');
   };
 
   const handleSendPaymentLink = async () => {
@@ -116,6 +119,11 @@ export function SendPaymentLinkDialog({
       return;
     }
 
+    if (!bankAccount) {
+      toast.error('Bank Account selection is required');
+      return;
+    }
+
     const roundedAmountToCollect = Number(amountToCollect.toFixed(2));
     const roundedPercentage = Number(percentage.toFixed(2));
     const remainingAmount = Number((remainingBeforePayment - roundedAmountToCollect).toFixed(2));
@@ -142,6 +150,7 @@ export function SendPaymentLinkDialog({
       if (invoiceFile) {
         formData.append('invoice_file', invoiceFile);
       }
+      formData.append('bank_account', bankAccount);
       for (const [key, value] of Object.entries(extraPayload ?? {})) {
         formData.append(key, value);
       }
@@ -159,6 +168,7 @@ export function SendPaymentLinkDialog({
       onOpenChange(false);
       setAdditionalEmails('');
       setInvoiceFile(null);
+      setBankAccount('ICICI Bank');
       toast.success(paymentMode === 'Cash' ? 'Cash payment recorded!' : 'Payment link sent!');
       await onSuccess?.();
     } catch (error) {
@@ -205,6 +215,16 @@ export function SendPaymentLinkDialog({
                 ))}
               </div>
             </fieldset>
+            <div className="space-y-2">
+              <Label htmlFor="bank-account-select">Bank Account *</Label>
+              <Select value={bankAccount} onValueChange={(value: 'ICICI Bank' | 'Axis Bank') => setBankAccount(value)}>
+                <SelectTrigger id="bank-account-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ICICI Bank">ICICI Bank</SelectItem>
+                  <SelectItem value="Axis Bank">Axis Bank</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="installment-label">Installment Label</Label>
               <Select value={installmentLabel} onValueChange={(value) => setInstallmentLabel(value as InstallmentLabel)}>

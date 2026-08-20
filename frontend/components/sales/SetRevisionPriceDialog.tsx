@@ -11,6 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/auth-fetch';
 import { postWebhook } from '@/lib/editing';
@@ -31,6 +38,7 @@ export function SetRevisionPriceDialog({
 }: SetRevisionPriceDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [additionalCost, setAdditionalCost] = useState('');
+  const [bankAccount, setBankAccount] = useState<'ICICI Bank' | 'Axis Bank'>('ICICI Bank');
 
   // Prefill the cost if it was already set by the manager
   useEffect(() => {
@@ -47,6 +55,11 @@ export function SetRevisionPriceDialog({
 
     if (!additionalCost || isNaN(Number(additionalCost)) || Number(additionalCost) <= 0) {
       toast.error('Please enter a valid positive cost');
+      return;
+    }
+
+    if (!bankAccount) {
+      toast.error('Please select a bank account');
       return;
     }
 
@@ -74,10 +87,12 @@ export function SetRevisionPriceDialog({
         client_email: project.emailId || '',
         revision_count: project.revisionCount,
         additional_cost: additionalCost,
+        bank_account: bankAccount,
       });
 
       toast.success('Revision price set and client notified!');
       setAdditionalCost('');
+      setBankAccount('ICICI Bank');
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -127,6 +142,18 @@ export function SetRevisionPriceDialog({
               onChange={(e) => setAdditionalCost(e.target.value)}
               required
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bankAccount">Bank Account *</Label>
+            <Select value={bankAccount} onValueChange={(val: 'ICICI Bank' | 'Axis Bank') => setBankAccount(val)}>
+              <SelectTrigger id="bankAccount">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ICICI Bank">ICICI Bank</SelectItem>
+                <SelectItem value="Axis Bank">Axis Bank</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button

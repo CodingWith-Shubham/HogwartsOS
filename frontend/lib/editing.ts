@@ -11,7 +11,7 @@ const SALES_EMAILS_BY_NAME: Record<string, string> = {
 };
 
 export function isExtraRevisionNeeded(edit: EditingProject) {
-  return edit.revisionCount > edit.maxFreeRevisions && !edit.extraRevisionApproved;
+  return edit.status === 'Pending Extra Revision Approval';
 }
 
 export function findAssignedSalespersonEmail(edit: EditingProject, leads: Lead[], fallback = '') {

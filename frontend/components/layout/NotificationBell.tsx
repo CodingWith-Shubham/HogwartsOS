@@ -87,7 +87,7 @@ export function NotificationBell() {
       setupPushSubscription();
     }
 
-    const interval = window.setInterval(refresh, 120_000);
+    const interval = window.setInterval(refresh, 30_000);
     const update = () => refresh();
     window.addEventListener('leads-updated', update);
     return () => { window.clearInterval(interval); window.removeEventListener('leads-updated', update); };

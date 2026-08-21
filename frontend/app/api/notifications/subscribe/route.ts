@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getBackendUrl } from '@/lib/backend-url';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,14 +13,19 @@ export async function POST(req: Request) {
 
     const { subscription } = await req.json();
     const baseUrl = await getBackendUrl();
+    const reqHeaders = new Headers(req.headers);
+    const token = getAccessToken(reqHeaders);
     
-    // We pass the auth-user header so the backend knows who is subscribing
+    const headersInit: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headersInit['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${baseUrl}/notifications/subscribe`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Auth-User': JSON.stringify(user)
-      },
+      headers: headersInit,
       body: JSON.stringify({ subscription })
     });
 

@@ -24,6 +24,7 @@ const PENDING_VERIFICATION_STATUSES: string[] = [
   // n8n workflow sets "Screenshot Received" when client submits the upload form
   PAYMENT_STATUS.SCREENSHOT_RECEIVED,
   PAYMENT_STATUS.SCREENSHOT_UPLOADED,
+  'Payment Under Review',
 ];
 
 const VERIFIED_STATUSES: string[] = [

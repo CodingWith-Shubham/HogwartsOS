@@ -62,13 +62,13 @@ export async function GET() {
       fetchFromExpress('/editing', token)
     ]);
 
-    const leads: Lead[] = leadsRes?.leads || [];
-    const shoots: Shoot[] = shootsRes?.shoots || [];
-    const editing: EditingProject[] = editingRes?.editingProjects || editingRes?.editing || [];
+    const leads: Lead[] = leadsRes?.data?.leads || leadsRes?.leads || [];
+    const shoots: Shoot[] = shootsRes?.data?.shoots || shootsRes?.shoots || [];
+    const editing: EditingProject[] = editingRes?.data?.editingProjects || editingRes?.editingProjects || editingRes?.editing || [];
     
     console.log(`[notifications] Fetched ${leads.length} leads, ${shoots.length} shoots, ${editing.length} editing projects. User role: ${user.role}`);
     const notifications: AppNotification[] = [];
-    const isManager = user.role === 'manager' || user.role === 'admin';
+    const isManager = user.role === 'manager' || user.role === 'admin' || user.role === 'super_admin';
     const equal = (first: string, second: string) => first.trim().toLowerCase() === second.trim().toLowerCase();
     const ownsLead = (lead: Lead) => [user.name, user.email, user.username].some((identity) => equal(lead.assignedTo, identity));
     const ownsShoot = (shoot: Shoot) => equal(shoot.shootMemberName, user.name) || equal(shoot.shootMemberEmail, user.email);

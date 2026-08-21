@@ -168,7 +168,7 @@ const updateShoot = asyncHandler(async (req, res) => {
     // Notifications
     if (updates.driveLinkUploaded === true && (!existingShoot || existingShoot.driveLinkUploaded !== true)) {
         // Shoot footage uploaded, pending assigning the editor
-        sendPushNotification({ roles: ['manager', 'admin'] }, {
+        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Shoot footage uploaded',
             message: `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
             href: '/manager'

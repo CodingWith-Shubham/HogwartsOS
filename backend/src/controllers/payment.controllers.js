@@ -211,7 +211,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
     let clientStatus;
     if (newPaymentStatus === "Screenshot Received" || newPaymentStatus === "Screenshot Uploaded") {
         clientStatus = "Payment Under Review";
-        sendPushNotification({ roles: ['manager', 'sales', 'admin'] }, {
+        sendPushNotification({ roles: ['manager', 'sales', 'admin', 'super_admin'] }, {
             title: 'Payment needs verification',
             message: `A payment screenshot has been uploaded.`,
             href: '/manager'

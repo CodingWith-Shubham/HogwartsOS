@@ -160,7 +160,7 @@ const updateTask = asyncHandler(async (req, res) => {
 
     // Notifications for manual updates
     if (updateData.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin'] }, {
+        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${task.clientName} is ready for manager review.`,
             href: '/manager'
@@ -438,7 +438,7 @@ const updateProject = asyncHandler(async (req, res) => {
 
     // Notifications
     if (updates.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin'] }, {
+        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${project.clientName} is ready for manager review.`,
             href: '/manager'
@@ -619,7 +619,7 @@ const updateTaskById = asyncHandler(async (req, res) => {
 
     // Notifications for manual updates
     if (updates.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin'] }, {
+        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${task.clientName} is ready for manager review.`,
             href: '/manager'

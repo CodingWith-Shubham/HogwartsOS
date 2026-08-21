@@ -6,7 +6,7 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download } from 'lucide-react';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
@@ -488,12 +488,22 @@ export default function ClientsPage() {
         title="Clients"
         description="B2B client directory and relationship history"
         actions={
-          isEditable && (
-            <Button size="sm" onClick={handleAddClient}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              Add Client
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {user?.role === 'super_admin' && (
+              <Button size="sm" variant="outline" onClick={() => {
+                import('@/lib/export').then(({ exportToExcel }) => exportToExcel(leads, 'clients_data'));
+              }}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
+            )}
+            {isEditable && (
+              <Button size="sm" onClick={handleAddClient}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Add Client
+              </Button>
+            )}
+          </div>
         }
       />
 

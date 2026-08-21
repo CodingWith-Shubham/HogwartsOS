@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import {
   Clock, LogIn, LogOut, MapPin, CheckCircle, AlertCircle, Calendar,
   UserCheck, Navigation, NavigationOff, ExternalLink, Loader2, Users,
-  ChevronLeft, ChevronRight, TrendingUp
+  ChevronLeft, ChevronRight, TrendingUp, Download
 } from 'lucide-react';
 
 interface LocationCoords {
@@ -548,6 +548,16 @@ export default function AttendancePage() {
           </p>
         </div>
         <div className="flex items-center gap-4 bg-background/40 backdrop-blur px-4 py-2 rounded-lg border border-white/10">
+          {user?.role === 'super_admin' && (
+            <div className="text-right pr-4 border-r border-white/10">
+              <Button size="sm" variant="outline" className="text-white border-white/20 hover:bg-white/10 h-8 mt-1" onClick={() => {
+                import('@/lib/export').then(({ exportToExcel }) => exportToExcel(employeeSummaries, 'attendance_data'));
+              }}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          )}
           <div className="text-right pr-4 border-r border-white/10">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Shift Duration</p>
             <p className="text-xl font-extrabold text-emerald-400 font-mono">{elapsedTime}</p>

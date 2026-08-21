@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
-import { Scissors, Clock, CheckCircle, RefreshCcw, AlertTriangle } from 'lucide-react';
+import { Scissors, Clock, CheckCircle, RefreshCcw, AlertTriangle, Download } from 'lucide-react';
 import { TableShimmer } from '@/components/shared/ShimmerLoader';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -98,6 +98,16 @@ export function EditorSummaryDashboard() {
       <PageHeader 
         title="Editor Summary Dashboard" 
         description={`Welcome back, ${user?.name || 'Editor'}. Here is your workload overview.`} 
+        actions={
+          user?.role === 'super_admin' && (
+            <Button size="sm" variant="outline" onClick={() => {
+              import('@/lib/export').then(({ exportToExcel }) => exportToExcel(tasks, 'editor_data'));
+            }}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Export
+            </Button>
+          )
+        }
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

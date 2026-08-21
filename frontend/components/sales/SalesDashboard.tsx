@@ -1550,10 +1550,20 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         title="Sales"
         description="Lead intake, proposals, and payment tracking"
         actions={
-          <Button size="sm" onClick={() => setLeadOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New Lead
-          </Button>
+          <div className="flex items-center gap-2">
+            {user?.role === 'super_admin' && (
+              <Button size="sm" variant="outline" onClick={() => {
+                import('@/lib/export').then(({ exportToExcel }) => exportToExcel(leads, 'sales_data'));
+              }}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setLeadOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              New Lead
+            </Button>
+          </div>
         }
       />
 

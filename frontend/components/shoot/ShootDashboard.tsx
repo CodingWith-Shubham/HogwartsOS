@@ -1,4 +1,5 @@
 'use client';
+import { Download } from 'lucide-react';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authFetch } from '@/lib/auth-fetch';
@@ -750,6 +751,14 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
         description="Production scheduling and shoot management"
         actions={
           <div className="flex items-center gap-2">
+            {user?.role === 'super_admin' && (
+              <Button size="sm" variant="outline" onClick={() => {
+                import('@/lib/export').then(({ exportToExcel }) => exportToExcel(shoots, 'shoot_data'));
+              }}>
+                <Download className="mr-1.5 h-4 w-4" />
+                Export
+              </Button>
+            )}
             <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
               {pendingUploads} pending uploads
             </Badge>

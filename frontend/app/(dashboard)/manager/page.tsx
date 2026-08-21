@@ -230,11 +230,17 @@ export default function ManagerPage() {
     ];
   }, [users]);
 
+  const marketingMembers = useMemo(() => {
+    const list = users.filter((u) => u.role === 'marketing' && u.isActive !== false);
+    return list.map(u => ({ name: u.name, email: u.email }));
+  }, [users]);
+
   const { triggerWorkflow, triggering } = useWorkflow();
   const [loading, setLoading] = useState(true);
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [editing, setEditing] = useState<EditingProject[]>([]);
+  const [marketingTasks, setMarketingTasks] = useState<any[]>([]);
   const [editorWorkload, setEditorWorkload] = useState<EditorWorkload[]>([]);
   const [assignShoot, setAssignShoot] = useState<Shoot | null>(null);
   const [assigningEditor, setAssigningEditor] = useState(false);
@@ -242,6 +248,7 @@ export default function ManagerPage() {
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
   const [feedbackTask, setFeedbackTask] = useState<any | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
+  const [confirmMarketingAssign, setConfirmMarketingAssign] = useState<{taskId: string, assigneeName: string} | null>(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [extraCosts, setExtraCosts] = useState<Record<string, string>>({});
   const [extraFeedback, setExtraFeedback] = useState<Record<string, string>>({});
@@ -274,17 +281,19 @@ export default function ManagerPage() {
 
     async function fetchDashboardData() {
       try {
-        const [shootResponse, editingResponse, leadResponse, revenueResponse] = await Promise.all([
+        const [shootResponse, editingResponse, leadResponse, revenueResponse, marketingResponse] = await Promise.all([
           fetch('/api/shoots?managerView=true', { cache: 'no-store' }),
           fetch('/api/editing?managerView=true', { cache: 'no-store' }),
           fetch('/api/clients?managerView=true', { cache: 'no-store' }),
           fetch('/api/dashboard/revenue', { cache: 'no-store' }),
+          fetch('/api/marketing?status=Unassigned', { cache: 'no-store' }),
         ]);
-        const [shootData, editingData, leadData, revenueData] = await Promise.all([
+        const [shootData, editingData, leadData, revenueData, marketingData] = await Promise.all([
           shootResponse.json(),
           editingResponse.json(),
           leadResponse.json(),
           revenueResponse.ok ? revenueResponse.json() : Promise.resolve(null),
+          marketingResponse.ok ? marketingResponse.json() : Promise.resolve(null),
         ]);
         if (!mounted) return;
         if (shootResponse.ok) setShoots(shootData.shoots ?? []);
@@ -315,6 +324,9 @@ export default function ManagerPage() {
         if (leadResponse.ok) setLeads(leadData.leads ?? []);
         if (revenueData && revenueData.data && revenueData.data.metrics) {
           setRevisionRevenue(revenueData.data.metrics.revisionAddonRevenue ?? 0);
+        }
+        if (marketingData && marketingData.data && marketingData.data.tasks) {
+          setMarketingTasks(marketingData.data.tasks);
         }
       } catch (error) {
         console.error('Failed to fetch manager dashboard data:', error);
@@ -470,6 +482,34 @@ export default function ManagerPage() {
         editId: p.editId || p._id || Math.random().toString(),
       }));
       setEditing([...mappedProjects, ...mappedTasks]);
+    }
+  };
+
+  const refreshMarketing = async () => {
+    const response = await authFetch('/api/marketing?status=Unassigned', { cache: 'no-store' });
+    const data = await response.json();
+    if (response.ok && data.data && data.data.tasks) {
+      setMarketingTasks(data.data.tasks);
+    }
+  };
+
+  const handleAssignMarketing = async (taskId: string, assigneeName: string) => {
+    const member = marketingMembers.find((item) => item.name === assigneeName);
+    if (!member) return;
+    
+    try {
+      const response = await authFetch(`/api/marketing/${taskId}/assign`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedToName: member.name, assignedToEmail: member.email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to assign task');
+      toast.success('Marketing task assigned');
+      await refreshMarketing();
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : 'Failed to assign marketing task');
     }
   };
 
@@ -816,6 +856,14 @@ export default function ManagerPage() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="assign_marketing" className="data-[state=active]:bg-muted relative shrink-0">
+              Assign Marketing
+              {marketingTasks.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {marketingTasks.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted relative shrink-0">
               Upsells &amp; Cross-Sells
               {(upsellEntries.length + pendingUpsells.length) > 0 && (
@@ -911,6 +959,47 @@ export default function ManagerPage() {
         </CardContent>
       </Card>
       {renderPagination(footageReadyPage, setFootageReadyPage, footageReady.length)}
+    </TabsContent>
+
+    <TabsContent value="assign_marketing" className="mt-0">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Unassigned Marketing Tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {marketingTasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No marketing tasks waiting for assignment.
+            </p>
+          ) : (
+            marketingTasks.map((task) => (
+              <div
+                key={task.taskId}
+                className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{task.clientName || 'Untitled client'}</p>
+                  <p className="text-xs text-muted-foreground">Lead ID: {task.leadId}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select onValueChange={(val) => setConfirmMarketingAssign({ taskId: task.taskId, assigneeName: val })}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue placeholder="Assign team member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marketingMembers.map((member) => (
+                        <SelectItem key={member.name} value={member.name}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </TabsContent>
 
     <TabsContent value="upsell_crosssell" className="mt-0 space-y-6">
@@ -1450,6 +1539,29 @@ export default function ManagerPage() {
             <Button onClick={handleAssignUpsellEditor} disabled={assigningUpsell || !upsellEditor}>
               {assigningUpsell ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Scissors className="mr-2 h-4 w-4" />}
               Assign Editor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Marketing Assignment */}
+      <Dialog open={!!confirmMarketingAssign} onOpenChange={(open) => !open && setConfirmMarketingAssign(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Assignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to assign this marketing task to <strong>{confirmMarketingAssign?.assigneeName}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmMarketingAssign(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (confirmMarketingAssign) {
+                handleAssignMarketing(confirmMarketingAssign.taskId, confirmMarketingAssign.assigneeName);
+                setConfirmMarketingAssign(null);
+              }
+            }}>
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>

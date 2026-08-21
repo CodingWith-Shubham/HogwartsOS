@@ -33,7 +33,7 @@ export const SERVICE_NOTE_OPTIONS = [
   'Only space',
   'Only editing',
   'Only marketing',
-  'End to End',
+  'Others',
 ] as const;
 
 export const DELIVERABLE_FIELDS = [
@@ -44,6 +44,58 @@ export const DELIVERABLE_FIELDS = [
   { key: 'teaserEdit', payloadKey: 'teaser_edit', label: 'Teaser Edit' },
   { key: 'thumbnailEdit', payloadKey: 'thumbnail_edit', label: 'Thumbnail Edit' },
 ] as const;
+
+export type ServiceConfig = {
+  hasQuantity: boolean;
+  quantityLabel?: string;
+  fields: readonly string[];
+};
+
+export const SERVICE_CONFIGS: Record<string, ServiceConfig> = {
+  'Podcast': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Podcasts',
+    fields: ['recordTime', 'studioTime', 'podcastEdit', 'reelEdit', 'teaserEdit', 'thumbnailEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration', 'camera'],
+  },
+  'Solo content shoot': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Solo shoots',
+    fields: ['recordTime', 'studioTime', 'reelEdit', 'teaserEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration', 'camera'],
+  },
+  'Outdoor shoot': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Outdoor shoots',
+    fields: ['recordTime', 'studioTime', 'podcastEdit', 'reelEdit', 'teaserEdit', 'thumbnailEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration', 'camera'],
+  },
+  'Product': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Product shoots',
+    fields: ['recordTime', 'studioTime', 'podcastEdit', 'reelEdit', 'teaserEdit', 'thumbnailEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration', 'camera'],
+  },
+  'Fashion': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Fashion shoots',
+    fields: ['recordTime', 'studioTime', 'podcastEdit', 'reelEdit', 'teaserEdit', 'thumbnailEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration', 'camera'],
+  },
+  'Only editing': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Editing Packages',
+    fields: ['podcastEdit', 'reelEdit', 'teaserEdit', 'thumbnailEdit', 'longFormatVideo', 'longFormatDuration', 'shortFormatVideo', 'shortFormatDuration'],
+  },
+  'Only marketing': {
+    hasQuantity: false,
+    fields: ['months', 'posts', 'socialMediaHandles', 'marketingNotes'],
+  },
+  'Only space': {
+    hasQuantity: true,
+    quantityLabel: 'Number of Sessions',
+    fields: ['studioTime'],
+  },
+  'Others': {
+    hasQuantity: false,
+    fields: [],
+  }
+};
 
 const TIME_HOURS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const TIME_MINUTES = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
@@ -78,6 +130,10 @@ export type ProposalFormValues = {
   camera: string;
   recordTime: string;
   studioTime: string;
+  months: string;
+  posts: string;
+  socialMediaHandles: string;
+  marketingNotes: string;
 } & Record<DeliverableKey, string>;
 
 export const DEFAULT_DELIVERABLES: Record<DeliverableKey, string> = {

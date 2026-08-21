@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     }
 
     const BACKEND_URL = await getBackendUrl();
+    console.log("Using BACKEND_URL in POST /api/users:", BACKEND_URL);
     const token = getAccessToken(request.headers);
     const body = await request.json();
     const res = await fetch(`${BACKEND_URL}/auth/register`, {

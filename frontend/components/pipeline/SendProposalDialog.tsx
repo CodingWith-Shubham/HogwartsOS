@@ -20,6 +20,7 @@ import { authFetch } from '@/lib/auth-fetch';
 import {
   SERVICE_NOTE_OPTIONS,
   DELIVERABLE_FIELDS,
+  SERVICE_CONFIGS,
   normalizeQuantity,
   totalDeliverables,
   type ProposalFormValues,
@@ -45,6 +46,52 @@ export interface SendProposalDialogProps {
   onSuccess?: () => void | Promise<void>;
 }
 
+type DeliverableSet = {
+  reelEdit: string;
+  longFormatVideo: string;
+  shortFormatVideo: string;
+  teaserEdit: string;
+  thumbnailEdit: string;
+  longFormatDuration: string;
+  shortFormatDuration: string;
+  camera: string;
+  recordTime: string;
+  studioTime: string;
+  // new marketing fields
+  months?: string;
+  posts?: string;
+  socialMediaHandles?: string;
+  marketingNotes?: string;
+  // reference
+  serviceName?: string;
+};
+
+type ServiceData = {
+  quantity: string;
+  sets: DeliverableSet[];
+};
+
+const createEmptySet = (serviceName: string, defaults?: any): DeliverableSet => {
+  const fb = defaults || {};
+  return {
+    reelEdit: fb.reelEdit || '0',
+    longFormatVideo: fb.longFormatVideo || '0',
+    shortFormatVideo: fb.shortFormatVideo || '0',
+    teaserEdit: fb.teaserEdit || '0',
+    thumbnailEdit: fb.thumbnailEdit || '0',
+    longFormatDuration: fb.longFormatDuration || '',
+    shortFormatDuration: fb.shortFormatDuration || '',
+    camera: fb.camera || '',
+    recordTime: fb.recordTime || '',
+    studioTime: fb.studioTime || '',
+    months: fb.months || '',
+    posts: fb.posts || '',
+    socialMediaHandles: fb.socialMediaHandles || '',
+    marketingNotes: fb.marketingNotes || '',
+    serviceName,
+  };
+};
+
 export function SendProposalDialog({
   open,
   onOpenChange,
@@ -60,99 +107,141 @@ export function SendProposalDialog({
     cost: '',
     serviceNotes: [] as string[],
     salesNotes: '',
-    podcastEdit: '0',
   });
 
-  const [deliverableSets, setDeliverableSets] = useState([{
-    reelEdit: '0',
-    longFormatVideo: '0',
-    shortFormatVideo: '0',
-    teaserEdit: '0',
-    thumbnailEdit: '0',
-    longFormatDuration: '',
-    shortFormatDuration: '',
-    camera: '',
-    recordTime: '',
-    studioTime: '',
-  }]);
+  const [serviceDeliverables, setServiceDeliverables] = useState<Record<string, ServiceData>>({});
 
   useEffect(() => {
     if (!open || !lead) return;
+    const initialServices = defaults?.serviceNotes?.length ? defaults.serviceNotes : (lead.servicePitched ? [lead.servicePitched] : []);
+    const servicesToUse = initialServices.filter(s => SERVICE_NOTE_OPTIONS.includes(s as any));
+    
     setProposalForm({
-      clientEmail: lead.clientEmail,
-      cost: lead.cost,
-      serviceNotes: defaults?.serviceNotes ?? [],
+      clientEmail: lead.clientEmail || '',
+      cost: lead.cost || '',
+      serviceNotes: servicesToUse,
       salesNotes: defaults?.salesNotes ?? '',
-      podcastEdit: defaults?.podcastEdit ?? '0',
     });
-    if (lead.deliverableSets && lead.deliverableSets.length > 0) {
-      setDeliverableSets(lead.deliverableSets.map((set: any, index: number) => {
-        const fb = index === 0 ? defaults : {};
-        return {
-          reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '0',
-          longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '0',
-          shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '0',
-          teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '0',
-          thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '0',
-          longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
-          shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
-          camera: set.camera || fb?.camera || '',
-          recordTime: set.recordTime || set.record_time || fb?.recordTime || '',
-          studioTime: set.studioTime || set.studio_time || fb?.studioTime || '',
-        };
-      }));
-    } else {
-      setDeliverableSets([{
-        reelEdit: defaults?.reelEdit ?? '0',
-        longFormatVideo: defaults?.longFormatVideo ?? '0',
-        shortFormatVideo: defaults?.shortFormatVideo ?? '0',
-        teaserEdit: defaults?.teaserEdit ?? '0',
-        thumbnailEdit: defaults?.thumbnailEdit ?? '0',
-        longFormatDuration: defaults?.longFormatDuration ?? '',
-        shortFormatDuration: defaults?.shortFormatDuration ?? '',
-        camera: defaults?.camera ?? '',
-        recordTime: defaults?.recordTime ?? '',
-        studioTime: defaults?.studioTime ?? '',
-      }]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
-  // Adjust number of deliverable sets based on podcastEdit
-  useEffect(() => {
-    const count = Math.max(1, Number(normalizeQuantity(proposalForm.podcastEdit)));
-    if (deliverableSets.length !== count) {
-      setDeliverableSets((prev) => {
-        if (prev.length < count) {
-          const extra = Array.from({ length: count - prev.length }).map(() => ({
-            reelEdit: '0',
-            longFormatVideo: '0',
-            shortFormatVideo: '0',
-            teaserEdit: '0',
-            thumbnailEdit: '0',
-            longFormatDuration: '',
-            shortFormatDuration: '',
-            camera: '',
-            recordTime: '',
-            studioTime: '',
-          }));
-          return [...prev, ...extra];
-        } else {
-          return prev.slice(0, count);
+    const initialData: Record<string, ServiceData> = {};
+
+    servicesToUse.forEach(service => {
+      const config = SERVICE_CONFIGS[service];
+      if (!config) return;
+      
+      let setsToUse = [createEmptySet(service, defaults)];
+      let quantity = '1';
+
+      // If lead already had deliverable sets, try to load them in the first configured service
+      // Or if it's Podcast (which was the default before), load it there.
+      if (lead.deliverableSets && lead.deliverableSets.length > 0 && 
+         (service === 'Podcast' || Object.keys(initialData).length === 0)) {
+        quantity = String(lead.deliverableSets.length);
+        setsToUse = lead.deliverableSets.map((set: any, idx: number) => {
+          const fb = idx === 0 ? defaults : {};
+          return {
+            reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '0',
+            longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '0',
+            shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '0',
+            teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '0',
+            thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '0',
+            longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
+            shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
+            camera: set.camera || fb?.camera || '',
+            recordTime: set.recordTime || set.record_time || fb?.recordTime || '',
+            studioTime: set.studioTime || set.studio_time || fb?.studioTime || '',
+            months: set.months || fb?.months || '',
+            posts: set.posts || fb?.posts || '',
+            socialMediaHandles: set.socialMediaHandles || set.social_media_handles || fb?.socialMediaHandles || '',
+            marketingNotes: set.marketingNotes || set.marketing_notes || fb?.marketingNotes || '',
+            serviceName: service,
+          };
+        });
+      }
+
+      initialData[service] = { quantity, sets: setsToUse };
+    });
+
+    setServiceDeliverables(initialData);
+  }, [open, lead, defaults]);
+
+  const handleServiceNotesChange = (checked: boolean, option: string) => {
+    setProposalForm(prev => {
+      const newNotes = checked 
+        ? [...prev.serviceNotes, option] 
+        : prev.serviceNotes.filter(s => s !== option);
+      
+      setServiceDeliverables(prevDelivs => {
+        const newDelivs = { ...prevDelivs };
+        if (checked && !newDelivs[option]) {
+          newDelivs[option] = { quantity: '1', sets: [createEmptySet(option)] };
+        } else if (!checked && newDelivs[option]) {
+          delete newDelivs[option];
         }
+        return newDelivs;
       });
-    }
-  }, [proposalForm.podcastEdit, deliverableSets.length]);
+
+      return { ...prev, serviceNotes: newNotes };
+    });
+  };
+
+  const updateServiceQuantity = (service: string, qty: string) => {
+    setServiceDeliverables(prev => {
+      const existing = prev[service];
+      if (!existing) return prev;
+      
+      let count = Math.max(1, Number(normalizeQuantity(qty)));
+      const config = SERVICE_CONFIGS[service];
+      if (config && !config.hasQuantity) {
+        count = 1;
+      }
+      
+      let newSets = [...existing.sets];
+      if (newSets.length < count) {
+        const extra = Array.from({ length: count - newSets.length }).map(() => createEmptySet(service));
+        newSets = [...newSets, ...extra];
+      } else {
+        newSets = newSets.slice(0, count);
+      }
+      
+      return {
+        ...prev,
+        [service]: { quantity: qty, sets: newSets }
+      };
+    });
+  };
+
+  const updateServiceSet = (service: string, index: number, field: string, value: string) => {
+    setServiceDeliverables(prev => {
+      const existing = prev[service];
+      if (!existing) return prev;
+      const newSets = [...existing.sets];
+      newSets[index] = { ...newSets[index], [field]: value };
+      return { ...prev, [service]: { ...existing, sets: newSets } };
+    });
+  };
+
+  // Aggregate for display and final payload
+  const getAllSetsFlat = () => {
+    return Object.values(serviceDeliverables).flatMap(data => data.sets);
+  };
+
+  const flatSets = getAllSetsFlat();
 
   const aggregatedDeliverables = {
-    podcastEdit: proposalForm.podcastEdit,
-    reelEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.reelEdit)), 0)),
-    longFormatVideo: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.longFormatVideo)), 0)),
-    shortFormatVideo: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.shortFormatVideo)), 0)),
-    teaserEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.teaserEdit)), 0)),
-    thumbnailEdit: String(deliverableSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.thumbnailEdit)), 0)),
-    longFormatDuration: deliverableSets.map(s => s.longFormatDuration).filter(Boolean).join(', '),
-    shortFormatDuration: deliverableSets.map(s => s.shortFormatDuration).filter(Boolean).join(', '),
+    // Total podcastEdit is sum of podcastEdit fields from all sets OR quantity of podcast service
+    // Previously podcastEdit was just the quantity of podcasts.
+    podcastEdit: String(
+      (serviceDeliverables['Podcast'] ? Number(normalizeQuantity(serviceDeliverables['Podcast'].quantity)) : 0) +
+      flatSets.reduce((sum, set) => sum + Number(normalizeQuantity((set as any).podcastEdit || '0')), 0)
+    ),
+    reelEdit: String(flatSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.reelEdit)), 0)),
+    longFormatVideo: String(flatSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.longFormatVideo)), 0)),
+    shortFormatVideo: String(flatSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.shortFormatVideo)), 0)),
+    teaserEdit: String(flatSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.teaserEdit)), 0)),
+    thumbnailEdit: String(flatSets.reduce((sum, set) => sum + Number(normalizeQuantity(set.thumbnailEdit)), 0)),
+    longFormatDuration: flatSets.map(s => s.longFormatDuration).filter(Boolean).join(', '),
+    shortFormatDuration: flatSets.map(s => s.shortFormatDuration).filter(Boolean).join(', '),
   };
 
   const handleSendProposal = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -167,28 +256,41 @@ export function SendProposalDialog({
       return num > 12 ? num : num * 60;
     };
 
-    for (let i = 0; i < deliverableSets.length; i++) {
-      const set = deliverableSets[i];
-      const recordMins = parseDurationToMinutes(set.recordTime);
-      const studioMins = parseDurationToMinutes(set.studioTime);
-      
-      if (recordMins > 0 && studioMins > 0 && studioMins < recordMins) {
-        toast.error(`Deliverable Set ${i + 1}: Studio Time (${set.studioTime || studioMins + ' min'}) cannot be less than Record Time (${set.recordTime || recordMins + ' min'}).`);
-        return;
+    for (const service of Object.keys(serviceDeliverables)) {
+      const data = serviceDeliverables[service];
+      for (let i = 0; i < data.sets.length; i++) {
+        const set = data.sets[i];
+        const recordMins = parseDurationToMinutes(set.recordTime);
+        const studioMins = parseDurationToMinutes(set.studioTime);
+        
+        if (recordMins > 0 && studioMins > 0 && studioMins < recordMins) {
+          toast.error(`${service} Set ${i + 1}: Studio Time (${set.studioTime || studioMins + ' min'}) cannot be less than Record Time (${set.recordTime || recordMins + ' min'}).`);
+          return;
+        }
       }
     }
 
     const deliverablesPayload = Object.fromEntries(
       DELIVERABLE_FIELDS.map((field) => [
         field.payloadKey,
-        field.key === 'podcastEdit' 
-          ? normalizeQuantity(proposalForm.podcastEdit)
-          : normalizeQuantity(aggregatedDeliverables[field.key as keyof typeof aggregatedDeliverables]),
+        normalizeQuantity(aggregatedDeliverables[field.key as keyof typeof aggregatedDeliverables] || '0'),
       ])
     );
 
     const serviceNotes = proposalForm.serviceNotes.join(', ').trim();
     const salesNotes = proposalForm.salesNotes.trim();
+
+    // Prepare extra payload fields (e.g. from Marketing)
+    const extraFields: any = {};
+    if (serviceDeliverables['Only marketing']) {
+      const mktSet = serviceDeliverables['Only marketing'].sets[0];
+      if (mktSet) {
+        extraFields.marketing_months = mktSet.months;
+        extraFields.marketing_posts = mktSet.posts;
+        extraFields.marketing_social_media_handles = mktSet.socialMediaHandles;
+        extraFields.marketing_notes = mktSet.marketingNotes;
+      }
+    }
 
     setSubmittingProposal(true);
     try {
@@ -208,7 +310,8 @@ export function SendProposalDialog({
           short_format_duration: aggregatedDeliverables.shortFormatDuration.trim(),
           cost: proposalForm.cost,
           salesperson_name: lead.assignedTo,
-          deliverable_sets: deliverableSets,
+          deliverable_sets: flatSets,
+          ...extraFields,
           ...(extraPayload ?? {}),
         }),
       });
@@ -274,14 +377,7 @@ export function SendProposalDialog({
                       <DropdownMenuCheckboxItem
                         key={option}
                         checked={proposalForm.serviceNotes.includes(option)}
-                        onCheckedChange={(checked) => {
-                          setProposalForm((prev) => ({
-                            ...prev,
-                            serviceNotes: checked
-                              ? [...prev.serviceNotes, option]
-                              : prev.serviceNotes.filter((s) => s !== option),
-                          }));
-                        }}
+                        onCheckedChange={(checked) => handleServiceNotesChange(checked, option)}
                         onSelect={(e) => e.preventDefault()}
                       >
                         {option}
@@ -304,133 +400,177 @@ export function SendProposalDialog({
               </div>
             </div>
 
+            <div className="space-y-6">
+              {proposalForm.serviceNotes.map(service => {
+                const config = SERVICE_CONFIGS[service];
+                if (!config) return null;
+                const data = serviceDeliverables[service];
+                if (!data) return null;
 
-            <div className="space-y-4">
-              <div className="space-y-2 border-b pb-4">
-                <Label htmlFor="podcastEdit" className="text-lg font-semibold text-primary">Number of Podcasts</Label>
-                <Input
-                  id="podcastEdit"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={proposalForm.podcastEdit}
-                  onChange={(e) =>
-                    setProposalForm((prev) => ({
-                      ...prev,
-                      podcastEdit: e.target.value,
-                    }))
-                  }
-                  className="max-w-[200px]"
-                />
-              </div>
+                return (
+                  <div key={service} className="space-y-4 p-4 border rounded-md relative bg-card">
+                    <h3 className="font-bold text-md text-primary absolute top-0 -mt-3 left-4 bg-background px-2">
+                      {service} Details
+                    </h3>
+                    
+                    {config.hasQuantity && (
+                      <div className="space-y-2 border-b pb-4 pt-2">
+                        <Label htmlFor={`qty-${service}`} className="text-sm font-semibold text-primary">
+                          {config.quantityLabel || `Number of ${service}s`}
+                        </Label>
+                        <Input
+                          id={`qty-${service}`}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={data.quantity}
+                          onChange={(e) => updateServiceQuantity(service, e.target.value)}
+                          className="max-w-[200px]"
+                        />
+                      </div>
+                    )}
 
-              {deliverableSets.map((set, index) => (
-                <div key={index} className="space-y-4 p-4 border rounded-md bg-muted/20 relative">
-                  <h4 className="font-semibold text-sm text-muted-foreground absolute top-0 -mt-2.5 left-4 bg-background px-1">
-                    {deliverableSets.length > 1 ? `Deliverables for Podcast ${index + 1}` : 'Child Deliverables'}
-                  </h4>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
-                    {childDeliverableFields.map((field) => {
-                      const durationKey = 'durationKey' in field ? field.durationKey as keyof typeof set : null;
+                    {data.sets.map((set, index) => (
+                      <div key={index} className="space-y-4 p-4 border rounded-md bg-muted/20 relative mt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground absolute top-0 -mt-2.5 left-4 bg-background px-1">
+                          {data.sets.length > 1 ? `${service} ${index + 1} Deliverables` : 'Deliverables'}
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                          
+                          {/* Render Dynamic Deliverable Fields */}
+                          {DELIVERABLE_FIELDS.filter(f => config.fields.includes(f.key)).map((field) => {
+                            const durationKey = 'durationKey' in field ? field.durationKey as keyof DeliverableSet : null;
+                            if (durationKey && config.fields.includes(durationKey)) {
+                              return (
+                                <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`${field.key}-${service}-${index}`}>{field.label}</Label>
+                                    <Input
+                                      id={`${field.key}-${service}-${index}`}
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      value={set[field.key as keyof DeliverableSet] ?? ''}
+                                      onChange={(e) => updateServiceSet(service, index, field.key, e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`${durationKey}-${service}-${index}`}>Duration</Label>
+                                    <Input
+                                      id={`${durationKey}-${service}-${index}`}
+                                      value={set[durationKey as keyof DeliverableSet] || ''}
+                                      onChange={(e) => updateServiceSet(service, index, durationKey, e.target.value)}
+                                      placeholder="e.g. 60 min"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-2" key={field.key}>
+                                <Label htmlFor={`${field.key}-${service}-${index}`}>{field.label}</Label>
+                                <Input
+                                  id={`${field.key}-${service}-${index}`}
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={set[field.key as keyof DeliverableSet] ?? ''}
+                                  onChange={(e) => updateServiceSet(service, index, field.key, e.target.value)}
+                                />
+                              </div>
+                            );
+                          })}
 
-                      if (durationKey) {
-                        return (
-                          <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
+                          {/* Extra Fields based on config */}
+                          {config.fields.includes('months') && (
                             <div className="space-y-2">
-                              <Label htmlFor={`${field.key}-${index}`}>{field.label}</Label>
+                              <Label htmlFor={`months-${service}-${index}`}>Months</Label>
                               <Input
-                                id={`${field.key}-${index}`}
+                                id={`months-${service}-${index}`}
                                 type="number"
                                 min="0"
-                                step="1"
-                                value={set[field.key as keyof typeof set]}
-                                onChange={(e) => {
-                                  const newSets = [...deliverableSets];
-                                  newSets[index] = { ...newSets[index], [field.key]: e.target.value };
-                                  setDeliverableSets(newSets);
-                                }}
+                                value={set.months || ''}
+                                onChange={(e) => updateServiceSet(service, index, 'months', e.target.value)}
+                                placeholder="e.g. 3"
                               />
                             </div>
+                          )}
+                          {config.fields.includes('posts') && (
                             <div className="space-y-2">
-                              <Label htmlFor={`${durationKey}-${index}`}>Duration</Label>
+                              <Label htmlFor={`posts-${service}-${index}`}>Number of Posts</Label>
                               <Input
-                                id={`${durationKey}-${index}`}
-                                value={set[durationKey]}
-                                onChange={(e) => {
-                                  const newSets = [...deliverableSets];
-                                  newSets[index] = { ...newSets[index], [durationKey]: e.target.value };
-                                  setDeliverableSets(newSets);
-                                }}
-                                placeholder="e.g. 60 min"
+                                id={`posts-${service}-${index}`}
+                                type="number"
+                                min="0"
+                                value={set.posts || ''}
+                                onChange={(e) => updateServiceSet(service, index, 'posts', e.target.value)}
+                                placeholder="e.g. 12"
                               />
                             </div>
-                          </div>
-                        );
-                      }
+                          )}
+                          {config.fields.includes('socialMediaHandles') && (
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label htmlFor={`social-${service}-${index}`}>Social Media Handles (e.g. fb, insta, youtube)</Label>
+                              <Input
+                                id={`social-${service}-${index}`}
+                                value={set.socialMediaHandles || ''}
+                                onChange={(e) => updateServiceSet(service, index, 'socialMediaHandles', e.target.value)}
+                                placeholder="e.g. FB, Insta, YT"
+                              />
+                            </div>
+                          )}
 
-                      return (
-                        <div className="space-y-2" key={field.key}>
-                          <Label htmlFor={`${field.key}-${index}`}>{field.label}</Label>
-                          <Input
-                            id={`${field.key}-${index}`}
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={set[field.key as keyof typeof set]}
-                            onChange={(e) => {
-                              const newSets = [...deliverableSets];
-                              newSets[index] = { ...newSets[index], [field.key]: e.target.value };
-                              setDeliverableSets(newSets);
-                            }}
-                          />
+                          <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-3 pt-2 border-t mt-2">
+                            {config.fields.includes('camera') && (
+                              <div className="space-y-2">
+                                <Label htmlFor={`camera-${service}-${index}`}>Camera Setup</Label>
+                                <Input
+                                  id={`camera-${service}-${index}`}
+                                  value={set.camera || ''}
+                                  onChange={(e) => updateServiceSet(service, index, 'camera', e.target.value)}
+                                  placeholder="e.g. 2 cameras"
+                                />
+                              </div>
+                            )}
+                            {config.fields.includes('recordTime') && (
+                              <div className="space-y-2">
+                                <Label htmlFor={`record-time-${service}-${index}`}>Record Time</Label>
+                                <Input
+                                  id={`record-time-${service}-${index}`}
+                                  value={set.recordTime || ''}
+                                  onChange={(e) => updateServiceSet(service, index, 'recordTime', e.target.value)}
+                                  placeholder="e.g. 2 hours"
+                                />
+                              </div>
+                            )}
+                            {config.fields.includes('studioTime') && (
+                              <div className="space-y-2">
+                                <Label htmlFor={`studio-time-${service}-${index}`}>
+                                  {service === 'Outdoor shoot' || service === 'Fashion' ? 'Total Time' : 'Studio Time'}
+                                </Label>
+                                <Input
+                                  id={`studio-time-${service}-${index}`}
+                                  value={set.studioTime || ''}
+                                  onChange={(e) => updateServiceSet(service, index, 'studioTime', e.target.value)}
+                                  placeholder="e.g. 3 hours"
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      );
-                    })}
-                    <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-3 pt-2 border-t mt-2">
-                      <div className="space-y-2">
-                        <Label htmlFor={`camera-${index}`}>Camera Setup</Label>
-                        <Input
-                          id={`camera-${index}`}
-                          value={set.camera}
-                          onChange={(e) => {
-                            const newSets = [...deliverableSets];
-                            newSets[index] = { ...newSets[index], camera: e.target.value };
-                            setDeliverableSets(newSets);
-                          }}
-                          placeholder="e.g. 2 cameras"
-                        />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`record-time-${index}`}>Record Time</Label>
-                        <Input
-                          id={`record-time-${index}`}
-                          value={set.recordTime}
-                          onChange={(e) => {
-                            const newSets = [...deliverableSets];
-                            newSets[index] = { ...newSets[index], recordTime: e.target.value };
-                            setDeliverableSets(newSets);
-                          }}
-                          placeholder="e.g. 2 hours"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`studio-time-${index}`}>Studio Time</Label>
-                        <Input
-                          id={`studio-time-${index}`}
-                          value={set.studioTime}
-                          onChange={(e) => {
-                            const newSets = [...deliverableSets];
-                            newSets[index] = { ...newSets[index], studioTime: e.target.value };
-                            setDeliverableSets(newSets);
-                          }}
-                          placeholder="e.g. 3 hours"
-                        />
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {proposalForm.serviceNotes.length === 0 && (
+               <div className="p-4 border rounded-md text-center text-muted-foreground bg-muted/20">
+                 Please select one or more services from &quot;Service Notes&quot; above to fill out deliverables.
+               </div>
+            )}
 
             <p className="text-sm font-medium pt-2">
               Total deliverables: {totalDeliverables(aggregatedDeliverables as any)}
@@ -464,4 +604,3 @@ export function SendProposalDialog({
     </Dialog>
   );
 }
-

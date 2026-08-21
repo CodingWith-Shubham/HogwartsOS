@@ -100,6 +100,15 @@ function isEditingOnlyLead(lead: Lead) {
   );
 }
 
+const MARKETING_ONLY_SERVICE_REGEX = /only[\s-]*marketing/i;
+
+function isMarketingOnlyLead(lead: Lead) {
+  return (
+    MARKETING_ONLY_SERVICE_REGEX.test(lead.serviceNotes || '') ||
+    MARKETING_ONLY_SERVICE_REGEX.test(lead.servicePitched || '')
+  );
+}
+
 function isEditingOnlyShoot(shoot: Shoot | undefined) {
   return String(shoot?.isEditingOnly ?? '').trim().toLowerCase() === 'true';
 }
@@ -1140,6 +1149,15 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       return (
         <Button variant="outline" size="sm" disabled className="text-muted-foreground">
           Editing Only · No Shoot
+        </Button>
+      );
+    }
+
+    // Marketing-only leads bypass the shoot flow entirely
+    if (isMarketingOnlyLead(lead) && !isAlreadyScheduled) {
+      return (
+        <Button variant="outline" size="sm" disabled className="text-muted-foreground">
+          No shoot required (Marketing Only)
         </Button>
       );
     }

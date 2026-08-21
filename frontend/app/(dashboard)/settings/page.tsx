@@ -28,13 +28,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 
-const USER_ROLES = ['manager', 'sales', 'editor', 'shoot', 'admin'];
+const USER_ROLES = ['manager', 'sales', 'editor', 'shoot', 'admin', 'marketing'];
 
 const REDIRECT_PATHS = [
   { label: 'Manager View (/manager)', value: '/manager' },
   { label: 'Sales Board (/sales)', value: '/sales' },
   { label: 'Editor View (/editor)', value: '/editor' },
   { label: 'Shoot Calendar (/shoot)', value: '/shoot' },
+  { label: 'Marketing Dashboard (/marketing)', value: '/marketing' },
 ];
 
 import dynamic from 'next/dynamic';

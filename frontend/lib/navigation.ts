@@ -27,12 +27,13 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Shoot Dashboard', href: '/shoot-dashboard', icon: LayoutDashboard, roles: ['super_admin', 'shoot'] },
   { label: 'Editor', href: '/editor', icon: Scissors, roles: ['manager', 'super_admin', 'editor'] },
   { label: 'Editor Dashboard', href: '/editor-dashboard', icon: LayoutDashboard, roles: ['super_admin', 'editor'] },
+  { label: 'Marketing Dashboard', href: '/marketing', icon: LayoutDashboard, roles: ['super_admin', 'admin', 'manager', 'editor', 'sales', 'marketing'] },
   { label: 'Clients', href: '/clients', icon: Users, roles: ['manager', 'admin', 'super_admin', 'sales'] },
 
-  { label: 'Attendance', href: '/attendance', icon: Clock, roles: ['manager', 'admin', 'super_admin', 'sales', 'shoot', 'editor'] },
+  { label: 'Attendance', href: '/attendance', icon: Clock, roles: ['manager', 'admin', 'super_admin', 'sales', 'shoot', 'editor', 'marketing'] },
   { label: 'Finance', href: '/finance', icon: Wallet, roles: ['manager', 'super_admin'] },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['manager', 'super_admin'] },
-  { label: 'Settings', href: '/settings', icon: Settings, roles: ['manager', 'admin', 'super_admin', 'sales', 'shoot', 'editor'] },
+  { label: 'Settings', href: '/settings', icon: Settings, roles: ['manager', 'admin', 'super_admin', 'sales', 'shoot', 'editor', 'marketing'] },
 ];
 
 export function getNavForRole(role: UserRole): NavItem[] {

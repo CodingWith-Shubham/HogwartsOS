@@ -2,6 +2,7 @@ import { Payment } from "../models/payment.models.js";
 import { Client } from "../models/client.models.js";
 import { Shoot } from "../models/shoot.models.js";
 import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
+import { MarketingTask } from "../models/marketing.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -18,6 +19,14 @@ const isEditingOnlyClient = (client) => {
     if (!client) return false;
     return EDITING_ONLY_SERVICE_REGEX.test(client.serviceNotes || "") ||
         EDITING_ONLY_SERVICE_REGEX.test(client.servicePitched || "");
+};
+
+const MARKETING_SERVICE_REGEX = /marketing/i;
+
+const isMarketingClient = (client) => {
+    if (!client) return false;
+    return MARKETING_SERVICE_REGEX.test(client.serviceNotes || "") ||
+        MARKETING_SERVICE_REGEX.test(client.servicePitched || "");
 };
 
 const ensureEditingOnlyShoot = async (client) => {
@@ -48,6 +57,40 @@ const ensureEditingOnlyShoot = async (client) => {
         driveLinkUploaded: true,
         isEditingOnly: true,
         setName: ""
+    });
+};
+
+const ensureMarketingTask = async (client) => {
+    if (!isMarketingClient(client)) return;
+
+    const existingTask = await MarketingTask.findOne({ leadId: client.leadId });
+    if (existingTask) return; // A marketing task already exists
+
+    let months = "", posts = "", socialMediaHandles = "", marketingNotes = "";
+    
+    // Fallback logic for extraction from deliverable sets
+    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
+    if (sets && Array.isArray(sets)) {
+        const mktSet = sets.find(s => s.serviceName?.toLowerCase() === 'only marketing');
+        if (mktSet) {
+            months = mktSet.months || "";
+            posts = mktSet.posts || "";
+            socialMediaHandles = mktSet.socialMediaHandles || mktSet.social_media_handles || "";
+            marketingNotes = mktSet.marketingNotes || mktSet.marketing_notes || "";
+        }
+    }
+
+    // Try to extract marketing fields if they were saved in the client record or passed
+    // We will just create an unassigned task.
+    await MarketingTask.create({
+        taskId: `MKT_${client.leadId}`,
+        leadId: client.leadId,
+        clientName: client.name || "",
+        status: "Unassigned",
+        months,
+        posts,
+        socialMediaHandles,
+        marketingNotes
     });
 };
 
@@ -133,6 +176,8 @@ const createPayment = asyncHandler(async (req, res) => {
             );
             // Editing-only projects bypass shoot scheduling and go straight to editor assignment
             await ensureEditingOnlyShoot(client);
+            // Trigger marketing task creation if applicable
+            await ensureMarketingTask(client);
         }
     }
 
@@ -260,6 +305,8 @@ const verifyPayment = asyncHandler(async (req, res) => {
             if (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") {
                 // Editing-only projects bypass the shoot flow and go straight to editor assignment
                 await ensureEditingOnlyShoot(client);
+                // Trigger marketing task creation if applicable
+                await ensureMarketingTask(client);
             }
         }
     }

@@ -1,4 +1,6 @@
 import { Client } from "../models/client.models.js";
+import { User } from "../models/user.models.js";
+import { sendPushNotification } from "../services/notification.service.js";
 import { EditProject, EditingTask } from "../models/editing.models.js";
 import { Shoot } from "../models/shoot.models.js";
 import { Payment } from "../models/payment.models.js";
@@ -191,6 +193,26 @@ const updateClient = asyncHandler(async (req, res) => {
 
     if (!updated) {
         throw new ApiError(404, "Client not found");
+    }
+
+    // Notifications
+    if (updateData.status === 'Proposal Revoked') {
+        const notifyUserIds = [];
+        if (updated.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${updated.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${updated.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${updated.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Proposal Revoked',
+            message: `The proposal for ${updated.name} has been revoked.`,
+            href: '/sales'
+        }).catch(console.error);
     }
 
     return res.status(200).json(new ApiResponse(200, { lead: updated }, "Client updated successfully"));

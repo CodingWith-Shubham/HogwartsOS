@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendPushNotification } from "../services/notification.service.js";
+import { User } from "../models/user.models.js";
 
 // --- Editing-only bypass ---
 // Leads pitched "Only editing" skip the shoot flow entirely. Once their payment
@@ -211,7 +212,19 @@ const verifyPayment = asyncHandler(async (req, res) => {
     let clientStatus;
     if (newPaymentStatus === "Screenshot Received" || newPaymentStatus === "Screenshot Uploaded") {
         clientStatus = "Payment Under Review";
-        sendPushNotification({ roles: ['manager', 'sales', 'admin', 'super_admin'] }, {
+        const client = await Client.findOne({ leadId: payment.leadId });
+        const notifyUserIds = [];
+        if (client && client.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${client.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${client.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${client.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
             title: 'Payment needs verification',
             message: `A payment screenshot has been uploaded.`,
             href: '/manager'

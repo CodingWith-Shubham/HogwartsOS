@@ -160,7 +160,19 @@ const updateTask = asyncHandler(async (req, res) => {
 
     // Notifications for manual updates
     if (updateData.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
+        const notifyUserIds = [];
+        const clientForDraft = await Client.findOne({ leadId: task.leadId });
+        if (clientForDraft && clientForDraft.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${task.clientName} is ready for manager review.`,
             href: '/manager'
@@ -217,6 +229,29 @@ const updateTask = asyncHandler(async (req, res) => {
                 { $set: { status: 'Completed' } }
             );
         }
+        // Notify Completed
+        const notifyUserIds = [];
+        if (task.assignedToEmail || task.editorEmail) {
+            const email = task.assignedToEmail || task.editorEmail;
+            const editorUser = await User.findOne({ email });
+            if (editorUser) notifyUserIds.push(editorUser._id);
+        }
+        const clientForCompleted = await Client.findOne({ leadId: task.leadId });
+        if (clientForCompleted && clientForCompleted.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Task Completed',
+            message: `The editing task for ${task.clientName} has been completed.`,
+            href: '/manager'
+        }).catch(console.error);
     }
 
     // Auto-create Payment log if verified
@@ -288,6 +323,8 @@ const assignTasks = asyncHandler(async (req, res) => {
 
     const createdTasks = [];
     const typeCounters = {};
+    const editorTaskCounts = new Map();
+
     for (const task of tasks) {
         let label = task.task_label || "";
         if (label.endsWith('#1')) {
@@ -318,16 +355,23 @@ const assignTasks = asyncHandler(async (req, res) => {
         });
         createdTasks.push(newTask);
         
-        // Notify Editor about assignment
         if (newTask.assignedToEmail) {
-            const editorUser = await User.findOne({ email: newTask.assignedToEmail });
-            if (editorUser) {
-                sendPushNotification({ userIds: [editorUser._id] }, {
-                    title: 'New editing task assigned',
-                    message: `You have been assigned to edit ${newTask.clientName}.`,
-                    href: '/editor'
-                }).catch(console.error);
+            if (!editorTaskCounts.has(newTask.assignedToEmail)) {
+                editorTaskCounts.set(newTask.assignedToEmail, 0);
             }
+            editorTaskCounts.set(newTask.assignedToEmail, editorTaskCounts.get(newTask.assignedToEmail) + 1);
+        }
+    }
+
+    // Grouped Notifications for Assignment
+    for (const [email, count] of editorTaskCounts.entries()) {
+        const editorUser = await User.findOne({ email });
+        if (editorUser) {
+            sendPushNotification({ userIds: [editorUser._id] }, {
+                title: 'New editing tasks assigned',
+                message: `You have been assigned ${count} task(s) for ${client_name || 'a client'}.`,
+                href: '/editor'
+            }).catch(console.error);
         }
     }
 
@@ -438,9 +482,40 @@ const updateProject = asyncHandler(async (req, res) => {
 
     // Notifications
     if (updates.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
+        const notifyUserIds = [];
+        const clientForDraft = await Client.findOne({ leadId: projectToUpdate.leadId });
+        if (clientForDraft && clientForDraft.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${project.clientName} is ready for manager review.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+    if (updates.status === 'Pending Extra Revision Approval') {
+        const notifyUserIds = [];
+        const clientForDraft = await Client.findOne({ leadId: projectToUpdate.leadId });
+        if (clientForDraft && clientForDraft.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Pending Extra Revision Approval',
+            message: `${project.clientName} requires approval for an extra revision.`,
             href: '/manager'
         }).catch(console.error);
     }
@@ -618,10 +693,65 @@ const updateTaskById = asyncHandler(async (req, res) => {
     }
 
     // Notifications for manual updates
+    if (updates.status === 'Completed') {
+        const notifyUserIds = [];
+        if (task.assignedToEmail || task.editorEmail) {
+            const email = task.assignedToEmail || task.editorEmail;
+            const editorUser = await User.findOne({ email });
+            if (editorUser) notifyUserIds.push(editorUser._id);
+        }
+        const clientForCompleted = await Client.findOne({ leadId: task.leadId });
+        if (clientForCompleted && clientForCompleted.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForCompleted.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Task Completed',
+            message: `The editing task for ${task.clientName} has been completed.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
     if (updates.status === 'Draft Ready') {
-        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
+        const notifyUserIds = [];
+        const clientForDraft = await Client.findOne({ leadId: task.leadId });
+        if (clientForDraft && clientForDraft.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
             title: 'Draft ready for review',
             message: `${task.clientName} is ready for manager review.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+    if (updates.status === 'Pending Extra Revision Approval') {
+        const notifyUserIds = [];
+        const clientForDraft = await Client.findOne({ leadId: task.leadId });
+        if (clientForDraft && clientForDraft.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForDraft.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Pending Extra Revision Approval',
+            message: `${task.clientName} requires approval for an extra revision.`,
             href: '/manager'
         }).catch(console.error);
     }

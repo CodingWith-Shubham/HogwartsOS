@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendPushNotification } from "../services/notification.service.js";
+import { User } from "../models/user.models.js";
 
 const parseBoolean = (value, defaultValue = false) => {
     if (typeof value === "boolean") return value;
@@ -131,6 +132,32 @@ const createShoot = asyncHandler(async (req, res) => {
         );
     }
 
+    // Notifications
+    const notifyUserIds = [];
+    if (shoot.shootMemberEmail) {
+        const shootUser = await User.findOne({ email: new RegExp(`^${shoot.shootMemberEmail}$`, 'i') });
+        if (shootUser) notifyUserIds.push(shootUser._id);
+    }
+    
+    // Fetch client to get assigned sales rep
+    const clientForShoot = await Client.findOne({ leadId: body.leadId });
+    if (clientForShoot && clientForShoot.assignedTo) {
+        const salesUser = await User.findOne({
+            $or: [
+                { name: new RegExp(`^${clientForShoot.assignedTo}$`, 'i') },
+                { email: new RegExp(`^${clientForShoot.assignedTo}$`, 'i') },
+                { username: new RegExp(`^${clientForShoot.assignedTo}$`, 'i') }
+            ]
+        });
+        if (salesUser) notifyUserIds.push(salesUser._id);
+    }
+
+    sendPushNotification({ userIds: notifyUserIds }, {
+        title: 'Shoot Scheduled',
+        message: `Shoot for ${shoot.clientName} scheduled on ${shoot.shootDate}.`,
+        href: '/shoot'
+    }).catch(console.error);
+
     return res.status(201).json(new ApiResponse(201, { shoot }, "Shoot scheduled successfully"));
 });
 
@@ -168,7 +195,20 @@ const updateShoot = asyncHandler(async (req, res) => {
     // Notifications
     if (updates.driveLinkUploaded === true && (!existingShoot || existingShoot.driveLinkUploaded !== true)) {
         // Shoot footage uploaded, pending assigning the editor
-        sendPushNotification({ roles: ['manager', 'admin', 'super_admin'] }, {
+        const notifyUserIds = [];
+        const clientForFootage = await Client.findOne({ leadId: updated.leadId });
+        if (clientForFootage && clientForFootage.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForFootage.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForFootage.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForFootage.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+
+        sendPushNotification({ userIds: notifyUserIds, roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Shoot footage uploaded',
             message: `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
             href: '/manager'

@@ -204,7 +204,7 @@ function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
               const items = shootsByDate.get(key) ?? [];
               const muted = day.getMonth() !== month.getMonth();
               return (
-                <div key={key} className="min-h-[110px] border-t border-border p-2">
+                <div key={key} className="min-h-[60px] sm:min-h-[110px] border-t border-border p-1.5 sm:p-2">
                   <div className={cn('text-xs font-medium mb-1', muted && 'text-muted-foreground')}>
                     {day.getDate()}
                   </div>
@@ -1201,13 +1201,13 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const canDelete = (validStatuses.includes(lead.status) || lead.proposalAccepted) && !isVerified;
 
     return (
-      <div className="flex flex-col gap-1.5 items-start">
+      <div className="flex flex-col gap-1.5 items-start min-w-0">
         {canEdit && (
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <Button
               variant="outline"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 min-h-touch"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingLead(lead);
@@ -1220,7 +1220,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
                 disabled={deletingLeadId === lead.leadId}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1301,7 +1301,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       key: 'action',
       header: 'Actions',
       cell: (lead) => renderActions(lead),
-      className: 'min-w-[160px]',
+      className: 'w-auto',
     },
   ];
 
@@ -1557,7 +1557,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard title="Total Leads" value={totalLeads} icon={Users} />
         <StatCard title="Proposals Sent" value={proposalsSent} icon={FileText} />
         <StatCard title="Pipeline Value" value={formatINR(totalPipeline)} icon={TrendingUp} />
@@ -1565,16 +1565,19 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       </div>
 
       <Tabs defaultValue="leads">
-        <TabsList>
-          <TabsTrigger value="leads">Leads</TabsTrigger>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-        </TabsList>
+        <div className="tabs-scroll-container">
+          <TabsList className="flex w-max min-w-full">
+            <TabsTrigger value="leads" className="shrink-0">Leads</TabsTrigger>
+            <TabsTrigger value="pipeline" className="shrink-0">Pipeline</TabsTrigger>
+            <TabsTrigger value="payments" className="shrink-0">Payments</TabsTrigger>
+            <TabsTrigger value="calendar" className="shrink-0">Calendar</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="leads" className="mt-4 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-1 rounded-lg border border-border p-1">
+            <div className="tabs-scroll-container rounded-lg border border-border p-1">
+              <div className="flex gap-1 w-max">
               {FILTER_TABS.map((tab) => {
                 let count = 0;
                 let showCount = false;
@@ -1612,10 +1615,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 </button>
                 );
               })}
+              </div>
             </div>
             <Button
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={() => refreshLeads(false, true)}
               disabled={refreshing}
             >

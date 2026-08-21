@@ -100,7 +100,7 @@ export function EditorSummaryDashboard() {
         description={`Welcome back, ${user?.name || 'Editor'}. Here is your workload overview.`} 
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <StatCard 
           title="Total Active Tasks" 
           value={stats.totalActive} 

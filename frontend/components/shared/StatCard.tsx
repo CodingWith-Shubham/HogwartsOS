@@ -16,14 +16,14 @@ export function StatCard({ title, value, description, icon: Icon, trend, classNa
   const card = (
     <Card className={cn('overflow-hidden card-hover-effect', className)}>
       <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1.5 min-w-0 flex-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</p>
-            <p className="text-2xl font-semibold tabular-nums">{value}</p>
+            <p className="text-xl sm:text-2xl font-semibold tabular-nums break-all leading-tight">{value}</p>
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
           </div>
           {Icon && (
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary border border-border">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary border border-border">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </div>
           )}

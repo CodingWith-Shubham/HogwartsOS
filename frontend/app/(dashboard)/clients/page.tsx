@@ -498,20 +498,22 @@ export default function ClientsPage() {
       />
 
       <Tabs defaultValue={"clients" as string} className="w-full">
-        <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
-          <TabsTrigger value="clients" className="data-[state=active]:bg-muted">
-            <Users className="mr-1.5 h-4 w-4" /> All Clients
-          </TabsTrigger>
-          <TabsTrigger value="upsells" className="data-[state=active]:bg-muted">
-            <TrendingUp className="mr-1.5 h-4 w-4 text-amber-500" /> Upsells ({upsellCount})
-          </TabsTrigger>
-          <TabsTrigger value="crosssells" className="data-[state=active]:bg-muted">
-            <Shuffle className="mr-1.5 h-4 w-4 text-sky-500" /> Cross-Sells ({crosssellCount})
-          </TabsTrigger>
-        </TabsList>
+        <div className="tabs-scroll-container mb-6">
+          <TabsList className="flex w-max min-w-full h-auto gap-2 p-1 bg-transparent border">
+            <TabsTrigger value="clients" className="data-[state=active]:bg-muted shrink-0">
+              <Users className="mr-1.5 h-4 w-4 shrink-0" /> All Clients
+            </TabsTrigger>
+            <TabsTrigger value="upsells" className="data-[state=active]:bg-muted shrink-0">
+              <TrendingUp className="mr-1.5 h-4 w-4 text-amber-500 shrink-0" /> Upsells ({upsellCount})
+            </TabsTrigger>
+            <TabsTrigger value="crosssells" className="data-[state=active]:bg-muted shrink-0">
+              <Shuffle className="mr-1.5 h-4 w-4 text-sky-500 shrink-0" /> Cross-Sells ({crosssellCount})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="clients" className="mt-0">
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
             <StatCard title="Total Clients" value={totalClients} icon={Users} />
             <StatCard title="Active" value={activeClients} icon={Building2} />
             <StatCard title="Total Revenue" value={formatINR(totalRevenue)} icon={Wallet} />

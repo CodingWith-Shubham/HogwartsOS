@@ -797,7 +797,7 @@ export default function ManagerPage() {
     <div>
       <PageHeader title="Manager" description="Assignments and approvals" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         <StatCard title="Active Projects" value={activeProjects} icon={Briefcase} />
         <StatCard title="Pending Approvals" value={pendingApprovals} icon={CheckCircle} />
         <StatCard title="Scheduled Shoots" value={scheduledShoots} icon={Camera} />
@@ -806,50 +806,52 @@ export default function ManagerPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6 h-auto flex-wrap gap-2 w-full justify-start md:w-auto p-1 bg-transparent border">
-          <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted relative">
-            Assign Editor
-            {footageReady.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {footageReady.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted relative">
-            Upsells &amp; Cross-Sells
-            {(upsellEntries.length + pendingUpsells.length) > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {upsellEntries.length + pendingUpsells.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="task_board" className="data-[state=active]:bg-muted">Task Board</TabsTrigger>
-          <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted">Editor Workload</TabsTrigger>
-          <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted relative">
-            Verify Editor Work
-            {draftReady.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {draftReady.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted relative">
-            Revision Approval
-            {extraRevisionNeeded.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {extraRevisionNeeded.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="completed" className="data-[state=active]:bg-muted relative">
-            Completed
-            {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        <div className="tabs-scroll-container mb-6">
+          <TabsList className="flex w-max min-w-full h-auto gap-2 p-1 bg-transparent border">
+            <TabsTrigger value="assign_editor" className="data-[state=active]:bg-muted relative shrink-0">
+              Assign Editor
+              {footageReady.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {footageReady.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="upsell_crosssell" className="data-[state=active]:bg-muted relative shrink-0">
+              Upsells &amp; Cross-Sells
+              {(upsellEntries.length + pendingUpsells.length) > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {upsellEntries.length + pendingUpsells.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="task_board" className="data-[state=active]:bg-muted shrink-0">Task Board</TabsTrigger>
+            <TabsTrigger value="editor_workload" className="data-[state=active]:bg-muted shrink-0">Editor Workload</TabsTrigger>
+            <TabsTrigger value="verify_editor_work" className="data-[state=active]:bg-muted relative shrink-0">
+              Verify Editor Work
+              {draftReady.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {draftReady.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="revision_approval" className="data-[state=active]:bg-muted relative shrink-0">
+              Revision Approval
+              {extraRevisionNeeded.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {extraRevisionNeeded.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="data-[state=active]:bg-muted relative shrink-0">
+              Completed
+              {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="assign_editor" className="mt-0">
           <Card className="mb-6">

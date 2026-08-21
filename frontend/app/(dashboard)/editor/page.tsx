@@ -919,7 +919,7 @@ export default function EditorPage() {
       />
 
       {/* Stat Cards */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-7">
+      <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <StatCard title="Assigned" value={groups.assigned.length} icon={Scissors} onClick={() => setActiveTab('assigned')} />
         <StatCard title="In Progress" value={groups.inProgress.length} icon={PlayCircle} onClick={() => setActiveTab('in-progress')} />
         <StatCard title="Corrections" value={groups.corrections.length} icon={AlertCircle} onClick={() => setActiveTab('corrections')} />
@@ -936,64 +936,66 @@ export default function EditorPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="assigned" className="relative">
-            Assigned
-            {groups.assigned.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.assigned.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="in-progress" className="relative">
-            In Progress
-            {groups.inProgress.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.inProgress.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="corrections" className="relative">
-            Corrections
-            {groups.corrections.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.corrections.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="drafts" className="relative">
-            Drafts
-            {groups.drafts.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.drafts.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="revisions" className="relative">
-            Revisions
-            {groups.revisions.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.revisions.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="segregate" className="relative">
-            Segregate Feedback
-            {groups.segregate.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.segregate.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="delivered" className="relative">
-            Delivered
-            {groups.delivered.length > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                {groups.delivered.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        <div className="tabs-scroll-container">
+          <TabsList className="flex w-max min-w-full h-auto">
+            <TabsTrigger value="assigned" className="relative shrink-0">
+              Assigned
+              {groups.assigned.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.assigned.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="in-progress" className="relative shrink-0">
+              In Progress
+              {groups.inProgress.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.inProgress.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="corrections" className="relative shrink-0">
+              Corrections
+              {groups.corrections.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.corrections.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="drafts" className="relative shrink-0">
+              Drafts
+              {groups.drafts.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.drafts.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="revisions" className="relative shrink-0">
+              Revisions
+              {groups.revisions.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.revisions.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="segregate" className="relative shrink-0">
+              Segregate Feedback
+              {groups.segregate.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.segregate.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="delivered" className="relative shrink-0">
+              Delivered
+              {groups.delivered.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
+                  {groups.delivered.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="assigned" className="mt-4">{panel(groups.assigned, 'No assigned tasks.', assignedPage, setAssignedPage)}</TabsContent>
         <TabsContent value="in-progress" className="mt-4">{panel(groups.inProgress, 'No in progress tasks.', inProgressPage, setInProgressPage)}</TabsContent>

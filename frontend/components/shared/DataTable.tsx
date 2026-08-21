@@ -102,7 +102,7 @@ export function DataTable<T extends { id: string }>({
         {toolbar && <div className="flex items-center gap-2">{toolbar}</div>}
       </div>
 
-      <div className="rounded-md border border-border overflow-hidden">
+      <div className="table-scroll-wrapper rounded-md border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>

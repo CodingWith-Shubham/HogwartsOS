@@ -225,7 +225,7 @@ export default function ChatBot() {
         id="aria-chatbot-trigger"
         aria-label="Open Aria AI assistant"
         onClick={() => setIsOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[hsl(var(--background))]"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[hsl(var(--background))]"
         style={{
           width: 56,
           height: 56,

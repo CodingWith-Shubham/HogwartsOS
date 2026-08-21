@@ -90,6 +90,12 @@ export async function GET() {
                 notifications.push({ id: `revoked-${lead.leadId}`, area: 'sales', title: 'Proposal Revoked', message: `The proposal for ${lead.name} has been revoked.`, href: '/sales', priority: 'urgent' });
             }
         }
+        
+        if (lead.status === 'Proposal Accepted' || lead.proposalAccepted === true) {
+            if (isAdminOrSuper || isAssignedSales) {
+                notifications.push({ id: `accepted-${lead.leadId}`, area: 'sales', title: 'Proposal Accepted', message: `The proposal for ${lead.name} has been accepted!`, href: '/sales', priority: 'urgent' });
+            }
+        }
     });
 
     // 2. Shoots
@@ -102,6 +108,12 @@ export async function GET() {
         if (!isTrue(shoot.driveLinkUploaded) && hours !== null && hours <= 24) {
             if (isAssignedShoot || isAssignedSales) {
                 notifications.push({ id: `shoot-${shoot.shootId}`, area: 'shoot', title: hours < 0 ? 'Shoot footage upload overdue' : 'Shoot coming up', message: `${shoot.clientName || 'Client'} - ${shoot.shootDate}.`, href: '/shoot', priority: hours < 0 ? 'urgent' : 'normal' });
+            }
+        }
+        
+        if (shoot.addonScreenshot && (!shoot.addonPaymentStatus || shoot.addonPaymentStatus.toLowerCase() !== 'verified')) {
+            if (isAdminOrSuper || isAssignedSales) {
+                notifications.push({ id: `shoot-addon-${shoot.shootId}`, area: 'sales', title: 'Shoot Addon Payment needs verification', message: `An addon payment screenshot for ${shoot.clientName} has been uploaded.`, href: isAdminOrSuper ? '/manager' : '/sales', priority: 'urgent' });
             }
         }
     });
@@ -142,6 +154,12 @@ export async function GET() {
         if (hours !== null && hours <= 48 && status !== 'delivered' && status !== 'completed') {
             if (isAssignedEditor) {
                 notifications.push({ id: `deadline-${edit.editId}-${edit.deadlineAt}`, area: 'editor', title: hours < 0 ? 'Editing deadline overdue' : 'Editing deadline approaching', message: `${edit.clientName || 'A project'} is due ${edit.deadlineAt}.`, href: '/editor', priority: hours < 0 ? 'urgent' : 'normal' });
+            }
+        }
+
+        if (edit.addonScreenshot && (!edit.addonPaymentStatus || edit.addonPaymentStatus.toLowerCase() !== 'verified')) {
+            if (isAdminOrSuper || isAssignedSales) {
+                notifications.push({ id: `edit-addon-${edit.editId}`, area: 'manager', title: 'Revision Addon Payment needs verification', message: `A revision addon payment screenshot for ${edit.clientName} has been uploaded.`, href: isAdminOrSuper ? '/manager' : '/sales', priority: 'urgent' });
             }
         }
     });

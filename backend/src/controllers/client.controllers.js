@@ -215,6 +215,25 @@ const updateClient = asyncHandler(async (req, res) => {
         }).catch(console.error);
     }
 
+    if (updateData.status === 'Proposal Accepted' || updateData.proposalAccepted === true) {
+        const notifyUserIds = [];
+        if (updated.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${updated.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${updated.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${updated.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Proposal Accepted',
+            message: `The proposal for ${updated.name} has been accepted!`,
+            href: '/sales'
+        }).catch(console.error);
+    }
+
     return res.status(200).json(new ApiResponse(200, { lead: updated }, "Client updated successfully"));
 });
 

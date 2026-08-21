@@ -532,6 +532,26 @@ const updateProject = asyncHandler(async (req, res) => {
         }
     }
 
+    if (updates.addonScreenshot && (!projectToUpdate || projectToUpdate.addonScreenshot !== updates.addonScreenshot)) {
+        const notifyUserIds = [];
+        const clientForAddon = await Client.findOne({ leadId: project.leadId });
+        if (clientForAddon && clientForAddon.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Revision Addon Payment needs verification',
+            message: `A revision addon payment screenshot for ${project.clientName} has been uploaded.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+
     // Automatically log Addon payment as a MongoDB Payment document
     const isVerifyingAddon = updates.addonPaymentStatus && updates.addonPaymentStatus.toLowerCase() === "verified";
     const wasAlreadyVerified = projectToUpdate && projectToUpdate.addonPaymentStatus && projectToUpdate.addonPaymentStatus.toLowerCase() === "verified";

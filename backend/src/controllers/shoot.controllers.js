@@ -215,6 +215,27 @@ const updateShoot = asyncHandler(async (req, res) => {
         }).catch(console.error);
     }
 
+    if (updates.addonScreenshot && (!existingShoot || existingShoot.addonScreenshot !== updates.addonScreenshot)) {
+        // Addon payment unverified (screenshot uploaded)
+        const notifyUserIds = [];
+        const clientForAddon = await Client.findOne({ leadId: updated.leadId });
+        if (clientForAddon && clientForAddon.assignedTo) {
+            const salesUser = await User.findOne({
+                $or: [
+                    { name: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') },
+                    { email: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') },
+                    { username: new RegExp(`^${clientForAddon.assignedTo}$`, 'i') }
+                ]
+            });
+            if (salesUser) notifyUserIds.push(salesUser._id);
+        }
+        sendPushNotification({ userIds: notifyUserIds, roles: ['admin', 'super_admin'] }, {
+            title: 'Shoot Addon Payment needs verification',
+            message: `An addon payment screenshot for ${updated.clientName} has been uploaded.`,
+            href: '/manager'
+        }).catch(console.error);
+    }
+
     // Automatically log Addon payment as a MongoDB Payment document
     const wasAlreadyVerified = existingShoot && (existingShoot.addonVerifiedBy || (existingShoot.addonPaymentStatus && existingShoot.addonPaymentStatus.toLowerCase() === "verified"));
     if (isVerifyingAddon && existingShoot && !wasAlreadyVerified) {

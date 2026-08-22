@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getAuthenticatedUser, getAccessToken } from '@/lib/auth-server';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,24 @@ export async function POST(request: Request) {
         { error: `n8n webhook failed (${response.status}): ${text || 'Unknown error'}` },
         { status: 502 }
       );
+    }
+
+    // Save deliverable sets to the UpsellCrossSell entry so they can be fetched later
+    if (upsellCrossSellId && body.deliverable_sets) {
+      const backendUrl = await getBackendUrl();
+      const token = getAccessToken(request.headers);
+      if (token) {
+        await fetch(`${backendUrl}/upsell-crosssell/${upsellCrossSellId}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            deliverable_sets: body.deliverable_sets
+          })
+        }).catch(err => console.error("Failed to update upsell deliverables:", err));
+      }
     }
 
     const data = await response.json().catch(() => ({}));

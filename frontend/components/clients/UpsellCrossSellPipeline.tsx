@@ -36,7 +36,7 @@ export interface UpsellCrossSellEntry {
   /** Backend field containing the client phone number. */
   clientPhone?: string;
   clientEmail?: string;
-  type: 'upsell' | 'crosssell';
+  type: 'upsell' | 'crosssell' | 'newsale';
   services: string[];
   editingOnly: boolean;
   cost: number;
@@ -53,6 +53,8 @@ export interface UpsellCrossSellEntry {
   proposalRevokeReason?: string;
   createdAt?: string;
   updatedAt?: string;
+  deliverableSets?: any[];
+  deliverable_sets?: any[];
 }
 
 /** Payment record linked to an upsell/cross-sell entry (latest first). */
@@ -69,7 +71,7 @@ export interface PendingAssignmentEntry {
   clientLeadId: string;
   clientName: string;
   clientEmail?: string;
-  type: 'upsell' | 'crosssell';
+  type: 'upsell' | 'crosssell' | 'newsale';
   services: string[];
   editingOnly: boolean;
   cost: number;
@@ -102,16 +104,18 @@ export const UPSELL_STATUS_META: Record<string, { label: string; className: stri
   delivered: { label: 'Delivered', className: 'bg-green-500/15 text-green-600 border-green-500/30' },
 };
 
-export function UpsellTypeBadge({ type }: { type: 'upsell' | 'crosssell' }) {
+export function UpsellTypeBadge({ type }: { type: 'upsell' | 'crosssell' | 'newsale' }) {
   return (
     <Badge
       className={
         type === 'crosssell'
           ? 'bg-sky-500/15 text-sky-600 border-sky-500/30'
+          : type === 'newsale'
+          ? 'bg-green-500/15 text-green-600 border-green-500/30'
           : 'bg-amber-500/15 text-amber-600 border-amber-500/30'
       }
     >
-      {type === 'crosssell' ? 'Cross-Sell' : 'Upsell'}
+      {type === 'crosssell' ? 'Cross-Sell' : type === 'newsale' ? 'New Sale' : 'Upsell'}
     </Badge>
   );
 }
@@ -383,6 +387,7 @@ export function UpsellCrossSellPipeline({
     servicePitched: entry.services.join(', '),
     cost: entry.cost ? String(entry.cost) : '',
     assignedTo: entry.assignedTo,
+    deliverableSets: entry.deliverableSets || entry.deliverable_sets || [],
   });
 
   const proposalDefaultsFor = (entry: UpsellCrossSellEntry): Partial<ProposalFormValues> => {
@@ -551,7 +556,7 @@ export function UpsellCrossSellPipeline({
           <div className="flex items-center gap-2 pt-1">
             <div className="h-1.5 w-40 rounded-full bg-muted overflow-hidden">
               <div
-                className={cn('h-full rounded-full', entry.type === 'crosssell' ? 'bg-sky-500' : 'bg-amber-500')}
+                className={cn('h-full rounded-full', entry.type === 'crosssell' ? 'bg-sky-500' : entry.type === 'newsale' ? 'bg-green-500' : 'bg-amber-500')}
                 style={{ width: `${Math.min(progressPct, 100)}%` }}
               />
             </div>

@@ -90,8 +90,8 @@ const createUpsellCrossSell = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Existing client not found");
     }
 
-    if (!["upsell", "crosssell"].includes(type)) {
-        throw new ApiError(400, "type must be either 'upsell' or 'crosssell'");
+    if (!["upsell", "crosssell", "newsale"].includes(type)) {
+        throw new ApiError(400, "type must be either 'upsell', 'crosssell', or 'newsale'");
     }
 
     const serviceList = Array.isArray(services)
@@ -125,6 +125,8 @@ const createUpsellCrossSell = asyncHandler(async (req, res) => {
 
     const message = type === "crosssell"
         ? "Cross-sell initiated successfully"
+        : type === "newsale"
+        ? "New sale initiated successfully"
         : "Upsell initiated successfully";
 
     return res.status(201).json(new ApiResponse(201, { entry }, message));
@@ -166,6 +168,14 @@ const getUpsellCrossSells = asyncHandler(async (req, res) => {
         });
     }
 
+    entries = entries.map(e => {
+        const obj = typeof e.toObject === 'function' ? e.toObject() : { ...e };
+        if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
+            obj.deliverableSets = obj.deliverable_sets;
+        }
+        return obj;
+    });
+
     return res.status(200).json(new ApiResponse(200, { entries }, "Upsell/cross-sell entries retrieved"));
 });
 
@@ -203,6 +213,7 @@ const getClientsUpsellSummary = asyncHandler(async (req, res) => {
                 total: { $sum: 1 },
                 upsellCount: { $sum: { $cond: [{ $eq: ["$type", "upsell"] }, 1, 0] } },
                 crosssellCount: { $sum: { $cond: [{ $eq: ["$type", "crosssell"] }, 1, 0] } },
+                newsaleCount: { $sum: { $cond: [{ $eq: ["$type", "newsale"] }, 1, 0] } },
                 activeCount: { $sum: { $cond: [{ $ne: ["$status", "delivered"] }, 1, 0] } },
                 latestStatus: { $last: "$status" },
                 latestType: { $last: "$type" },
@@ -221,6 +232,7 @@ const getClientsUpsellSummary = asyncHandler(async (req, res) => {
             total: g.total,
             upsellCount: g.upsellCount,
             crosssellCount: g.crosssellCount,
+            newsaleCount: g.newsaleCount,
             activeCount: g.activeCount,
             latestStatus: g.latestStatus,
             latestType: g.latestType,
@@ -317,7 +329,12 @@ const getUpsellCrossSellById = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Upsell/cross-sell entry not found");
     }
 
-    return res.status(200).json(new ApiResponse(200, { entry }, "Entry retrieved"));
+    const obj = typeof entry.toObject === 'function' ? entry.toObject() : { ...entry };
+    if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
+        obj.deliverableSets = obj.deliverable_sets;
+    }
+
+    return res.status(200).json(new ApiResponse(200, { entry: obj }, "Entry retrieved"));
 });
 
 /**
@@ -340,7 +357,9 @@ const updateUpsellCrossSell = asyncHandler(async (req, res) => {
         "editingOnly",
         "proposalAccepted",
         "proposalRevoked",
-        "proposalRevokeReason"
+        "proposalRevokeReason",
+        "deliverableSets",
+        "deliverable_sets"
     ];
     const updates = {};
     for (const key of allowed) {

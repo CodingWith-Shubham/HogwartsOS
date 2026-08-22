@@ -51,7 +51,7 @@ const upsellCrossSellSchema = new Schema({
     },
     type: {
         type: String,
-        enum: ["upsell", "crosssell"],
+        enum: ["upsell", "crosssell", "newsale"],
         required: true,
         index: true
     },
@@ -116,6 +116,13 @@ const upsellCrossSellSchema = new Schema({
     editorAssigned: {
         type: String,
         default: ""
+    },
+    deliverableSets: { 
+        type: [Schema.Types.Mixed], 
+        default: [] 
+    },
+    deliverable_sets: { 
+        type: [Schema.Types.Mixed] 
     }
 }, { timestamps: true });
 

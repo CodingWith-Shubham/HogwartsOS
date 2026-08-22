@@ -15,13 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Lock, Loader2, TrendingUp, Shuffle } from 'lucide-react';
+import { Lock, Loader2, TrendingUp, Shuffle, ShoppingCart } from 'lucide-react';
 import { authFetch } from '@/lib/auth-fetch';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Lead } from '@/lib/sheets/types';
 
-export type UpsellCrossSellType = 'upsell' | 'crosssell';
+export type UpsellCrossSellType = 'upsell' | 'crosssell' | 'newsale';
 
 /**
  * Services offered for upsell / cross-sell deals (multi-select).
@@ -68,6 +68,14 @@ const TYPE_META: Record<
     icon: Shuffle,
     iconClass: 'text-sky-500',
     buttonClass: 'bg-sky-600 hover:bg-sky-700 text-white',
+  },
+  newsale: {
+    title: 'Initiate New Sale',
+    verb: 'Initiating',
+    description: 'Sell a new service to an existing client. Follows the same pipeline as a new client.',
+    icon: ShoppingCart,
+    iconClass: 'text-green-500',
+    buttonClass: 'bg-green-600 hover:bg-green-700 text-white',
   },
 };
 
@@ -147,7 +155,7 @@ export function UpsellCrossSellModal({ open, onOpenChange, client, type, salesMe
         throw new Error(payload.error || `Failed to initiate ${type}`);
       }
 
-      toast.success(type === 'crosssell' ? 'Cross-sell initiated successfully!' : 'Upsell initiated successfully!');
+      toast.success(type === 'crosssell' ? 'Cross-sell initiated successfully!' : type === 'newsale' ? 'New sale initiated successfully!' : 'Upsell initiated successfully!');
       handleOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -207,11 +215,13 @@ export function UpsellCrossSellModal({ open, onOpenChange, client, type, salesMe
                     onClick={() => toggleService(service)}
                     className={cn(
                       'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                      selected
-                        ? type === 'crosssell'
-                          ? 'border-sky-500 bg-sky-500/15 text-sky-600'
-                          : 'border-amber-500 bg-amber-500/15 text-amber-600'
-                        : 'border-border bg-secondary/40 text-muted-foreground hover:bg-secondary'
+                        selected
+                          ? type === 'crosssell'
+                            ? 'border-sky-500 bg-sky-500/15 text-sky-600'
+                            : type === 'newsale'
+                            ? 'border-green-500 bg-green-500/15 text-green-600'
+                            : 'border-amber-500 bg-amber-500/15 text-amber-600'
+                          : 'border-border bg-secondary/40 text-muted-foreground hover:bg-secondary'
                     )}
                   >
                     {service}

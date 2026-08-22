@@ -6,7 +6,7 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download, ShoppingCart } from 'lucide-react';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
@@ -247,6 +247,14 @@ export default function ClientsPage() {
     setUcxModalOpen(true);
   };
 
+  const handleNewSale = (c: any) => {
+    const lead = leads.find((l) => l.leadId === c.id);
+    if (!lead) return;
+    setSelectedUcxClient(lead);
+    setUcxType('newsale');
+    setUcxModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -312,6 +320,7 @@ export default function ClientsPage() {
   const leadsCount = leads.filter((l) => !l.proposalAccepted).length;
   const upsellCount = ucxClients.reduce((sum, c) => sum + (c.upsellCount || 0), 0);
   const crosssellCount = ucxClients.reduce((sum, c) => sum + (c.crosssellCount || 0), 0);
+  const newsaleCount = ucxClients.reduce((sum, c) => sum + (c.newsaleCount || 0), 0);
 
   // 2. Clients list mapping
   const clientsData = leads.map((lead) => {
@@ -336,9 +345,10 @@ export default function ClientsPage() {
       ucxBadges: ucxClients
         .filter((summary) => summary.clientLeadId === lead.leadId)
         .flatMap((summary) => {
-          const badges: { status: string; type: 'upsell' | 'crosssell' }[] = [];
+          const badges: { status: string; type: 'upsell' | 'crosssell' | 'newsale' }[] = [];
           if (summary.upsellCount > 0) badges.push({ status: summary.latestStatus, type: 'upsell' });
           if (summary.crosssellCount > 0) badges.push({ status: summary.latestStatus, type: 'crosssell' });
+          if (summary.newsaleCount > 0) badges.push({ status: summary.latestStatus, type: 'newsale' });
           return badges;
         }),
     };
@@ -346,10 +356,12 @@ export default function ClientsPage() {
 
   const isEditable = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'sales';
 
-  const ServiceBadge = ({ status, type }: { status: string; type: 'upsell' | 'crosssell' }) => (
+  const ServiceBadge = ({ status, type }: { status: string; type: 'upsell' | 'crosssell' | 'newsale' }) => (
     <div className="flex items-center gap-1.5 flex-wrap">
       {type === 'crosssell' ? (
         <Shuffle className="h-3 w-3 text-sky-500" />
+      ) : type === 'newsale' ? (
+        <ShoppingCart className="h-3 w-3 text-green-500" />
       ) : (
         <TrendingUp className="h-3 w-3 text-amber-500" />
       )}
@@ -377,9 +389,9 @@ export default function ClientsPage() {
           <div>
             <p className="font-medium">{c.name}</p>
             <p className="text-xs text-muted-foreground">{c.email}</p>
-            {(c.ucxBadges as { status: string; type: 'upsell' | 'crosssell' }[]).length > 0 && (
+            {(c.ucxBadges as { status: string; type: 'upsell' | 'crosssell' | 'newsale' }[]).length > 0 && (
               <div className="mt-1 space-y-1">
-                {c.ucxBadges.map((badge: { status: string; type: 'upsell' | 'crosssell' }, idx: number) => (
+                {c.ucxBadges.map((badge: { status: string; type: 'upsell' | 'crosssell' | 'newsale' }, idx: number) => (
                   <ServiceBadge key={idx} status={badge.status} type={badge.type} />
                 ))}
               </div>
@@ -467,6 +479,17 @@ export default function ClientsPage() {
               <Button
                 variant="ghost"
                 size="icon"
+                title="Initiate New Sale"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNewSale(c);
+                }}
+              >
+                <ShoppingCart className="h-4 w-4 text-green-500 hover:text-green-600" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 title="Edit Client"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -518,6 +541,9 @@ export default function ClientsPage() {
             </TabsTrigger>
             <TabsTrigger value="crosssells" className="data-[state=active]:bg-muted shrink-0">
               <Shuffle className="mr-1.5 h-4 w-4 text-sky-500 shrink-0" /> Cross-Sells ({crosssellCount})
+            </TabsTrigger>
+            <TabsTrigger value="newsales" className="data-[state=active]:bg-muted shrink-0">
+              <ShoppingCart className="mr-1.5 h-4 w-4 text-green-500 shrink-0" /> New Sales ({newsaleCount})
             </TabsTrigger>
           </TabsList>
         </div>
@@ -600,6 +626,59 @@ export default function ClientsPage() {
 
           <UpsellCrossSellPipeline
             entries={ucxEntries.filter((e) => e.type === 'crosssell')}
+            showClientName
+            canAdvance={isEditable}
+            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            paymentsByEntryId={ucxPayments}
+            onRefresh={fetchUpsells}
+          />
+        </TabsContent>
+
+        <TabsContent value="newsales" className="mt-0 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">New Sale Clients</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {ucxClients.filter((c) => c.newsaleCount > 0).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No new sale clients yet.</p>
+              ) : (
+                ucxClients
+                  .filter((c) => c.newsaleCount > 0)
+                  .map((client) => {
+                    const statuses = ucxEntries
+                      .filter((e) => e.clientLeadId === client.clientLeadId && e.type === 'newsale')
+                      .map((e) => e.status);
+                    const latestStatus = client.latestStatus || statuses[0] || 'initiated';
+                    return (
+                      <div
+                        key={client.clientLeadId}
+                        className="flex flex-col gap-1 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-sm">{client.clientName}</p>
+                            <UpsellStatusBadge status={latestStatus} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {(client.clientEmail || '') || '—'} · {client.newsaleCount} active new sale
+                            {client.newsaleCount > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        {user?.role !== 'manager' && (
+                          <p className="text-xs text-muted-foreground md:max-w-[40%] md:text-right">
+                            Latest: {latestStatus.replace(/_/g, ' ')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </CardContent>
+          </Card>
+
+          <UpsellCrossSellPipeline
+            entries={ucxEntries.filter((e) => e.type === 'newsale')}
             showClientName
             canAdvance={isEditable}
             canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}

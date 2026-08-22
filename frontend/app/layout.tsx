@@ -4,6 +4,8 @@ import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/auth-context';
 import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
+import maintenanceData from '../maintenance.json';
+import { MaintenanceScreen } from '@/components/shared/MaintenanceScreen';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -31,6 +33,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  if (maintenanceData.isMaintenance) {
+    return (
+      <html lang="en" className={inter.variable}>
+        <body className="font-sans antialiased min-h-screen bg-background text-foreground flex items-center justify-center">
+          <MaintenanceScreen reason={maintenanceData.reason} />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" className={inter.variable}>
       <head>

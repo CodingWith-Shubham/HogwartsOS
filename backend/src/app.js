@@ -35,10 +35,7 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-import { maintenanceMiddleware } from './middlewares/maintenance.middleware.js';
-
 // Route Mounting
-app.use(maintenanceMiddleware); // Apply maintenance check before other routes
 app.use('/api/v1/healthcheck', healthCheckRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);

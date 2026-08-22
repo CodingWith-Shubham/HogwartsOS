@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { Settings, Wrench, AlertTriangle } from 'lucide-react';
 
 interface MaintenanceScreenProps {
@@ -13,27 +12,20 @@ export function MaintenanceScreen({ reason }: MaintenanceScreenProps) {
       {/* Background gradients */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 flex flex-col items-center max-w-2xl text-center space-y-8 p-12 rounded-3xl bg-zinc-900/50 border border-zinc-800/50 backdrop-blur-xl shadow-2xl"
+      <div 
+        className="relative z-10 flex flex-col items-center max-w-2xl text-center space-y-8 p-12 rounded-3xl bg-zinc-900/50 border border-zinc-800/50 backdrop-blur-xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-700"
       >
         <div className="relative">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 flex items-center justify-center text-primary/30 blur-sm"
+          <div
+            className="absolute inset-0 flex items-center justify-center text-primary/30 blur-sm animate-[spin_8s_linear_infinite]"
           >
             <Settings size={120} />
-          </motion.div>
-          <motion.div
-             animate={{ rotate: -360 }}
-             transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-             className="relative z-10 text-primary"
+          </div>
+          <div
+             className="relative z-10 text-primary animate-[spin_12s_linear_infinite_reverse]"
           >
             <Wrench size={80} />
-          </motion.div>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -49,7 +41,7 @@ export function MaintenanceScreen({ reason }: MaintenanceScreenProps) {
           <AlertTriangle className="text-yellow-500" size={20} />
           <span className="text-sm font-medium">Hogwarts CRM Infrastructure</span>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

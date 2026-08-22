@@ -1,4 +1,4 @@
 {
-  "isMaintenance": false,
-  "reason": "We are currently performing major upgrades to the Hogwarts CRM infrastructure. Please check back shortly."
+  "isMaintenance": true,
+  "reason": "I am currently migrating the database to info@hogwartsstudios account. Please check back shortly."
 }

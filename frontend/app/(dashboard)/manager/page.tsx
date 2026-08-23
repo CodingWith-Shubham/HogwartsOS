@@ -125,10 +125,11 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
   // If we have a shoot with a deliverableSetIndex and the lead has deliverableSets array
   if (shoot && shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
     const dsIndex = Number(shoot.deliverableSetIndex);
-    if (lead.deliverableSets && lead.deliverableSets[dsIndex]) {
-      const set = lead.deliverableSets[dsIndex];
+    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets;
+    if (deliverableSets && deliverableSets[dsIndex]) {
+      const set = deliverableSets[dsIndex];
       return {
-        podcastEdit: '1', // A specific deliverable set corresponds to 1 podcast
+        podcastEdit: normalizeQuantity(set.podcastEdit || '0'),
         teaserEdit: normalizeQuantity(set.teaserEdit || '0'),
         reelEdit: normalizeQuantity(set.reelEdit || '0'),
       thumbnailEdit: normalizeQuantity(set.thumbnailEdit || '0'),
@@ -515,11 +516,21 @@ export default function ManagerPage() {
 
   const openAssignShoot = (shoot: Shoot) => {
     const lead = leads.find((item) => item.leadId === shoot.leadId);
+    
+    let resolvedServiceType = lead?.servicePitched ?? '';
+    if (shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
+      const dsIndex = Number(shoot.deliverableSetIndex);
+      const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
+      if (deliverableSets[dsIndex] && deliverableSets[dsIndex].serviceName) {
+        resolvedServiceType = deliverableSets[dsIndex].serviceName;
+      }
+    }
+    
     setAssignShoot(shoot);
     setAssignForm({
       serviceType: isTrue(shoot.isEditingOnly)
-        ? (lead?.serviceNotes?.trim() || lead?.servicePitched || 'Only Editing')
-        : (lead?.servicePitched ?? ''),
+        ? (lead?.serviceNotes?.trim() || resolvedServiceType || 'Only Editing')
+        : resolvedServiceType,
       dataLink: shoot.dataLink,
       managerComment: '',
       ...leadAssignmentDeliverables(lead, shoot),
@@ -1304,7 +1315,8 @@ export default function ManagerPage() {
                     {ASSIGNMENT_DELIVERABLE_FIELDS.map((field) => {
                       const durationKey = 'durationKey' in field ? field.durationKey : null;
                       const requiredQty = Number(normalizeQuantity(assignForm[field.key]));
-                      const splits = serviceAssignments[field.key] || (requiredQty > 0 ? [{ quantity: requiredQty, editorName: '' }] : [{ quantity: 0, editorName: '' }]);
+                      if (requiredQty === 0) return null;
+                      const splits = serviceAssignments[field.key] || [{ quantity: requiredQty, editorName: '' }];
                       const currentAssigned = splits.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
 
                       return (

@@ -587,16 +587,24 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       toast.info('Editing-only project — no shoot scheduling needed. It reaches Assign Editor automatically after payment verification.');
       return;
     }
-    const existingShoot = shootsByLeadId.get(lead.leadId);
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
+    const latestShoot = leadShoots[leadShoots.length - 1];
+    
+    const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
+    const totalInstances = deliverableSets.length || 1;
+    let nextIndex = 0;
+    while (nextIndex < totalInstances && scheduledIndices.has(nextIndex)) {
+      nextIndex++;
+    }
+
     setScheduleLead(lead);
     setSchedulePrefill({
-      shootCount:
-        lead.podcastEdit && !isNaN(Number(lead.podcastEdit))
-          ? Math.max(1, Number(lead.podcastEdit))
-          : 1,
-      camera: lead.camera || existingShoot?.camera || '1',
-      recordTime: lead.recordTime || existingShoot?.recordTime || '',
-      studioTime: lead.studioTime || existingShoot?.studioTime || '',
+      shootCount: 1,
+      deliverableSetIndex: Math.min(nextIndex, Math.max(0, totalInstances - 1)),
+      camera: lead.camera || latestShoot?.camera || '1',
+      recordTime: lead.recordTime || latestShoot?.recordTime || '',
+      studioTime: lead.studioTime || latestShoot?.studioTime || '',
     });
     setScheduleOpen(true);
   };
@@ -1139,10 +1147,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const renderScheduleAction = (lead: Lead) => {
-    const existingShoot = shootsByLeadId.get(lead.leadId);
-    const isAlreadyScheduled =
-      (existingShoot && !isEditingOnlyShoot(existingShoot)) ||
-      ['Shoot Scheduled', 'Shoot Done'].includes(lead.status);
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
+    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
+    const totalInstances = deliverableSets.length || 1;
+    const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+    const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
+    const isAlreadyScheduled = scheduledCount >= totalInstances;
 
     // Editing-only leads bypass the shoot flow entirely
     if (isEditingOnlyLead(lead) && !isAlreadyScheduled) {
@@ -1162,28 +1172,35 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       );
     }
 
+    if (!isPaymentComplete(lead)) return null;
+
     if (isAlreadyScheduled) {
       return (
         <Button variant="outline" size="sm" disabled className="text-muted-foreground">
-          {lead.status === 'Shoot Done' ? 'Shoot Done' : 'Shoot Scheduled'}
+          {lead.status === 'Shoot Done' ? 'Shoot Done' : `All ${totalInstances} Scheduled`}
         </Button>
       );
     }
 
-    if (!isPaymentComplete(lead)) return null;
-
     return (
-      <Button
-        size="sm"
-        className="bg-blue-600 text-white hover:bg-blue-700"
-        onClick={(e) => {
-          e.stopPropagation();
-          openScheduleModal(lead);
-        }}
-      >
-        <Camera className="mr-1 h-3 w-3" />
-        Schedule Shoot
-      </Button>
+      <div className="flex flex-col gap-1 items-start w-full">
+        <Button
+          size="sm"
+          className="bg-blue-600 text-white hover:bg-blue-700 w-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            openScheduleModal(lead);
+          }}
+        >
+          <Camera className="mr-1 h-3 w-3" />
+          {scheduledCount === 0 ? 'Schedule Shoot' : 'Schedule Next'}
+        </Button>
+        {totalInstances > 1 && (
+          <span className="text-[10px] text-muted-foreground text-center w-full mt-0.5">
+            {scheduledCount} of {totalInstances} scheduled
+          </span>
+        )}
+      </div>
     );
   };
 

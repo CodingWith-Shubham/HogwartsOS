@@ -74,11 +74,11 @@ type ServiceData = {
 const createEmptySet = (serviceName: string, defaults?: any): DeliverableSet => {
   const fb = defaults || {};
   return {
-    reelEdit: fb.reelEdit || '0',
-    longFormatVideo: fb.longFormatVideo || '0',
-    shortFormatVideo: fb.shortFormatVideo || '0',
-    teaserEdit: fb.teaserEdit || '0',
-    thumbnailEdit: fb.thumbnailEdit || '0',
+    reelEdit: fb.reelEdit || '',
+    longFormatVideo: fb.longFormatVideo || '',
+    shortFormatVideo: fb.shortFormatVideo || '',
+    teaserEdit: fb.teaserEdit || '',
+    thumbnailEdit: fb.thumbnailEdit || '',
     longFormatDuration: fb.longFormatDuration || '',
     shortFormatDuration: fb.shortFormatDuration || '',
     camera: fb.camera || '',
@@ -140,11 +140,11 @@ export function SendProposalDialog({
         setsToUse = lead.deliverableSets.map((set: any, idx: number) => {
           const fb = idx === 0 ? defaults : {};
           return {
-            reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '0',
-            longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '0',
-            shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '0',
-            teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '0',
-            thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '0',
+            reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '',
+            longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '',
+            shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '',
+            teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '',
+            thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '',
             longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
             shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
             camera: set.camera || fb?.camera || '',
@@ -256,19 +256,31 @@ export function SendProposalDialog({
       return num > 12 ? num : num * 60;
     };
 
-    for (const service of Object.keys(serviceDeliverables)) {
-      const data = serviceDeliverables[service];
-      for (let i = 0; i < data.sets.length; i++) {
-        const set = data.sets[i];
-        const recordMins = parseDurationToMinutes(set.recordTime);
-        const studioMins = parseDurationToMinutes(set.studioTime);
-        
-        if (recordMins > 0 && studioMins > 0 && studioMins < recordMins) {
-          toast.error(`${service} Set ${i + 1}: Studio Time (${set.studioTime || studioMins + ' min'}) cannot be less than Record Time (${set.recordTime || recordMins + ' min'}).`);
-          return;
+      for (const service of Object.keys(serviceDeliverables)) {
+        const data = serviceDeliverables[service];
+        for (let i = 0; i < data.sets.length; i++) {
+          const set = data.sets[i];
+          const recordMins = parseDurationToMinutes(set.recordTime);
+          const studioMins = parseDurationToMinutes(set.studioTime);
+          
+          if (recordMins > 0 && studioMins > 0 && studioMins < recordMins) {
+            toast.error(`${service} Set ${i + 1}: Studio Time (${set.studioTime || studioMins + ' min'}) cannot be less than Record Time (${set.recordTime || recordMins + ' min'}).`);
+            return;
+          }
+
+          const longFormatCount = Number(normalizeQuantity(set.longFormatVideo));
+          if (longFormatCount > 0 && !set.longFormatDuration?.trim()) {
+            toast.error(`${service} Set ${i + 1}: Long Format Duration is required since Long Format Video quantity is ${longFormatCount}.`);
+            return;
+          }
+
+          const shortFormatCount = Number(normalizeQuantity(set.shortFormatVideo));
+          if (shortFormatCount > 0 && !set.shortFormatDuration?.trim()) {
+            toast.error(`${service} Set ${i + 1}: Short Format Duration is required since Short Format Video quantity is ${shortFormatCount}.`);
+            return;
+          }
         }
       }
-    }
 
     const deliverablesPayload = Object.fromEntries(
       DELIVERABLE_FIELDS.map((field) => [
@@ -442,6 +454,7 @@ export function SendProposalDialog({
                           {DELIVERABLE_FIELDS.filter(f => config.fields.includes(f.key)).map((field) => {
                             const durationKey = 'durationKey' in field ? field.durationKey as keyof DeliverableSet : null;
                             if (durationKey && config.fields.includes(durationKey)) {
+                              const videoQty = Number(set[field.key as keyof DeliverableSet] || 0);
                               return (
                                 <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-2" key={field.key}>
                                   <div className="space-y-2">
@@ -453,17 +466,20 @@ export function SendProposalDialog({
                                       step="1"
                                       value={set[field.key as keyof DeliverableSet] ?? ''}
                                       onChange={(e) => updateServiceSet(service, index, field.key, e.target.value)}
+                                      placeholder="0"
                                     />
                                   </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`${durationKey}-${service}-${index}`}>Duration</Label>
-                                    <Input
-                                      id={`${durationKey}-${service}-${index}`}
-                                      value={set[durationKey as keyof DeliverableSet] || ''}
-                                      onChange={(e) => updateServiceSet(service, index, durationKey, e.target.value)}
-                                      placeholder="e.g. 60 min"
-                                    />
-                                  </div>
+                                  {videoQty > 0 && (
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`${durationKey}-${service}-${index}`}>Duration</Label>
+                                      <Input
+                                        id={`${durationKey}-${service}-${index}`}
+                                        value={set[durationKey as keyof DeliverableSet] || ''}
+                                        onChange={(e) => updateServiceSet(service, index, durationKey, e.target.value)}
+                                        placeholder="e.g. 60 min"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
                               );
                             }

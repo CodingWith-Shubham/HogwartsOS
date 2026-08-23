@@ -162,7 +162,7 @@ const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
  * - payment link only after the client accepted the proposal
  * - shoot scheduling only after the payment is verified
  */
-const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null, remaining: number = 0): PipelineAction[] => {
+const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null, remaining: number = 0, shoots: Shoot[] = []): PipelineAction[] => {
   const actions: PipelineAction[] = [];
 
   switch (entry.status) {
@@ -193,12 +193,27 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       }
       break;
     case 'payment_done':
+    case 'shoot_scheduled': {
       if (!entry.editingOnly) {
-        actions.push({ label: 'Schedule Shoot', nextStatus: 'shoot_scheduled', modal: 'schedule' });
+        const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true');
+        const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+        const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
+        const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
+        
+        if (scheduledCount < totalInstances) {
+          actions.push({ label: scheduledCount === 0 ? 'Schedule Shoot' : `Schedule Next (${scheduledCount}/${totalInstances})`, nextStatus: 'shoot_scheduled', modal: 'schedule' });
+        }
+        
+        if (entry.status === 'shoot_scheduled') {
+          actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
+        }
+      } else if (entry.status === 'shoot_scheduled') {
+        actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
       }
       break;
-    case 'shoot_scheduled':
-      actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
+    }
+    case 'shoot_done':
+      actions.push({ label: 'Assign Editor', nextStatus: 'editing' });
       break;
     case 'editing':
       actions.push({ label: 'Mark Delivered', nextStatus: 'delivered' });
@@ -248,7 +263,7 @@ export function UpsellCrossSellPipeline({
   const [advancingId, setAdvancingId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [paymentHistoryEntry, setPaymentHistoryEntry] = useState<UpsellCrossSellEntry | null>(null);
-  const [stageModal, setStageModal] = useState<{ entry: UpsellCrossSellEntry; kind: Exclude<StageModalKind, 'driveLink'> } | null>(null);
+  const [stageModal, setStageModal] = useState<{ entry: UpsellCrossSellEntry; kind: Exclude<StageModalKind, 'driveLink'>; deliverableSetIndex?: number } | null>(null);
   const [driveTarget, setDriveTarget] = useState<{ entry: UpsellCrossSellEntry; shootId: string } | null>(null);
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<UpsellCrossSellEntry | null>(null);
@@ -367,7 +382,14 @@ export function UpsellCrossSellPipeline({
     setAdvancingId(null);
 
     if (action.modal === 'schedule') {
-      setStageModal({ entry, kind: 'schedule' });
+      const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true');
+      const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+      const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
+      let nextIndex = 0;
+      while (nextIndex < totalInstances && scheduledIndices.has(nextIndex)) {
+        nextIndex++;
+      }
+      setStageModal({ entry, kind: 'schedule', deliverableSetIndex: nextIndex });
       return;
     }
 
@@ -467,7 +489,7 @@ export function UpsellCrossSellPipeline({
       return sum;
     }, 0);
     const remaining = Math.max(0, entry.cost - totalCollected);
-    const actions = canAdvance ? getActions(entry, payment, remaining) : [];
+    const actions = canAdvance ? getActions(entry, payment, remaining, shoots) : [];
     const busy = advancingId === entry._id || verifyingId === entry._id;
     const screenshotUrl = String(payment?.screenshotUrl ?? '').trim();
     const paymentReached =
@@ -707,7 +729,7 @@ export function UpsellCrossSellPipeline({
           if (!open) setStageModal(null);
         }}
         lead={stageModal?.kind === 'schedule' ? stageLeadFor(stageModal.entry) : null}
-        prefill={{ shootCount: 1, camera: '1' }}
+        prefill={{ shootCount: 1, deliverableSetIndex: stageModal?.deliverableSetIndex, camera: '1' }}
         existingShoots={shoots}
         extraPayload={stageModal ? { upsell_crosssell_id: stageModal.entry._id } : undefined}
         onSuccess={() => {

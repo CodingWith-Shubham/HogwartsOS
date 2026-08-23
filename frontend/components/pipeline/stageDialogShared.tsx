@@ -137,12 +137,12 @@ export type ProposalFormValues = {
 } & Record<DeliverableKey, string>;
 
 export const DEFAULT_DELIVERABLES: Record<DeliverableKey, string> = {
-  podcastEdit: '0',
-  reelEdit: '0',
-  longFormatVideo: '0',
-  shortFormatVideo: '0',
-  teaserEdit: '0',
-  thumbnailEdit: '0',
+  podcastEdit: '',
+  reelEdit: '',
+  longFormatVideo: '',
+  shortFormatVideo: '',
+  teaserEdit: '',
+  thumbnailEdit: '',
 };
 
 function parseTimeParts(value: string) {

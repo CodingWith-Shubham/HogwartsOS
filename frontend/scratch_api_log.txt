@@ -1,0 +1,53 @@
+2026-08-23T15:15:01.488Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:15:01.492Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:15:01.493Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:15:01.493Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:15:01.599Z: Lead fetch response parsed.
+2026-08-23T15:15:01.600Z: Deliverable set at index 0 not found in []
+2026-08-23T15:15:01.601Z: Route Custom Service error catch block: Deliverable set not found.
+2026-08-23T15:15:25.493Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:15:25.494Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:15:25.495Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:15:25.496Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:15:25.578Z: Lead fetch response parsed.
+2026-08-23T15:15:25.579Z: Deliverable set at index 0 not found in []
+2026-08-23T15:15:25.579Z: Route Custom Service error catch block: Deliverable set not found.
+2026-08-23T15:15:31.873Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:15:31.875Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:15:31.879Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:15:31.880Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:15:31.967Z: Lead fetch response parsed.
+2026-08-23T15:15:31.969Z: Deliverable set at index 0 not found in []
+2026-08-23T15:15:31.970Z: Route Custom Service error catch block: Deliverable set not found.
+2026-08-23T15:15:37.053Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:15:37.054Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:15:37.055Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:15:37.056Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:15:37.135Z: Lead fetch response parsed.
+2026-08-23T15:15:37.135Z: Deliverable set at index 0 not found in []
+2026-08-23T15:15:37.136Z: Route Custom Service error catch block: Deliverable set not found.
+2026-08-23T15:15:50.362Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:15:50.364Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:15:50.365Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:15:50.366Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:15:50.471Z: Lead fetch response parsed.
+2026-08-23T15:15:50.471Z: Deliverable set at index 0 not found in []
+2026-08-23T15:15:50.472Z: Route Custom Service error catch block: Deliverable set not found.
+2026-08-23T15:25:40.749Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:25:40.752Z: Body parsed: {"leadId":"HL-3L4DEPXJ","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"vfx","marketingComments":"neeed custom things","customDetails":"neeed custom things"}
+2026-08-23T15:25:40.755Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:25:40.756Z: Fetching lead HL-3L4DEPXJ from backend...
+2026-08-23T15:25:40.874Z: Lead fetch response parsed.
+2026-08-23T15:25:40.875Z: Sending PUT request to update lead...
+2026-08-23T15:25:41.013Z: Lead successfully updated in DB.
+2026-08-23T15:25:41.015Z: Triggering webhook for team: edit
+2026-08-23T15:25:41.337Z: Done processing. Returning success: true
+2026-08-23T15:46:18.343Z: --- New POST request to /api/route-custom-service ---
+2026-08-23T15:46:18.345Z: Body parsed: {"leadId":"HL-CUIX3K0A","deliverableSetIndex":0,"team":"edit","assignedMember":"Shubham Singh Rana","shootDate":"","shootStartTime":"","shootEndTime":"","editDuration":"90","editType":"VFX","marketingComments":"others service","customDetails":"others service"}
+2026-08-23T15:46:18.347Z: BACKEND_URL: http://127.0.0.1:8000/api/v1, token length: 311
+2026-08-23T15:46:18.348Z: Fetching lead HL-CUIX3K0A from backend...
+2026-08-23T15:46:18.429Z: Lead fetch response parsed.
+2026-08-23T15:46:18.430Z: Sending PUT request to update lead...
+2026-08-23T15:46:18.535Z: Lead successfully updated in DB.
+2026-08-23T15:46:18.536Z: Triggering webhook for team: edit
+2026-08-23T15:46:18.744Z: Done processing. Returning success: true

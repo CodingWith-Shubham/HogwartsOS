@@ -41,6 +41,8 @@ export interface ScheduleDialogPrefill {
   camera?: string;
   recordTime?: string;
   studioTime?: string;
+  shootCount?: number;
+  deliverableSetIndex?: number;
 }
 
 export interface ScheduleShootDialogProps {
@@ -275,7 +277,7 @@ export function ScheduleShootDialog({
                   </div>
                 ) : (
                   <div className="grid gap-3">
-                    {unscheduledSets.map((set) => (
+                    {unscheduledSets.map((set: any) => (
                       <div key={set.originalIndex} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-md bg-card shadow-sm gap-4">
                         <div className="space-y-1">
                           <p className="font-medium text-sm text-primary">

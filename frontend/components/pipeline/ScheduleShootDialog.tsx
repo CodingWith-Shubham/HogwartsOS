@@ -111,7 +111,10 @@ export function ScheduleShootDialog({
       // Original-lead context: exclude shoots that belong to any upsell entry
       return !s.upsellCrossSellId;
     });
-    const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+    const scheduledIndices = new Set(leadShoots.map(s => {
+      let idx = Number(s.deliverableSetIndex || 0);
+      return idx >= 100 ? idx % 100 : idx;
+    }));
     
     return deliverableSets.map((set: any, idx: number) => ({ ...set, originalIndex: idx })).filter((set: any) => !scheduledIndices.has(set.originalIndex));
   }, [lead?.deliverableSets, (lead as any)?.deliverable_sets, lead?.leadId, lead?.upsellCrossSellId, existingShoots]);

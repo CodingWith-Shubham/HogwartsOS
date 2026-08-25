@@ -119,14 +119,14 @@ function leadDeliverables(lead: Lead | undefined): DeliverableValues {
   };
 }
 
-function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): AssignmentDeliverableValues {
-  if (!lead) return { ...DEFAULT_ASSIGNMENT_DELIVERABLES };
+function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot, upsell?: UpsellCrossSellEntry): AssignmentDeliverableValues {
+  if (!lead && !upsell) return { ...DEFAULT_ASSIGNMENT_DELIVERABLES };
   
-  // If we have a shoot with a deliverableSetIndex and the lead has deliverableSets array
+  // If we have a shoot with a deliverableSetIndex and the lead/upsell has deliverableSets array
   if (shoot && shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
     let dsIndex = Number(shoot.deliverableSetIndex);
     if (dsIndex >= 100) dsIndex = dsIndex % 100;
-    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets;
+    const deliverableSets = upsell?.deliverableSets || (upsell as any)?.deliverable_sets || lead?.deliverableSets || (lead as any)?.deliverable_sets;
     if (deliverableSets && deliverableSets[dsIndex]) {
       const set = deliverableSets[dsIndex];
       return {
@@ -144,14 +144,14 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
 
 // Fallback to legacy flat fields for old shoots
   return {
-    podcastEdit: normalizeQuantity(lead.podcastEdit),
-    teaserEdit: normalizeQuantity(lead.teaserEdit),
-    reelEdit: normalizeQuantity(lead.reelEdit),
-    thumbnailEdit: normalizeQuantity(lead.thumbnailEdit),
-    longFormatVideo: normalizeQuantity(lead.longFormatVideo),
-    longFormatDuration: lead.longFormatDuration ?? '',
-    shortFormatVideo: normalizeQuantity(lead.shortFormatVideo),
-    shortFormatDuration: lead.shortFormatDuration ?? '',
+    podcastEdit: normalizeQuantity(lead?.podcastEdit),
+    teaserEdit: normalizeQuantity(lead?.teaserEdit),
+    reelEdit: normalizeQuantity(lead?.reelEdit),
+    thumbnailEdit: normalizeQuantity(lead?.thumbnailEdit),
+    longFormatVideo: normalizeQuantity(lead?.longFormatVideo),
+    longFormatDuration: lead?.longFormatDuration ?? '',
+    shortFormatVideo: normalizeQuantity(lead?.shortFormatVideo),
+    shortFormatDuration: lead?.shortFormatDuration ?? '',
   };
 }
 
@@ -283,19 +283,21 @@ export default function ManagerPage() {
 
     async function fetchDashboardData() {
       try {
-        const [shootResponse, editingResponse, leadResponse, revenueResponse, marketingResponse] = await Promise.all([
+        const [shootResponse, editingResponse, leadResponse, revenueResponse, marketingResponse, upsellResponse] = await Promise.all([
           fetch('/api/shoots?managerView=true', { cache: 'no-store' }),
           fetch('/api/editing?managerView=true', { cache: 'no-store' }),
           fetch('/api/clients?managerView=true', { cache: 'no-store' }),
           fetch('/api/dashboard/revenue', { cache: 'no-store' }),
           fetch('/api/marketing?status=Unassigned', { cache: 'no-store' }),
+          fetch('/api/upsell-crosssell', { cache: 'no-store' }),
         ]);
-        const [shootData, editingData, leadData, revenueData, marketingData] = await Promise.all([
+        const [shootData, editingData, leadData, revenueData, marketingData, upsellData] = await Promise.all([
           shootResponse.json(),
           editingResponse.json(),
           leadResponse.json(),
           revenueResponse.ok ? revenueResponse.json() : Promise.resolve(null),
           marketingResponse.ok ? marketingResponse.json() : Promise.resolve(null),
+          upsellResponse.ok ? upsellResponse.json() : Promise.resolve(null),
         ]);
         if (!mounted) return;
         if (shootResponse.ok) setShoots(shootData.shoots ?? []);
@@ -329,6 +331,9 @@ export default function ManagerPage() {
         }
         if (marketingData && marketingData.data && marketingData.data.tasks) {
           setMarketingTasks(marketingData.data.tasks);
+        }
+        if (upsellData && upsellData.entries) {
+          setUpsellEntries(upsellData.entries);
         }
       } catch (error) {
         console.error('Failed to fetch manager dashboard data:', error);
@@ -517,12 +522,17 @@ export default function ManagerPage() {
 
   const openAssignShoot = (shoot: Shoot) => {
     const lead = leads.find((item) => item.leadId === shoot.leadId);
+    let upsell: UpsellCrossSellEntry | undefined;
     
     let resolvedServiceType = lead?.servicePitched ?? '';
+    if (shoot.upsellCrossSellId) {
+      upsell = upsellEntries.find(e => e._id === shoot.upsellCrossSellId);
+    }
+
     if (shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
       let dsIndex = Number(shoot.deliverableSetIndex);
       if (dsIndex >= 100) dsIndex = dsIndex % 100;
-      const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
+      const deliverableSets = upsell?.deliverableSets || (upsell as any)?.deliverable_sets || lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
       if (deliverableSets[dsIndex] && deliverableSets[dsIndex].serviceName) {
         resolvedServiceType = deliverableSets[dsIndex].serviceName;
       }
@@ -531,11 +541,11 @@ export default function ManagerPage() {
     setAssignShoot(shoot);
     setAssignForm({
       serviceType: isTrue(shoot.isEditingOnly)
-        ? (lead?.serviceNotes?.trim() || resolvedServiceType || 'Only Editing')
+        ? (upsell?.notes?.trim() || lead?.serviceNotes?.trim() || resolvedServiceType || 'Only Editing')
         : resolvedServiceType,
       dataLink: shoot.dataLink,
       managerComment: '',
-      ...leadAssignmentDeliverables(lead, shoot),
+      ...leadAssignmentDeliverables(lead, shoot, upsell),
     });
     setServiceAssignments({});
     setAssignmentErrors({});

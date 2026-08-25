@@ -332,8 +332,8 @@ export default function ManagerPage() {
         if (marketingData && marketingData.data && marketingData.data.tasks) {
           setMarketingTasks(marketingData.data.tasks);
         }
-        if (upsellData && upsellData.entries) {
-          setUpsellEntries(upsellData.entries);
+        if (upsellData && upsellData.data && upsellData.data.entries) {
+          setUpsellEntries(upsellData.data.entries);
         }
       } catch (error) {
         console.error('Failed to fetch manager dashboard data:', error);

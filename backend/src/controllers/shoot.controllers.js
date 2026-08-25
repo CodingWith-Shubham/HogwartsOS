@@ -95,7 +95,13 @@ const createShoot = asyncHandler(async (req, res) => {
     }
 
     const shootId = body.shootId || `SHOOT_${Date.now()}`;
-    const upsellCrossSellId = String(body.upsellCrossSellId || body.upsell_crosssell_id || "").trim();
+    let setName = body.setName || "Default Studio";
+    let upsellCrossSellId = String(body.upsellCrossSellId || body.upsell_crosssell_id || "").trim();
+    if (setName.includes(" ||| UPSELL:")) {
+        const parts = setName.split(" ||| UPSELL:");
+        setName = parts[0].trim();
+        upsellCrossSellId = parts[1].trim();
+    }
     const shoot = await Shoot.create({
         shootId,
         leadId: body.leadId,
@@ -114,7 +120,7 @@ const createShoot = asyncHandler(async (req, res) => {
         shootMemberEmail: body.shootMemberEmail || "",
         dataLink: body.dataLink || "",
         driveLinkUploaded: parseBoolean(body.driveLinkUploaded),
-        setName: body.setName || "Default Studio",
+        setName,
         deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0,
         // Tag the shoot with the upsell entry ID so it is isolated from the original lead's shoots
         upsellCrossSellId

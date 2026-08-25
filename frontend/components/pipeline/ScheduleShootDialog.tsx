@@ -215,7 +215,9 @@ export function ScheduleShootDialog({
         teleprompter: scheduleForm.teleprompter,
         bts: scheduleForm.bts,
         record_time: scheduleForm.recordTime,
-        set_name: scheduleForm.setName,
+        set_name: extraPayload?.upsell_crosssell_id 
+          ? `${scheduleForm.setName} ||| UPSELL:${extraPayload.upsell_crosssell_id}` 
+          : scheduleForm.setName,
         studio_time: scheduleForm.studioTime,
         assigned_to: assignedTo,
         shoot_member_name: scheduleForm.shootMemberName,

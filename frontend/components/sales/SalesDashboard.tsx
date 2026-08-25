@@ -593,7 +593,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       toast.info('Editing-only project — no shoot scheduling needed. It reaches Assign Editor automatically after payment verification.');
       return;
     }
-    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== ''));
     const latestShoot = leadShoots[leadShoots.length - 1];
     
     const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
@@ -1153,7 +1153,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const renderScheduleAction = (lead: Lead) => {
-    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== ''));
     const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
     const totalInstances = deliverableSets.length || 1;
     const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));

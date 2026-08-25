@@ -217,7 +217,9 @@ export function ScheduleShootDialog({
         assigned_to: assignedTo,
         shoot_member_name: scheduleForm.shootMemberName,
         shoot_member_email: scheduleForm.shootMemberEmail,
-        deliverable_set_index: scheduleForm.deliverableSetIndex,
+        deliverable_set_index: extraPayload?.upsell_crosssell_id 
+          ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
+          : scheduleForm.deliverableSetIndex,
         ...(extraPayload ?? {}),
       };
 

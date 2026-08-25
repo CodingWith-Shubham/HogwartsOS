@@ -198,7 +198,10 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
         // Only count shoots that belong specifically to this upsell entry (not the original lead's shoots)
         const entryId = entry._id;
         const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
-        const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+        const scheduledIndices = new Set(leadShoots.map(s => {
+          let idx = Number(s.deliverableSetIndex || 0);
+          return idx >= 100 ? idx % 100 : idx;
+        }));
         const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
         const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
         
@@ -388,7 +391,10 @@ export function UpsellCrossSellPipeline({
       // Filter shoots to only those belonging to this upsell entry
       const entryId = entry._id;
       const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
-      const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+      const scheduledIndices = new Set(leadShoots.map(s => {
+        let idx = Number(s.deliverableSetIndex || 0);
+        return idx >= 100 ? idx % 100 : idx;
+      }));
       const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
       let nextIndex = 0;
       while (nextIndex < totalInstances && scheduledIndices.has(nextIndex)) {

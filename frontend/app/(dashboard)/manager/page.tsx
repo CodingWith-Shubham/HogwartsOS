@@ -124,7 +124,8 @@ function leadAssignmentDeliverables(lead: Lead | undefined, shoot?: Shoot): Assi
   
   // If we have a shoot with a deliverableSetIndex and the lead has deliverableSets array
   if (shoot && shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
-    const dsIndex = Number(shoot.deliverableSetIndex);
+    let dsIndex = Number(shoot.deliverableSetIndex);
+    if (dsIndex >= 100) dsIndex = dsIndex % 100;
     const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets;
     if (deliverableSets && deliverableSets[dsIndex]) {
       const set = deliverableSets[dsIndex];
@@ -519,7 +520,8 @@ export default function ManagerPage() {
     
     let resolvedServiceType = lead?.servicePitched ?? '';
     if (shoot.deliverableSetIndex != null && String(shoot.deliverableSetIndex) !== '') {
-      const dsIndex = Number(shoot.deliverableSetIndex);
+      let dsIndex = Number(shoot.deliverableSetIndex);
+      if (dsIndex >= 100) dsIndex = dsIndex % 100;
       const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
       if (deliverableSets[dsIndex] && deliverableSets[dsIndex].serviceName) {
         resolvedServiceType = deliverableSets[dsIndex].serviceName;

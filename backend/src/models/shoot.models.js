@@ -154,7 +154,15 @@ const shootSchema = new Schema({
     // TAT Reminder: R1 level tracked on Shoot since EditProject may not exist yet
     managerAllocationReminderLevel: { type: Number, default: 0 },
     deliverableSetIndex: { type: Number, default: 0 },
-    deliverable_set_index: { type: Number }
+    deliverable_set_index: { type: Number },
+    // When set, this shoot belongs to a UpsellCrossSell pipeline entry —
+    // NOT to the original client/lead pipeline. Shoot conflict detection and
+    // addon payment tagging use this to isolate upsell shoots from original ones.
+    upsellCrossSellId: {
+        type: String,
+        default: "",
+        index: true
+    }
 }, { timestamps: true });
 
 export const Shoot = mongoose.model("Shoot", shootSchema);

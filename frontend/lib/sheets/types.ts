@@ -133,6 +133,8 @@ export interface Shoot {
   addonUtr?: string;
   addonVerifiedBy?: string;
   addonVerifiedAt?: string;
+  /** When set, this shoot belongs to a UpsellCrossSell pipeline entry (not the original lead). */
+  upsellCrossSellId?: string;
 }
 
 export interface EditingProject {

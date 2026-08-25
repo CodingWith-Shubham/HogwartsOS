@@ -195,7 +195,9 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
     case 'payment_done':
     case 'shoot_scheduled': {
       if (!entry.editingOnly) {
-        const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true');
+        // Only count shoots that belong specifically to this upsell entry (not the original lead's shoots)
+        const entryId = entry._id;
+        const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
         const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
         const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
         const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
@@ -314,8 +316,9 @@ export function UpsellCrossSellPipeline({
   };
 
   const findShootForEntry = (entry: UpsellCrossSellEntry, availableShoots: Shoot[]) => {
+    // Only consider shoots belonging to this specific upsell entry
     const matchingShoots = availableShoots
-      .filter((shoot) => shoot.leadId === entry.clientLeadId)
+      .filter((shoot) => shoot.leadId === entry.clientLeadId && (shoot.upsellCrossSellId ?? '') === entry._id)
       .sort((a, b) => String(b.createdAt || b.shootDate).localeCompare(String(a.createdAt || a.shootDate)));
     return (
       matchingShoots.find((shoot) => String(shoot.driveLinkUploaded).trim().toLowerCase() !== 'true') ??
@@ -382,7 +385,9 @@ export function UpsellCrossSellPipeline({
     setAdvancingId(null);
 
     if (action.modal === 'schedule') {
-      const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true');
+      // Filter shoots to only those belonging to this upsell entry
+      const entryId = entry._id;
+      const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
       const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
       const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
       let nextIndex = 0;
@@ -410,6 +415,9 @@ export function UpsellCrossSellPipeline({
     cost: entry.cost ? String(entry.cost) : '',
     assignedTo: entry.assignedTo,
     deliverableSets: entry.deliverableSets || entry.deliverable_sets || [],
+    // Pass the upsell entry ID so ScheduleShootDialog can scope shoot checks
+    // to only shoots belonging to this upsell entry (not the original client's shoots)
+    upsellCrossSellId: entry._id,
   });
 
   const proposalDefaultsFor = (entry: UpsellCrossSellEntry): Partial<ProposalFormValues> => {

@@ -34,6 +34,9 @@ export interface ScheduleDialogLead {
   assignedTo: string;
   deliverableSets?: any[];
   servicePitched?: string;
+  /** When scheduling a shoot for an upsell/cross-sell entry, its _id is passed here
+   *  so the dialog filters only shoots tagged to that entry (not the original client's shoots). */
+  upsellCrossSellId?: string;
 }
 
 /** Pre-fill applied to every shoot form when the dialog opens. */
@@ -95,12 +98,23 @@ export function ScheduleShootDialog({
     const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
     if (!deliverableSets) return [];
     
-    // Filter to only shoots belonging to this lead
-    const leadShoots = existingShoots.filter(s => s.leadId === lead?.leadId);
+    // Filter to only shoots belonging to this lead AND this upsell entry (if applicable).
+    // Without the upsellCrossSellId filter, upsell shoots would share the same leadId
+    // as the original client's shoots and would falsely appear as already scheduled.
+    const upsellId = lead?.upsellCrossSellId ?? '';
+    const leadShoots = existingShoots.filter(s => {
+      if (s.leadId !== lead?.leadId) return false;
+      if (upsellId) {
+        // Upsell context: only consider shoots that belong to this upsell entry
+        return (s.upsellCrossSellId ?? '') === upsellId;
+      }
+      // Original-lead context: exclude shoots that belong to any upsell entry
+      return !s.upsellCrossSellId;
+    });
     const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
     
     return deliverableSets.map((set: any, idx: number) => ({ ...set, originalIndex: idx })).filter((set: any) => !scheduledIndices.has(set.originalIndex));
-  }, [lead?.deliverableSets, (lead as any)?.deliverable_sets, lead?.leadId, existingShoots]);
+  }, [lead?.deliverableSets, (lead as any)?.deliverable_sets, lead?.leadId, lead?.upsellCrossSellId, existingShoots]);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);
   const [scheduleForm, setScheduleForm] = useState(DEFAULT_SCHEDULE_FORM);

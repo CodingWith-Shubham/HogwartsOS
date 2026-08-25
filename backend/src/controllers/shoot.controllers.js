@@ -95,6 +95,7 @@ const createShoot = asyncHandler(async (req, res) => {
     }
 
     const shootId = body.shootId || `SHOOT_${Date.now()}`;
+    const upsellCrossSellId = String(body.upsellCrossSellId || body.upsell_crosssell_id || "").trim();
     const shoot = await Shoot.create({
         shootId,
         leadId: body.leadId,
@@ -114,17 +115,19 @@ const createShoot = asyncHandler(async (req, res) => {
         dataLink: body.dataLink || "",
         driveLinkUploaded: parseBoolean(body.driveLinkUploaded),
         setName: body.setName || "Default Studio",
-        deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0
+        deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0,
+        // Tag the shoot with the upsell entry ID so it is isolated from the original lead's shoots
+        upsellCrossSellId
     });
 
-    if (body.upsellCrossSellId && body.upsellCrossSellId.trim() !== "") {
+    if (upsellCrossSellId) {
         // Update upsell status instead of main client lead
-        const upsell = await UpsellCrossSell.findById(body.upsellCrossSellId);
+        const upsell = await UpsellCrossSell.findById(upsellCrossSellId);
         if (upsell && ["initiated", "proposal_sent", "payment_sent", "payment_done"].includes(upsell.status)) {
             upsell.status = "shoot_scheduled";
             await upsell.save();
         }
-    } else {
+    } else if (!upsellCrossSellId) {
         // Update main client status to Shoot Scheduled
         await Client.findOneAndUpdate(
             { leadId: body.leadId },
@@ -262,7 +265,10 @@ const updateShoot = asyncHandler(async (req, res) => {
             paymentMode: "Online",
             screenshotUrl: updated.addonScreenshot || "",
             utrNumber: updated.addonUtr || "Not provided",
-            amountPaidSoFar: previousAmount + paymentAmount
+            amountPaidSoFar: previousAmount + paymentAmount,
+            // Tag the addon payment with the upsell entry ID so it doesn't
+            // pollute the original client's payment history / remaining balance.
+            upsellCrossSellId: updated.upsellCrossSellId || ""
         });
     }
 

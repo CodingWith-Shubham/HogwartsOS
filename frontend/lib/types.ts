@@ -36,6 +36,9 @@ export interface PaymentInstallment {
   payment_completed: boolean;
   screenshot_url?: string;
   utr_number?: string;
+  /** Set when this payment belongs to an upsell/cross-sell/new-sale pipeline entry.
+   *  These payments appear in total collected but do NOT reduce the original lead's remaining amount. */
+  upsell_crosssell_id?: string;
 }
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 export type ServiceType =

@@ -414,9 +414,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshPaymentHistory = useCallback(async (silent = false) => {
     try {
-      // Upsell/cross-sell payments belong to the Clients-tab parallel pipeline —
-      // exclude them so lead payment totals stay accurate.
-      const response = await authFetch('/api/payments?exclude_upsell=1', { cache: 'no-store' });
+      // We now fetch ALL payments so they show in the 'Total collected' history,
+      // but the paymentSummary calculation explicitly ignores upsell payments for the 'Remaining' balance.
+      const response = await authFetch('/api/payments', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
 
@@ -439,6 +439,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           payment_completed: Boolean(payment.paymentCompleted ?? payment.payment_completed),
           screenshot_url: payment.screenshotUrl ?? payment.screenshot_url,
           utr_number: payment.utrNumber ?? payment.utr_number,
+          upsell_crosssell_id: payment.upsellCrossSellId ?? payment.upsell_crosssell_id,
         };
         const key = normalized.lead_id;
         (history[key] ??= []).push(normalized);
@@ -545,7 +546,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const verifiedPayments = payments.filter(isVerifiedInstallment);
     const totalCollected = verifiedPayments.reduce((sum, payment) => sum + payment.amount, 0);
     const baseCollected = verifiedPayments
-      .filter((p) => p.installment_label !== 'Addon Payment' && p.installment_label !== 'Addon' && p.installment_label !== 'Revision Addon')
+      .filter((p) => {
+        // Exclude Addons, Revision Addons, and Upsell/CrossSell/NewSale payments from the original client's remaining math
+        const isAddon = p.installment_label === 'Addon Payment' || p.installment_label === 'Addon' || p.installment_label === 'Revision Addon';
+        const isUpsell = Boolean(p.upsell_crosssell_id && p.upsell_crosssell_id.trim() !== '');
+        return !isAddon && !isUpsell;
+      })
       .reduce((sum, payment) => sum + payment.amount, 0);
 
     const remaining = isFinalPaymentCompleted(lead)

@@ -23,7 +23,7 @@ const assertPipelineRole = (req) => {
  * Services that do NOT need a shoot — editing-only fulfilment.
  * Matched case-insensitively as substrings against selected service names.
  */
-const EDITING_ONLY_MARKERS = ["thumbnail", "editing", "edit", "social media", "design"];
+const EDITING_ONLY_MARKERS = ["thumbnail", "editing", "edit", "social media", "design", "marketing"];
 
 const isEditingOnlyService = (serviceName) => {
     const s = (serviceName || "").trim().toLowerCase();

@@ -156,6 +156,14 @@ const isPaymentPendingVerification = (payment?: UpsellEntryPayment | null) =>
 const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
   !!payment && VERIFIED_PAYMENT_STATUSES.includes(normalizePaymentStatus(payment.paymentStatus));
 
+const isMarketingOnlyUpsell = (entry: UpsellCrossSellEntry) => {
+  return entry.services.some(s => /only[\s-]*marketing/i.test(s));
+};
+
+const isEditingOnlyUpsell = (entry: UpsellCrossSellEntry) => {
+  return entry.editingOnly || entry.services.some(s => /only[\s-]*editing/i.test(s));
+};
+
 /**
  * Available next actions for an entry, honoring the editing-only bypass and
  * the sales dashboard's gating:
@@ -195,7 +203,19 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       break;
     case 'payment_done':
     case 'shoot_scheduled': {
-      if (!entry.editingOnly) {
+      if (isMarketingOnlyUpsell(entry)) {
+        actions.push({
+          label: 'Marketing Only · No Shoot',
+          nextStatus: 'payment_done',
+          disabledReason: 'No shoot required for marketing',
+        });
+      } else if (isEditingOnlyUpsell(entry)) {
+        actions.push({
+          label: 'Editing Only · No Shoot',
+          nextStatus: 'payment_done',
+          disabledReason: 'No shoot required for editing',
+        });
+      } else {
         // Only count shoots that belong specifically to this upsell entry
         const entryId = entry._id;
         const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);

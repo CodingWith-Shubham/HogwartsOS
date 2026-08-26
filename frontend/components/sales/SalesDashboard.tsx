@@ -543,9 +543,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     // Deduplicate by leadId + taskLabel to hide old dummy testing records
     const latestPerTask = new Map<string, EditingProject>();
     for (const edit of filtered) {
-      const key = `${edit.leadId}-${edit.taskLabel || edit.serviceType || 'Unknown'}`;
+      const key = `${edit.leadId}-${edit.serviceType || 'Unknown'}`;
       const existing = latestPerTask.get(key);
-      if (!existing || (new Date(edit.updatedAt || edit.createdAt || 0) > new Date(existing.updatedAt || existing.createdAt || 0))) {
+      if (!existing || (new Date((edit as any).updatedAt || (edit as any).createdAt || 0) > new Date((existing as any).updatedAt || (existing as any).createdAt || 0))) {
         latestPerTask.set(key, edit);
       }
     }

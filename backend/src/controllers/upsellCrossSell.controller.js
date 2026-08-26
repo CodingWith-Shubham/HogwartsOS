@@ -186,9 +186,21 @@ const getUpsellCrossSells = asyncHandler(async (req, res) => {
 const getPendingEditorAssignment = asyncHandler(async (req, res) => {
     assertPipelineRole(req);
 
+    const regexCondition = { $regex: /only[\s-]*editing|only[\s-]*marketing/i };
+
     const entries = await UpsellCrossSell.find({
         $or: [
             { editingOnly: true, status: "payment_done" },
+            { 
+                status: "payment_done",
+                $or: [
+                    { services: regexCondition },
+                    { "deliverableSets.serviceName": regexCondition },
+                    { "deliverableSets.service": regexCondition },
+                    { "deliverable_sets.serviceName": regexCondition },
+                    { "deliverable_sets.service": regexCondition }
+                ]
+            },
             { editingOnly: false, status: "shoot_done" }
         ]
     }).sort({ updatedAt: -1 });

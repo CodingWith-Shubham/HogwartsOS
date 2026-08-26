@@ -19,24 +19,17 @@ const assertPipelineRole = (req) => {
     }
 };
 
-/**
- * Services that do NOT need a shoot — editing-only fulfilment.
- * Matched case-insensitively as substrings against selected service names.
- */
-const EDITING_ONLY_MARKERS = ["thumbnail", "editing", "edit", "social media", "design", "marketing"];
-
-const isEditingOnlyService = (serviceName) => {
-    const s = (serviceName || "").trim().toLowerCase();
-    if (!s) return false;
-    return EDITING_ONLY_MARKERS.some((marker) => s.includes(marker));
-};
+const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
+const MARKETING_SERVICE_REGEX = /only[\s-]*marketing/i;
 
 /**
- * Editing-only bypass: true only when EVERY selected service requires no shoot.
+ * Editing-only bypass: true only when there are editing services and NO shoot services.
  */
 const detectEditingOnly = (services) => {
     if (!Array.isArray(services) || services.length === 0) return false;
-    return services.every(isEditingOnlyService);
+    const hasEditing = services.some(s => EDITING_ONLY_SERVICE_REGEX.test(s || ''));
+    const hasShootServices = services.some(s => !EDITING_ONLY_SERVICE_REGEX.test(s || '') && !MARKETING_SERVICE_REGEX.test(s || ''));
+    return hasEditing && !hasShootServices;
 };
 
 /**

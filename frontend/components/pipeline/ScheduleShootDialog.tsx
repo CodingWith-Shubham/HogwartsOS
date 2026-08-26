@@ -116,7 +116,13 @@ export function ScheduleShootDialog({
       return idx >= 100 ? idx % 100 : idx;
     }));
     
-    return deliverableSets.map((set: any, idx: number) => ({ ...set, originalIndex: idx })).filter((set: any) => !scheduledIndices.has(set.originalIndex));
+    return deliverableSets
+      .map((set: any, idx: number) => ({ ...set, originalIndex: idx }))
+      .filter((set: any) => !scheduledIndices.has(set.originalIndex))
+      .filter((set: any) => {
+        const sName = (set.serviceName || '').toLowerCase();
+        return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
+      });
   }, [lead?.deliverableSets, (lead as any)?.deliverable_sets, lead?.leadId, lead?.upsellCrossSellId, existingShoots]);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);

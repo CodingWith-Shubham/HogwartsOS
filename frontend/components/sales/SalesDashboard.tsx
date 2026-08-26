@@ -1181,7 +1181,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     // to satisfy the main lead's shoot requirements.
     const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
     const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
-    const totalInstances = deliverableSets.length || 1;
+    const shootSets = deliverableSets.filter((set: any) => {
+      const sName = (set.serviceName || '').toLowerCase();
+      return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
+    });
+    const totalInstances = shootSets.length || 1;
     const scheduledCount = leadShoots.length;
     const isAlreadyScheduled = scheduledCount >= totalInstances;
 

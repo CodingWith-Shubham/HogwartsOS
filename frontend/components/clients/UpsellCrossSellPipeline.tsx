@@ -235,8 +235,13 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
           let idx = Number(s.deliverableSetIndex || 0);
           return idx >= 100 ? idx % 100 : idx;
         }));
-        const totalInstances = (entry.deliverableSets || entry.deliverable_sets || []).length || 1;
-        const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
+        const allSets = entry.deliverableSets || entry.deliverable_sets || [];
+        const shootSets = allSets.filter((set: any) => {
+          const sName = (set.serviceName || '').toLowerCase();
+          return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
+        });
+        const totalInstances = shootSets.length || 1;
+        const scheduledCount = scheduledIndices.size;
         
         if (scheduledCount < totalInstances) {
           actions.push({ label: scheduledCount === 0 ? 'Schedule Shoot' : `Schedule Next (${scheduledCount}/${totalInstances})`, nextStatus: 'shoot_scheduled', modal: 'schedule' });

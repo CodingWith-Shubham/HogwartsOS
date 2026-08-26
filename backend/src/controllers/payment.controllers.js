@@ -56,7 +56,7 @@ const isEditingOnlyClient = (client) => {
     return false;
 };
 
-const MARKETING_SERVICE_REGEX = /marketing/i;
+const MARKETING_SERVICE_REGEX = /only[\s-]*marketing/i;
 
 const isMarketingClient = (client) => {
     if (!client) return false;

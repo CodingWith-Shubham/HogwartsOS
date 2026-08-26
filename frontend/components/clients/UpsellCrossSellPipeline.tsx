@@ -157,20 +157,23 @@ const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
   !!payment && VERIFIED_PAYMENT_STATUSES.includes(normalizePaymentStatus(payment.paymentStatus));
 
 const isMarketingOnlyUpsell = (entry: UpsellCrossSellEntry) => {
-  const inServices = entry.services.some(s => /only[\s-]*marketing/i.test(s));
-  const inDeliverables = (entry.deliverableSets || entry.deliverable_sets || []).some(
-    (d: any) => /only[\s-]*marketing/i.test(d.serviceName || d.service || '')
-  );
-  return inServices || inDeliverables;
+  const hasMarketing = entry.services.some(s => /only[\s-]*marketing/i.test(s)) ||
+    (entry.deliverableSets || entry.deliverable_sets || []).some((d: any) => /only[\s-]*marketing/i.test(d.serviceName || d.service || ''));
+    
+  const hasShootServices = entry.services.some(s => !/only[\s-]*(editing|marketing)/i.test(s)) ||
+    (entry.deliverableSets || entry.deliverable_sets || []).some((d: any) => !/only[\s-]*(editing|marketing)/i.test(d.serviceName || d.service || ''));
+
+  return hasMarketing && !hasShootServices;
 };
 
 const isEditingOnlyUpsell = (entry: UpsellCrossSellEntry) => {
-  if (entry.editingOnly) return true;
-  const inServices = entry.services.some(s => /only[\s-]*editing/i.test(s));
-  const inDeliverables = (entry.deliverableSets || entry.deliverable_sets || []).some(
-    (d: any) => /only[\s-]*editing/i.test(d.serviceName || d.service || '')
-  );
-  return inServices || inDeliverables;
+  const hasEditing = entry.editingOnly || entry.services.some(s => /only[\s-]*editing/i.test(s)) ||
+    (entry.deliverableSets || entry.deliverable_sets || []).some((d: any) => /only[\s-]*editing/i.test(d.serviceName || d.service || ''));
+    
+  const hasShootServices = entry.services.some(s => !/only[\s-]*(editing|marketing)/i.test(s)) ||
+    (entry.deliverableSets || entry.deliverable_sets || []).some((d: any) => !/only[\s-]*(editing|marketing)/i.test(d.serviceName || d.service || ''));
+
+  return hasEditing && !hasShootServices;
 };
 
 /**

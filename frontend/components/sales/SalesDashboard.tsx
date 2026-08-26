@@ -93,20 +93,32 @@ function isVerifiedInstallment(payment: PaymentInstallment): boolean {
 // manager dashboard's "Assign Editor" queue.
 const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
 
+function hasShootService(servicesString: string) {
+  if (!servicesString) return false;
+  const services = servicesString.split(',').map(s => s.trim()).filter(Boolean);
+  return services.some(s => !EDITING_ONLY_SERVICE_REGEX.test(s) && !MARKETING_ONLY_SERVICE_REGEX.test(s));
+}
+
 function isEditingOnlyLead(lead: Lead) {
-  return (
-    EDITING_ONLY_SERVICE_REGEX.test(lead.serviceNotes || '') ||
-    EDITING_ONLY_SERVICE_REGEX.test(lead.servicePitched || '')
-  );
+  const pitchedServices = lead.servicePitched || '';
+  const notesServices = lead.serviceNotes || '';
+  
+  const hasEditing = EDITING_ONLY_SERVICE_REGEX.test(pitchedServices) || EDITING_ONLY_SERVICE_REGEX.test(notesServices);
+  const hasShoot = hasShootService(pitchedServices) || hasShootService(notesServices);
+
+  return hasEditing && !hasShoot;
 }
 
 const MARKETING_ONLY_SERVICE_REGEX = /only[\s-]*marketing/i;
 
 function isMarketingOnlyLead(lead: Lead) {
-  return (
-    MARKETING_ONLY_SERVICE_REGEX.test(lead.serviceNotes || '') ||
-    MARKETING_ONLY_SERVICE_REGEX.test(lead.servicePitched || '')
-  );
+  const pitchedServices = lead.servicePitched || '';
+  const notesServices = lead.serviceNotes || '';
+  
+  const hasMarketing = MARKETING_ONLY_SERVICE_REGEX.test(pitchedServices) || MARKETING_ONLY_SERVICE_REGEX.test(notesServices);
+  const hasShoot = hasShootService(pitchedServices) || hasShootService(notesServices);
+
+  return hasMarketing && !hasShoot;
 }
 
 function isEditingOnlyShoot(shoot: Shoot | undefined) {

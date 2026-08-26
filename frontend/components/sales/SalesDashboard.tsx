@@ -1153,11 +1153,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const renderScheduleAction = (lead: Lead) => {
-    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== ''));
+    // Include upsell shoots in the count because the user expects all shoots for this client 
+    // to satisfy the main lead's shoot requirements.
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
     const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
     const totalInstances = deliverableSets.length || 1;
-    const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
-    const scheduledCount = Array.from(scheduledIndices).filter(i => i < totalInstances).length;
+    const scheduledCount = leadShoots.length;
     const isAlreadyScheduled = scheduledCount >= totalInstances;
 
     // Editing-only leads bypass the shoot flow entirely

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -165,13 +165,22 @@ const isPaymentVerifiedRecord = (payment?: UpsellEntryPayment | null) =>
 const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | null, remaining: number = 0, shoots: Shoot[] = []): PipelineAction[] => {
   const actions: PipelineAction[] = [];
 
+  const isPaymentPending = isPaymentPendingVerification(payment);
+  const isPaymentVerified = isPaymentVerifiedRecord(payment);
+
+  if (isPaymentPending) {
+    actions.push({ label: 'Verify Payment', nextStatus: entry.status === 'payment_sent' ? 'payment_done' : entry.status, verify: true });
+  }
+
   switch (entry.status) {
     case 'initiated':
       actions.push({ label: 'Send Proposal', nextStatus: 'proposal_sent', modal: 'proposal' });
       break;
     case 'proposal_sent':
       if (entry.proposalAccepted) {
-        actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
+        if (!isPaymentPending) {
+          actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
+        }
       } else {
         actions.push({
           label: 'Send Payment Link',
@@ -182,9 +191,7 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       }
       break;
     case 'payment_sent':
-      if (isPaymentPendingVerification(payment)) {
-        actions.push({ label: 'Verify Payment', nextStatus: 'payment_done', verify: true });
-      } else if (!isPaymentVerifiedRecord(payment)) {
+      if (!isPaymentPending && !isPaymentVerified) {
         actions.push({
           label: 'Awaiting Verification',
           nextStatus: 'payment_done',
@@ -195,7 +202,7 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
     case 'payment_done':
     case 'shoot_scheduled': {
       if (!entry.editingOnly) {
-        // Only count shoots that belong specifically to this upsell entry (not the original lead's shoots)
+        // Only count shoots that belong specifically to this upsell entry
         const entryId = entry._id;
         const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
         const scheduledIndices = new Set(leadShoots.map(s => {
@@ -208,12 +215,6 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
         if (scheduledCount < totalInstances) {
           actions.push({ label: scheduledCount === 0 ? 'Schedule Shoot' : `Schedule Next (${scheduledCount}/${totalInstances})`, nextStatus: 'shoot_scheduled', modal: 'schedule' });
         }
-        
-        if (entry.status === 'shoot_scheduled') {
-          actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
-        }
-      } else if (entry.status === 'shoot_scheduled') {
-        actions.push({ label: 'Upload Drive Link', nextStatus: 'shoot_done', modal: 'driveLink' });
       }
       break;
     }
@@ -225,11 +226,9 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       break;
   }
 
-  // If there's a remaining balance and they're past the initial proposal stage,
-  // allow sending another payment link if it's not already in the actions.
   const pastInitial = entry.status !== 'initiated' && !(entry.status === 'proposal_sent' && !entry.proposalAccepted);
-  if (pastInitial && remaining > 0) {
-    if (!actions.some((a) => a.label === 'Send Payment Link')) {
+  if (pastInitial) {
+    if (!actions.some((a) => a.label === 'Send Payment Link' || a.label === 'Verify Payment' || a.label === 'Awaiting Verification')) {
       actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
     }
   }
@@ -277,6 +276,10 @@ export function UpsellCrossSellPipeline({
   const pendingIds = new Set(pendingAssignment.map((p) => p._id));
   const maxPipelineIndex = (entry: UpsellCrossSellEntry) =>
     entry.editingOnly ? UPSELL_PIPELINE.length - 3 : UPSELL_PIPELINE.length - 1;
+
+  useEffect(() => {
+    fetchShoots();
+  }, []);
 
   const patchStatus = async (id: string, body: Record<string, unknown>) => {
     const res = await authFetch(`/api/upsell-crosssell/${id}/status`, {

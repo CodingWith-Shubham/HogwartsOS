@@ -138,31 +138,43 @@ export function SendProposalDialog({
       let setsToUse = [createEmptySet(service, defaults)];
       let quantity = '1';
 
-      // If lead already had deliverable sets, try to load them in the first configured service
-      // Or if it's Podcast (which was the default before), load it there.
-      if (lead.deliverableSets && lead.deliverableSets.length > 0 && 
-         (service === 'Podcast' || Object.keys(initialData).length === 0)) {
-        quantity = String(lead.deliverableSets.length);
-        setsToUse = lead.deliverableSets.map((set: any, idx: number) => {
-          const fb = idx === 0 ? defaults : {};
-          return {
-            reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '',
-            longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '',
-            shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '',
-            teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '',
-            thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '',
-            longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
-            shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
-            camera: set.camera || fb?.camera || '',
-            recordTime: set.recordTime || set.record_time || fb?.recordTime || '',
-            studioTime: set.studioTime || set.studio_time || fb?.studioTime || '',
-            months: set.months || fb?.months || '',
-            posts: set.posts || fb?.posts || '',
-            socialMediaHandles: set.socialMediaHandles || set.social_media_handles || fb?.socialMediaHandles || '',
-            marketingNotes: set.marketingNotes || set.marketing_notes || fb?.marketingNotes || '',
-            serviceName: service,
-          };
-        });
+      if (lead.deliverableSets && lead.deliverableSets.length > 0) {
+        // Find sets for this specific service
+        const setsForService = lead.deliverableSets.filter((set: any) => 
+          (set.serviceName || set.service_name) === service
+        );
+
+        // Fallback for legacy data: if this is the first service and no sets have a serviceName, 
+        // assign all sets to this first service.
+        const allSetsHaveNoService = lead.deliverableSets.every((set: any) => !set.serviceName && !set.service_name);
+        
+        const applicableSets = setsForService.length > 0 
+          ? setsForService 
+          : (allSetsHaveNoService && Object.keys(initialData).length === 0 ? lead.deliverableSets : []);
+
+        if (applicableSets.length > 0) {
+          quantity = String(applicableSets.length);
+          setsToUse = applicableSets.map((set: any, idx: number) => {
+            const fb = idx === 0 ? defaults : {};
+            return {
+              reelEdit: set.reelEdit || set.reel_edit || fb?.reelEdit || '',
+              longFormatVideo: set.longFormatVideo || set.long_format_video || fb?.longFormatVideo || '',
+              shortFormatVideo: set.shortFormatVideo || set.short_format_video || fb?.shortFormatVideo || '',
+              teaserEdit: set.teaserEdit || set.teaser_edit || fb?.teaserEdit || '',
+              thumbnailEdit: set.thumbnailEdit || set.thumbnail_edit || fb?.thumbnailEdit || '',
+              longFormatDuration: set.longFormatDuration || set.long_format_duration || fb?.longFormatDuration || '',
+              shortFormatDuration: set.shortFormatDuration || set.short_format_duration || fb?.shortFormatDuration || '',
+              camera: set.camera || fb?.camera || '',
+              recordTime: set.recordTime || set.record_time || fb?.recordTime || '',
+              studioTime: set.studioTime || set.studio_time || fb?.studioTime || '',
+              months: set.months || fb?.months || '',
+              posts: set.posts || fb?.posts || '',
+              socialMediaHandles: set.socialMediaHandles || set.social_media_handles || fb?.socialMediaHandles || '',
+              marketingNotes: set.marketingNotes || set.marketing_notes || fb?.marketingNotes || '',
+              serviceName: service,
+            };
+          });
+        }
       }
 
       initialData[service] = { quantity, sets: setsToUse };

@@ -533,12 +533,23 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   }, [shoots]);
 
   const revisionWithAddons = useMemo(() => {
-    return editing.filter((edit) => {
+    const filtered = editing.filter((edit) => {
       if (edit.extraRevisionApproved) return true;
       if (edit.extraRevisionCost && Number(edit.extraRevisionCost) > 0) return true;
       if (edit.addonPaymentStatus && edit.addonPaymentStatus.trim() !== '') return true;
       return false;
     });
+
+    // Deduplicate by leadId + taskLabel to hide old dummy testing records
+    const latestPerTask = new Map<string, EditingProject>();
+    for (const edit of filtered) {
+      const key = `${edit.leadId}-${edit.taskLabel || edit.serviceType || 'Unknown'}`;
+      const existing = latestPerTask.get(key);
+      if (!existing || (new Date(edit.updatedAt || edit.createdAt || 0) > new Date(existing.updatedAt || existing.createdAt || 0))) {
+        latestPerTask.set(key, edit);
+      }
+    }
+    return Array.from(latestPerTask.values());
   }, [editing]);
 
   const paymentSummary = (lead: Lead) => {

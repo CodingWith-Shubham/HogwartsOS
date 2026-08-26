@@ -167,9 +167,16 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
 
   const isPaymentPending = isPaymentPendingVerification(payment);
   const isPaymentVerified = isPaymentVerifiedRecord(payment);
+  const isAwaitingSS = (!!payment && !isPaymentPending && !isPaymentVerified) || (entry.status === 'payment_sent' && !isPaymentPending && !isPaymentVerified);
 
   if (isPaymentPending) {
     actions.push({ label: 'Verify Payment', nextStatus: entry.status === 'payment_sent' ? 'payment_done' : entry.status, verify: true });
+  } else if (isAwaitingSS) {
+    actions.push({
+      label: 'Awaiting Verification',
+      nextStatus: 'payment_done',
+      disabledReason: 'Waiting for the client to upload the payment screenshot',
+    });
   }
 
   switch (entry.status) {
@@ -177,25 +184,12 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       actions.push({ label: 'Send Proposal', nextStatus: 'proposal_sent', modal: 'proposal' });
       break;
     case 'proposal_sent':
-      if (entry.proposalAccepted) {
-        if (!isPaymentPending) {
-          actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
-        }
-      } else {
+      if (!entry.proposalAccepted) {
         actions.push({
           label: 'Send Payment Link',
           nextStatus: 'payment_sent',
           modal: 'payment',
           disabledReason: 'Waiting for the client to accept the proposal',
-        });
-      }
-      break;
-    case 'payment_sent':
-      if (!isPaymentPending && !isPaymentVerified) {
-        actions.push({
-          label: 'Awaiting Verification',
-          nextStatus: 'payment_done',
-          disabledReason: 'Waiting for the client to upload the payment screenshot',
         });
       }
       break;
@@ -228,8 +222,13 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
 
   const pastInitial = entry.status !== 'initiated' && !(entry.status === 'proposal_sent' && !entry.proposalAccepted);
   if (pastInitial) {
-    if (!actions.some((a) => a.label === 'Send Payment Link' || a.label === 'Verify Payment' || a.label === 'Awaiting Verification')) {
-      actions.push({ label: 'Send Payment Link', nextStatus: 'payment_sent', modal: 'payment' });
+    const hasPaymentAction = actions.some((a) => a.label === 'Send Payment Link' || a.label === 'Verify Payment' || a.label === 'Awaiting Verification');
+    if (!hasPaymentAction) {
+      if (remaining > 0) {
+        actions.push({ label: 'Send Payment Link', nextStatus: entry.status === 'proposal_sent' ? 'payment_sent' : entry.status, modal: 'payment' });
+      } else {
+        actions.push({ label: 'Payment Completed', nextStatus: '', disabledReason: 'All payments collected' });
+      }
     }
   }
 

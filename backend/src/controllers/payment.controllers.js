@@ -18,29 +18,6 @@ const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
 const isEditingOnlyClient = (client) => {
     if (!client) return false;
     
-    // Check if it has any service that requires a shoot
-    let hasShoot = false;
-    const checkString = (str) => {
-        if (!str) return false;
-        const arr = str.split(',').map(s => s.trim()).filter(Boolean);
-        return arr.some(s => !EDITING_ONLY_SERVICE_REGEX.test(s) && !MARKETING_SERVICE_REGEX.test(s));
-    };
-    
-    if (checkString(client.serviceNotes) || checkString(client.servicePitched)) {
-        hasShoot = true;
-    }
-    
-    if (client.services && Array.isArray(client.services)) {
-        if (client.services.some(s => s && !EDITING_ONLY_SERVICE_REGEX.test(s) && !MARKETING_SERVICE_REGEX.test(s))) hasShoot = true;
-    }
-    
-    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
-    if (sets && Array.isArray(sets)) {
-        if (sets.some(s => s.serviceName && !EDITING_ONLY_SERVICE_REGEX.test(s.serviceName) && !MARKETING_SERVICE_REGEX.test(s.serviceName))) hasShoot = true;
-    }
-
-    if (hasShoot) return false;
-
     // Check if it has editing
     if (EDITING_ONLY_SERVICE_REGEX.test(client.serviceNotes || "") ||
         EDITING_ONLY_SERVICE_REGEX.test(client.servicePitched || "")) return true;
@@ -49,6 +26,7 @@ const isEditingOnlyClient = (client) => {
         if (client.services.some(s => EDITING_ONLY_SERVICE_REGEX.test(s || ''))) return true;
     }
 
+    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
     if (sets && Array.isArray(sets)) {
         if (sets.some(s => EDITING_ONLY_SERVICE_REGEX.test(s.serviceName || ''))) return true;
     }
@@ -60,29 +38,6 @@ const MARKETING_SERVICE_REGEX = /only[\s-]*marketing/i;
 
 const isMarketingClient = (client) => {
     if (!client) return false;
-    
-    // Check if it has any service that requires a shoot
-    let hasShoot = false;
-    const checkString = (str) => {
-        if (!str) return false;
-        const arr = str.split(',').map(s => s.trim()).filter(Boolean);
-        return arr.some(s => !EDITING_ONLY_SERVICE_REGEX.test(s) && !MARKETING_SERVICE_REGEX.test(s));
-    };
-    
-    if (checkString(client.serviceNotes) || checkString(client.servicePitched)) {
-        hasShoot = true;
-    }
-    
-    if (client.services && Array.isArray(client.services)) {
-        if (client.services.some(s => s && !EDITING_ONLY_SERVICE_REGEX.test(s) && !MARKETING_SERVICE_REGEX.test(s))) hasShoot = true;
-    }
-    
-    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
-    if (sets && Array.isArray(sets)) {
-        if (sets.some(s => s.serviceName && !EDITING_ONLY_SERVICE_REGEX.test(s.serviceName) && !MARKETING_SERVICE_REGEX.test(s.serviceName))) hasShoot = true;
-    }
-
-    if (hasShoot) return false;
 
     if (MARKETING_SERVICE_REGEX.test(client.serviceNotes || "") ||
         MARKETING_SERVICE_REGEX.test(client.servicePitched || "")) return true;
@@ -91,6 +46,7 @@ const isMarketingClient = (client) => {
         if (client.services.some(s => MARKETING_SERVICE_REGEX.test(s || ''))) return true;
     }
 
+    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
     if (sets && Array.isArray(sets)) {
         if (sets.some(s => MARKETING_SERVICE_REGEX.test(s.serviceName || ''))) return true;
     }

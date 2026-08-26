@@ -518,14 +518,18 @@ export function UpsellCrossSellPipeline({
   const renderEntryCard = (entry: UpsellCrossSellEntry) => {
     const payment = latestPaymentFor(entry);
     const payments = paymentsByEntryId?.[entry._id] || [];
-    const totalCollected = payments.reduce((sum: number, p: any) => {
+    const baseCollected = payments.reduce((sum: number, p: any) => {
       const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
-      if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified') {
-        return sum + Number(p.amount || 0);
+      if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified' || status === 'payment completed') {
+        const label = (p.installmentLabel || p.installment_label || '').toLowerCase();
+        const isAddon = label === 'addon payment' || label === 'addon' || label === 'revision addon';
+        if (!isAddon) {
+          return sum + Number(p.amount || 0);
+        }
       }
       return sum;
     }, 0);
-    const remaining = Math.max(0, entry.cost - totalCollected);
+    const remaining = Math.max(0, entry.cost - baseCollected);
     const actions = canAdvance ? getActions(entry, payment, remaining, shoots) : [];
     const busy = advancingId === entry._id || verifyingId === entry._id;
     const screenshotUrl = String(payment?.screenshotUrl ?? '').trim();

@@ -748,14 +748,22 @@ export function UpsellCrossSellPipeline({
           stageModal?.kind === 'payment'
             ? (() => {
                 const payments = paymentsByEntryId?.[stageModal.entry._id] || [];
-                const totalCollected = payments.reduce((sum: number, p: any) => {
+                let totalCollected = 0;
+                let baseCollected = 0;
+                payments.forEach((p: any) => {
                   const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
-                  if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified') {
-                    return sum + Number(p.amount || 0);
+                  if (status === 'payment verified' || status === 'verified' || status === 'screenshot verified' || status === 'payment completed') {
+                    const amount = Number(p.amount || 0);
+                    totalCollected += amount;
+                    
+                    const label = (p.installmentLabel || p.installment_label || '').toLowerCase();
+                    const isAddon = label === 'addon payment' || label === 'addon' || label === 'revision addon';
+                    if (!isAddon) {
+                      baseCollected += amount;
+                    }
                   }
-                  return sum;
-                }, 0);
-                const remaining = Math.max(0, stageModal.entry.cost - totalCollected);
+                });
+                const remaining = Math.max(0, stageModal.entry.cost - baseCollected);
                 return { totalCollected, remaining };
               })()
             : null

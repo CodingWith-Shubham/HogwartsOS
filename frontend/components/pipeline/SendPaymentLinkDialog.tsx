@@ -140,7 +140,8 @@ export function SendPaymentLinkDialog({
       formData.append('remaining_amount', String(remainingAmount));
       formData.append('amount_paid_so_far', String(totalCollected));
       formData.append('payment_percentage', String(roundedPercentage));
-      formData.append('payment_type', roundedPercentage === 100 ? 'Full Payment' : 'Advance Payment');
+      const paymentType = remainingAmount <= 0 ? 'Full Payment' : 'Advance Payment';
+      formData.append('payment_type', paymentType);
       formData.append('payment_mode', paymentMode);
       formData.append('cash_collected_by', paymentMode === 'Cash' ? cashCollectedBy.trim() : '');
       formData.append('installment_label', installmentLabel);

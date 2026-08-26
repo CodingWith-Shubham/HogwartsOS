@@ -91,24 +91,16 @@ interface UpsellCrossSellModalProps {
 export function UpsellCrossSellModal({ open, onOpenChange, client, type, salesMembers, onSuccess }: UpsellCrossSellModalProps) {
   const [services, setServices] = useState<string[]>([]);
   const [assignedTo, setAssignedTo] = useState('');
-  const [editingOnly, setEditingOnly] = useState(false);
-  const [editingOnlyTouched, setEditingOnlyTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cost, setCost] = useState('');
 
   const toggleService = (service: string) => {
-    setServices((prev) => {
-      const next = prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service];
-      if (!editingOnlyTouched) setEditingOnly(detectEditingOnly(next));
-      return next;
-    });
+    setServices((prev) => prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]);
   };
 
   const resetForm = () => {
     setServices([]);
     setAssignedTo('');
-    setEditingOnly(false);
-    setEditingOnlyTouched(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -145,7 +137,6 @@ export function UpsellCrossSellModal({ open, onOpenChange, client, type, salesMe
           cost: Number(cost || 0),
           assignedTo,
           notes,
-          editingOnly,
           reachout_done: 'yes',
         }),
       });
@@ -255,23 +246,7 @@ export function UpsellCrossSellModal({ open, onOpenChange, client, type, salesMe
             <Input id="cost" name="cost" type="number" min="0" step="0.01" placeholder="0" required />
           </div>
 
-          {/* Editing-only bypass — auto-detected from services, manually overridable */}
-          <div className="flex items-center justify-between rounded-md border border-border bg-secondary/30 p-3">
-            <div className="space-y-0.5 pr-4">
-              <Label htmlFor="editingOnly" className="text-sm">Editing-only (no shoot required)</Label>
-              <p className="text-xs text-muted-foreground">
-                Skips the shoot stages — the deal goes straight from payment to editing.
-              </p>
-            </div>
-            <Switch
-              id="editingOnly"
-              checked={editingOnly}
-              onCheckedChange={(checked) => {
-                setEditingOnlyTouched(true);
-                setEditingOnly(checked);
-              }}
-            />
-          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>

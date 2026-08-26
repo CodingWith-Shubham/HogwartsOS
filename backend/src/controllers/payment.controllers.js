@@ -17,30 +17,72 @@ const EDITING_ONLY_SERVICE_REGEX = /only[\s-]*editing/i;
 
 const isEditingOnlyClient = (client) => {
     if (!client) return false;
-    return EDITING_ONLY_SERVICE_REGEX.test(client.serviceNotes || "") ||
-        EDITING_ONLY_SERVICE_REGEX.test(client.servicePitched || "");
+    
+    if (EDITING_ONLY_SERVICE_REGEX.test(client.serviceNotes || "") ||
+        EDITING_ONLY_SERVICE_REGEX.test(client.servicePitched || "")) return true;
+
+    if (client.services && Array.isArray(client.services)) {
+        if (client.services.some(s => EDITING_ONLY_SERVICE_REGEX.test(s || ''))) return true;
+    }
+
+    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
+    if (sets && Array.isArray(sets)) {
+        if (sets.some(s => EDITING_ONLY_SERVICE_REGEX.test(s.serviceName || ''))) return true;
+    }
+
+    return false;
 };
 
 const MARKETING_SERVICE_REGEX = /marketing/i;
 
 const isMarketingClient = (client) => {
     if (!client) return false;
-    return MARKETING_SERVICE_REGEX.test(client.serviceNotes || "") ||
-        MARKETING_SERVICE_REGEX.test(client.servicePitched || "");
+    
+    if (MARKETING_SERVICE_REGEX.test(client.serviceNotes || "") ||
+        MARKETING_SERVICE_REGEX.test(client.servicePitched || "")) return true;
+
+    if (client.services && Array.isArray(client.services)) {
+        if (client.services.some(s => MARKETING_SERVICE_REGEX.test(s || ''))) return true;
+    }
+
+    const sets = client.deliverableSets?.length ? client.deliverableSets : client.deliverable_sets;
+    if (sets && Array.isArray(sets)) {
+        if (sets.some(s => MARKETING_SERVICE_REGEX.test(s.serviceName || ''))) return true;
+    }
+
+    return false;
 };
 
-const ensureEditingOnlyShoot = async (client) => {
+const ensureEditingOnlyShoot = async (client, isUpsell = false) => {
     if (!isEditingOnlyClient(client)) return;
 
-    const existingShoot = await Shoot.findOne({ leadId: client.leadId });
-    if (existingShoot) return; // A real shoot already exists — keep the normal flow
+    const leadId = isUpsell ? client.clientLeadId : client.leadId;
+    const name = isUpsell ? client.clientName : client.name;
+    const phone = isUpsell ? client.clientPhone : client.phoneNumber;
+    const email = isUpsell ? client.clientEmail : client.clientEmail;
+
+    // For upsells, the virtual shoot must be isolated via upsellCrossSellId
+    const searchFilter = isUpsell 
+        ? { upsellCrossSellId: client._id.toString(), isEditingOnly: true } 
+        : { leadId: leadId, isEditingOnly: true };
+
+    const existingShoot = await Shoot.findOne(searchFilter);
+    if (existingShoot) return; // A virtual shoot already exists
+
+    // For main clients, avoid creating a virtual shoot if a *real* shoot already exists
+    if (!isUpsell) {
+        const anyExistingShoot = await Shoot.findOne({ leadId });
+        if (anyExistingShoot) return; 
+    }
+
+    const shootId = isUpsell ? `EDITONLY_UPSELL_${client._id.toString()}` : `EDITONLY_${leadId}`;
 
     await Shoot.create({
-        shootId: `EDITONLY_${client.leadId}`,
-        leadId: client.leadId,
-        clientName: client.name || "",
-        contactNum: client.phoneNumber || "",
-        clientEmailId: client.clientEmail || "",
+        shootId,
+        leadId,
+        clientName: name || "",
+        contactNum: phone || "",
+        clientEmailId: email || "",
         shootDate: "",
         shootStartTime: "",
         shootEndTime: "",
@@ -56,14 +98,22 @@ const ensureEditingOnlyShoot = async (client) => {
         // "Footage Ready for Review" list without any shoot-team involvement.
         driveLinkUploaded: true,
         isEditingOnly: true,
-        setName: ""
+        setName: "",
+        upsellCrossSellId: isUpsell ? client._id.toString() : undefined
     });
 };
 
-const ensureMarketingTask = async (client) => {
+const ensureMarketingTask = async (client, isUpsell = false) => {
     if (!isMarketingClient(client)) return;
 
-    const existingTask = await MarketingTask.findOne({ leadId: client.leadId });
+    const leadId = isUpsell ? client.clientLeadId : client.leadId;
+    const name = isUpsell ? client.clientName : client.name;
+
+    const searchFilter = isUpsell 
+        ? { leadId, taskId: { $regex: `MKT_UPSELL_${client._id.toString()}` } }
+        : { leadId, taskId: `MKT_${leadId}` };
+
+    const existingTask = await MarketingTask.findOne(searchFilter);
     if (existingTask) return; // A marketing task already exists
 
     let months = "", posts = "", socialMediaHandles = "", marketingNotes = "";
@@ -80,12 +130,10 @@ const ensureMarketingTask = async (client) => {
         }
     }
 
-    // Try to extract marketing fields if they were saved in the client record or passed
-    // We will just create an unassigned task.
     await MarketingTask.create({
-        taskId: `MKT_${client.leadId}`,
-        leadId: client.leadId,
-        clientName: client.name || "",
+        taskId: isUpsell ? `MKT_UPSELL_${client._id.toString()}` : `MKT_${leadId}`,
+        leadId,
+        clientName: name || "",
         status: "Unassigned",
         months,
         posts,
@@ -168,6 +216,9 @@ const createPayment = asyncHandler(async (req, res) => {
             if (upsellEntry && ["initiated", "proposal_sent", "payment_sent"].includes(upsellEntry.status)) {
                 upsellEntry.status = "payment_done";
                 await upsellEntry.save();
+                
+                await ensureEditingOnlyShoot(upsellEntry, true);
+                await ensureMarketingTask(upsellEntry, true);
             }
         } else {
             const client = await Client.findOneAndUpdate(
@@ -291,11 +342,12 @@ const verifyPayment = asyncHandler(async (req, res) => {
                 ["initiated", "proposal_sent", "payment_sent"].includes(upsellEntry.status)
             ) {
                 // Mirrors the lead flow: verification marks the upsell deal paid.
-                // Editing-only entries are now ready for the manager's
-                // Assign Editor queue (payment_done + editingOnly is its trigger);
-                // shoot-based entries move on to shoot scheduling.
+                // Editing-only entries and marketing tasks are auto-created for the manager.
                 upsellEntry.status = "payment_done";
                 await upsellEntry.save();
+                
+                await ensureEditingOnlyShoot(upsellEntry, true);
+                await ensureMarketingTask(upsellEntry, true);
             }
         } else {
             const client = await Client.findOneAndUpdate(

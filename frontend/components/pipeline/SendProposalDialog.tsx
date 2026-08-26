@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -101,6 +101,7 @@ export function SendProposalDialog({
   onSuccess,
 }: SendProposalDialogProps) {
   const [submittingProposal, setSubmittingProposal] = useState(false);
+  const initializedForRef = useRef<string | null>(null);
   
   const [proposalForm, setProposalForm] = useState({
     clientEmail: '',
@@ -112,7 +113,12 @@ export function SendProposalDialog({
   const [serviceDeliverables, setServiceDeliverables] = useState<Record<string, ServiceData>>({});
 
   useEffect(() => {
-    if (!open || !lead) return;
+    if (!open || !lead) {
+      initializedForRef.current = null;
+      return;
+    }
+    if (initializedForRef.current === lead.leadId) return;
+
     const initialServices = defaults?.serviceNotes?.length ? defaults.serviceNotes : (lead.servicePitched ? [lead.servicePitched] : []);
     const servicesToUse = initialServices.filter(s => SERVICE_NOTE_OPTIONS.includes(s as any));
     
@@ -163,6 +169,7 @@ export function SendProposalDialog({
     });
 
     setServiceDeliverables(initialData);
+    initializedForRef.current = lead.leadId;
   }, [open, lead, defaults]);
 
   const handleServiceNotesChange = (checked: boolean, option: string) => {

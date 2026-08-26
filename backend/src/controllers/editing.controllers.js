@@ -257,6 +257,7 @@ const updateTask = asyncHandler(async (req, res) => {
     // Auto-create Payment log if verified
     if (updateData.addonPaymentStatus === 'verified' && task.extraRevisionCost && task.extraRevisionCost !== "0") {
         const { Payment } = await import("../models/payment.models.js");
+        const { Shoot } = await import("../models/shoot.models.js");
         
         // Find existing payment for this revision addon to avoid duplicates
         const existingPayment = await Payment.findOne({
@@ -265,6 +266,14 @@ const updateTask = asyncHandler(async (req, res) => {
         });
 
         if (!existingPayment) {
+            let upsellCrossSellId = "";
+            if (task.shootId) {
+                const shoot = await Shoot.findOne({ shootId: task.shootId });
+                if (shoot && shoot.upsellCrossSellId) {
+                    upsellCrossSellId = shoot.upsellCrossSellId;
+                }
+            }
+
             const costNum = Number(task.extraRevisionCost);
             await Payment.create({
                 amount: costNum,
@@ -276,7 +285,8 @@ const updateTask = asyncHandler(async (req, res) => {
                 verifiedBy: updateData.addonVerifiedBy || req.user?.name || "Sales",
                 verifiedAt: updateData.addonVerifiedAt || new Date().toISOString(),
                 screenshotUrl: task.addonScreenshot || "",
-                utrNumber: task.addonUtr || ""
+                utrNumber: task.addonUtr || "",
+                ...(upsellCrossSellId ? { upsellCrossSellId } : {})
             });
         }
     }
@@ -557,11 +567,20 @@ const updateProject = asyncHandler(async (req, res) => {
     const wasAlreadyVerified = projectToUpdate && projectToUpdate.addonPaymentStatus && projectToUpdate.addonPaymentStatus.toLowerCase() === "verified";
     
     if (isVerifyingAddon && !wasAlreadyVerified) {
+        const { Shoot } = await import("../models/shoot.models.js");
         const paymentAmount = Number(project.extraRevisionCost || 0);
         
         // Calculate amountPaidSoFar by summing up existing payments
         const previousPayments = await Payment.find({ leadId: project.leadId });
         const previousAmount = previousPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+        let upsellCrossSellId = "";
+        if (project.shootId) {
+            const shoot = await Shoot.findOne({ shootId: project.shootId });
+            if (shoot && shoot.upsellCrossSellId) {
+                upsellCrossSellId = shoot.upsellCrossSellId;
+            }
+        }
 
         await Payment.create({
             paymentId: `PAY_${Date.now()}_REV_ADDON`,
@@ -580,7 +599,8 @@ const updateProject = asyncHandler(async (req, res) => {
             paymentMode: "Online",
             screenshotUrl: project.addonScreenshot || "",
             utrNumber: "Not provided",
-            amountPaidSoFar: previousAmount + paymentAmount
+            amountPaidSoFar: previousAmount + paymentAmount,
+            ...(upsellCrossSellId ? { upsellCrossSellId } : {})
         });
     }
 

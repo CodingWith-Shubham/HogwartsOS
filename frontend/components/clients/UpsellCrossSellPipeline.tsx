@@ -22,7 +22,6 @@ import type { Shoot } from '@/lib/sheets/types';
 import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
 import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
-import { UploadDriveLinkDialog } from '@/components/pipeline/UploadDriveLinkDialog';
 import {
   SERVICE_NOTE_OPTIONS,
   type ProposalFormValues,
@@ -144,6 +143,7 @@ const PENDING_VERIFICATION_STATUSES = [
   'screenshot uploaded',
   'pending verification',
   'screenshot uploaded - pending verification',
+  'payment link sent',
 ];
 
 const VERIFIED_PAYMENT_STATUSES = ['payment verified', 'payment completed', 'verified'];
@@ -296,7 +296,6 @@ export function UpsellCrossSellPipeline({
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [paymentHistoryEntry, setPaymentHistoryEntry] = useState<UpsellCrossSellEntry | null>(null);
   const [stageModal, setStageModal] = useState<{ entry: UpsellCrossSellEntry; kind: Exclude<StageModalKind, 'driveLink'>; deliverableSetIndex?: number } | null>(null);
-  const [driveTarget, setDriveTarget] = useState<{ entry: UpsellCrossSellEntry; shootId: string } | null>(null);
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<UpsellCrossSellEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -434,13 +433,6 @@ export function UpsellCrossSellPipeline({
       setStageModal({ entry, kind: 'schedule', deliverableSetIndex: nextIndex });
       return;
     }
-
-    const shoot = findShootForEntry(entry, latestShoots);
-    if (!shoot) {
-      toast.error('No shoot record was found for this client. The scheduled shoot may not have synchronized yet.');
-      return;
-    }
-    setDriveTarget({ entry, shootId: shoot.shootId });
   };
 
   const stageLeadFor = (entry: UpsellCrossSellEntry) => ({
@@ -781,25 +773,6 @@ export function UpsellCrossSellPipeline({
           if (stageModal?.kind === 'schedule') {
             void fetchShoots();
             return advanceEntry(stageModal.entry, 'shoot_scheduled');
-          }
-        }}
-      />
-
-      <UploadDriveLinkDialog
-        open={!!driveTarget}
-        onOpenChange={(open) => {
-          if (!open) setDriveTarget(null);
-        }}
-        target={
-          driveTarget
-            ? { shootId: driveTarget.shootId, clientName: driveTarget.entry.clientName }
-            : null
-        }
-        extraPayload={driveTarget ? { upsell_crosssell_id: driveTarget.entry._id } : undefined}
-        onSuccess={(dataLink) => {
-          if (driveTarget) {
-            setDriveTarget(null);
-            return advanceEntry(driveTarget.entry, 'shoot_done', { shootLink: dataLink });
           }
         }}
       />

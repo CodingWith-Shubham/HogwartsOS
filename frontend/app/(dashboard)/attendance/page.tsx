@@ -4,6 +4,7 @@ import { authFetch } from '@/lib/auth-fetch';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { AttendanceShimmer } from '@/components/shared/ShimmerLoader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -202,6 +203,7 @@ export default function AttendancePage() {
   const [capturedLocation, setCapturedLocation] = useState<LocationCoords | null>(null);
   
   const [employeeSummaries, setEmployeeSummaries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadingSummaries, setLoadingSummaries] = useState(false);
   const [summaryStartDate, setSummaryStartDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
   const [summaryEndDate, setSummaryEndDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -359,7 +361,7 @@ export default function AttendancePage() {
   }, [user]);
 
   useEffect(() => {
-    fetchAttendance();
+    fetchAttendance().finally(() => setLoading(false));
     fetchLeaveData();
     fetchTeamLeaves();
     fetchLopOverrides();
@@ -534,6 +536,8 @@ export default function AttendancePage() {
   // ─── Monthly performance stats (current + past months) ───
   const statMonthKeys = Object.keys(myMonthlyStats).sort().reverse();
   const statMonthStats = statMonth && myMonthlyStats[statMonth] ? myMonthlyStats[statMonth] : null;
+
+  if (loading) return <AttendanceShimmer />;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">

@@ -137,3 +137,123 @@ export function ManagerShimmer() {
     </div>
   );
 }
+
+export function SalesShimmer() {
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div className="shimmer h-8 w-24 rounded-md" />
+          <div className="shimmer h-4 w-64 rounded-md" />
+        </div>
+        <div className="shimmer h-9 w-28 rounded-md" />
+      </div>
+
+      {/* 4 Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCardShimmer />
+        <StatCardShimmer />
+        <StatCardShimmer />
+        <StatCardShimmer />
+      </div>
+
+      {/* Tab bar */}
+      <div className="shimmer h-10 w-full max-w-sm rounded-md" />
+
+      {/* Filter row */}
+      <div className="flex items-center gap-3">
+        <div className="shimmer h-9 w-48 rounded-md flex-1 max-w-xs" />
+        <div className="shimmer h-9 w-28 rounded-md" />
+      </div>
+
+      {/* Table */}
+      <TableShimmer rows={7} cols={5} />
+    </div>
+  );
+}
+
+export function ShootShimmer() {
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div className="shimmer h-8 w-20 rounded-md" />
+          <div className="shimmer h-4 w-56 rounded-md" />
+        </div>
+        <div className="shimmer h-9 w-24 rounded-md" />
+      </div>
+
+      {/* 3 Stat Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <StatCardShimmer />
+        <StatCardShimmer />
+        <StatCardShimmer />
+      </div>
+
+      {/* Tab bar */}
+      <div className="shimmer h-10 w-64 rounded-md" />
+
+      {/* Shoot Cards */}
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="border border-border">
+            <CardContent className="py-4 px-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2 flex-1">
+                  <div className="shimmer h-5 w-40 rounded-md" />
+                  <div className="shimmer h-4 w-56 rounded-md" />
+                </div>
+                <div className="shimmer h-6 w-20 rounded-full" />
+              </div>
+              <div className="flex gap-2">
+                <div className="shimmer h-8 w-28 rounded-md" />
+                <div className="shimmer h-8 w-28 rounded-md" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function AttendanceShimmer() {
+  return (
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Header Banner */}
+      <div className="shimmer h-[88px] w-full rounded-xl" />
+
+      {/* Two column layout: Check-in card + Today's status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="border border-border">
+          <CardContent className="p-6 space-y-4">
+            <div className="shimmer h-5 w-36 rounded-md" />
+            <div className="shimmer h-14 w-full rounded-lg" />
+            <div className="shimmer h-10 w-full rounded-md" />
+            <div className="shimmer h-10 w-full rounded-md" />
+          </CardContent>
+        </Card>
+        <Card className="border border-border">
+          <CardContent className="p-6 space-y-4">
+            <div className="shimmer h-5 w-32 rounded-md" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="shimmer h-[70px] rounded-lg" />
+              <div className="shimmer h-[70px] rounded-lg" />
+              <div className="shimmer h-[70px] rounded-lg" />
+              <div className="shimmer h-[70px] rounded-lg" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <div className="shimmer h-10 w-72 rounded-md" />
+
+      {/* History Table */}
+      <TableShimmer rows={6} cols={5} />
+    </div>
+  );
+}
+

@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { DataTable, type Column } from '@/components/shared/DataTable';
+import { SalesShimmer } from '@/components/shared/ShimmerLoader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -287,6 +288,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [shoots, setShoots] = useState<Shoot[]>(initialShoots);
   const [editing, setEditing] = useState<EditingProject[]>(initialEditing);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creatingLead, setCreatingLead] = useState(false);
   const [reachoutDone, setReachoutDone] = useState<'yes' | 'no'>('no');
@@ -470,10 +472,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   useEffect(() => {
     // Server component data may have been produced from a short-lived cache
     // Reconcile immediately on entry.
-    void refreshLeads(true, true);
-    refreshShoots(true);
-    refreshEditing(true);
-    refreshPaymentHistory(true);
+    Promise.all([
+      refreshLeads(true, true),
+      refreshShoots(true),
+      refreshEditing(true),
+      refreshPaymentHistory(true),
+    ]).finally(() => setLoading(false));
   }, [refreshLeads, refreshShoots, refreshEditing, refreshPaymentHistory]);
 
   useEffect(() => {
@@ -1593,6 +1597,8 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     'Draft Sent',
     'Delivered',
   ];
+
+  if (loading) return <SalesShimmer />;
 
   return (
     <TooltipProvider delayDuration={200}>

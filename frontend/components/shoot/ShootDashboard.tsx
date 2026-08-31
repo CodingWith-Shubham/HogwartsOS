@@ -6,6 +6,7 @@ import { authFetch } from '@/lib/auth-fetch';
 import { useAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
+import { ShootShimmer } from '@/components/shared/ShimmerLoader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -452,6 +453,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   const { user } = useAuth();
   const hideContactInfo = user?.role === 'shoot' || user?.role === 'editor';
   const [shoots, setShoots] = useState<Shoot[]>(initialShoots);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [detail, setDetail] = useState<Shoot | null>(null);
   const [editShoot, setEditShoot] = useState<Shoot | null>(null);
@@ -500,7 +502,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   }, []);
 
   useEffect(() => {
-    void refreshShoots(true, true);
+    void refreshShoots(true, true).finally(() => setLoading(false));
   }, [refreshShoots]);
 
   useEffect(() => {
@@ -743,6 +745,8 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
       tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   };
+
+  if (loading) return <ShootShimmer />;
 
   return (
     <div>

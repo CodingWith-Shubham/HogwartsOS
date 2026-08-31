@@ -1,157 +1,180 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
 import { getBackendUrlSync } from "@/lib/backend-url";
 
+// ── Tool definitions (OpenAI / Groq format) ──────────────────────────────────
+
 const tools = [
   {
-    functionDeclarations: [
-      {
-        name: "get_client_by_lead_id",
-        description:
-          "Get a specific client or lead from the database by their lead ID. Use when user mentions a specific lead ID like HL-XXXXX.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            lead_id: {
-              type: "STRING",
-              description: "The lead ID e.g. HL-MRUJE2WM",
-            },
-          },
-          required: ["lead_id"],
-        },
-      },
-      {
-        name: "get_clients_list",
-        description:
-          "Get list of all clients and leads from the database, optionally filtered by status. Use for questions like 'show me all new leads' or 'how many clients do we have'.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            status: {
-              type: "STRING",
-              description:
-                "Filter by status. Valid values: New Lead, Proposal Sent, Proposal Accepted, Awaiting Payment, Payment Under Review, Awaiting Shoot, Shoot Scheduled, Shoot Done, Payment Completed",
-            },
-            limit: {
-              type: "NUMBER",
-              description: "Maximum number of results to return. Default 20.",
-            },
+    type: "function",
+    function: {
+      name: "get_client_by_lead_id",
+      description:
+        "Get a specific client or lead from the database by their lead ID. Use when user mentions a specific lead ID like HL-XXXXX.",
+      parameters: {
+        type: "object",
+        properties: {
+          lead_id: {
+            type: "string",
+            description: "The lead ID e.g. HL-MRUJE2WM",
           },
         },
+        required: ["lead_id"],
       },
-      {
-        name: "get_payments",
-        description:
-          "Get payment records from the database. Use for questions about payments, pending amounts, verified payments.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            lead_id: {
-              type: "STRING",
-              description: "Filter payments by lead ID",
-            },
-            payment_id: {
-              type: "STRING",
-              description: "Get a specific payment by payment ID",
-            },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_clients_list",
+      description:
+        "Get list of all clients and leads from the database, optionally filtered by status. Use for questions like 'show me all new leads' or 'how many clients do we have'.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            description:
+              "Filter by status. Valid values: New Lead, Proposal Sent, Proposal Accepted, Awaiting Payment, Payment Under Review, Awaiting Shoot, Shoot Scheduled, Shoot Done, Payment Completed",
+          },
+          limit: {
+            type: "number",
+            description: "Maximum number of results to return. Default 20.",
           },
         },
       },
-      {
-        name: "get_shoots",
-        description:
-          "Get shoot records from the database. Use for questions about scheduled shoots, upcoming shoots, shoot dates.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            lead_id: {
-              type: "STRING",
-              description: "Filter shoots by lead ID",
-            },
-            shoot_date: {
-              type: "STRING",
-              description: "Filter shoots by date in YYYY-MM-DD format",
-            },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_payments",
+      description:
+        "Get payment records from the database. Use for questions about payments, pending amounts, verified payments.",
+      parameters: {
+        type: "object",
+        properties: {
+          lead_id: {
+            type: "string",
+            description: "Filter payments by lead ID",
+          },
+          payment_id: {
+            type: "string",
+            description: "Get a specific payment by payment ID",
           },
         },
       },
-      {
-        name: "get_editing_tasks",
-        description:
-          "Get editing tasks from the database. Use for questions about editing work, editor assignments, draft status.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            editor_email: {
-              type: "STRING",
-              description: "Filter tasks by editor email address",
-            },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_shoots",
+      description:
+        "Get shoot records from the database. Use for questions about scheduled shoots, upcoming shoots, shoot dates.",
+      parameters: {
+        type: "object",
+        properties: {
+          lead_id: {
+            type: "string",
+            description: "Filter shoots by lead ID",
+          },
+          shoot_date: {
+            type: "string",
+            description: "Filter shoots by date in YYYY-MM-DD format",
           },
         },
       },
-      {
-        name: "get_users",
-        description:
-          "Get team members and users from the database. Use for questions about team members, editors, salespersons.",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            name: {
-              type: "STRING",
-              description: "Filter users by name",
-            },
-            role: {
-              type: "STRING",
-              description:
-                "Filter by role: admin, manager, sales, editor, shoot",
-            },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_editing_tasks",
+      description:
+        "Get editing tasks from the database. Use for questions about editing work, editor assignments, draft status.",
+      parameters: {
+        type: "object",
+        properties: {
+          editor_email: {
+            type: "string",
+            description: "Filter tasks by editor email address",
           },
         },
       },
-      {
-        name: "get_dashboard_summary",
-        description:
-          "Get overall CRM dashboard summary and live statistics. Use for questions like 'how are we doing this month' or 'give me a summary'.",
-        parameters: {
-          type: "OBJECT",
-          properties: {},
-        },
-      },
-      {
-        name: "get_attendance",
-        description:
-          "Get attendance data from the CRM. Use for any questions about attendance, check-ins, check-outs, leaves, leave balance, team attendance, LOP (Loss of Pay), absences, late arrivals, or monthly attendance summary. Actions available: 'my-attendance' (personal today's record), 'team-attendance' (full team for a date), 'summary' (team summary for a date range), 'my-summary' (personal monthly breakdown), 'my-leaves' (personal leave history), 'leave-balance' (remaining leaves), 'team-leaves' (pending team leave requests), 'lop-overrides' (LOP override requests), 'full-day-requests' (pending full-day work-from-home requests).",
-        parameters: {
-          type: "OBJECT",
-          properties: {
-            action: {
-              type: "STRING",
-              description:
-                "Which attendance data to fetch. One of: 'my-attendance', 'team-attendance', 'summary', 'my-summary', 'my-leaves', 'leave-balance', 'team-leaves', 'lop-overrides', 'full-day-requests'. Defaults to 'my-attendance'.",
-            },
-            date: {
-              type: "STRING",
-              description:
-                "Date in YYYY-MM-DD format. Required for 'team-attendance'. Optional for others.",
-            },
-            startDate: {
-              type: "STRING",
-              description:
-                "Start date in YYYY-MM-DD format. Used with 'summary' action.",
-            },
-            endDate: {
-              type: "STRING",
-              description:
-                "End date in YYYY-MM-DD format. Used with 'summary' action.",
-            },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_users",
+      description:
+        "Get team members and users from the database. Use for questions about team members, editors, salespersons.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Filter users by name",
+          },
+          role: {
+            type: "string",
+            description:
+              "Filter by role: admin, manager, sales, editor, shoot",
           },
         },
       },
-    ],
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_dashboard_summary",
+      description:
+        "Get overall CRM dashboard summary and live statistics. Use for questions like 'how are we doing this month' or 'give me a summary'.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_attendance",
+      description:
+        "Get attendance data from the CRM. Use for any questions about attendance, check-ins, check-outs, leaves, leave balance, team attendance, LOP (Loss of Pay), absences, late arrivals, or monthly attendance summary. Actions available: 'my-attendance' (personal today's record), 'team-attendance' (full team for a date), 'summary' (team summary for a date range), 'my-summary' (personal monthly breakdown), 'my-leaves' (personal leave history), 'leave-balance' (remaining leaves), 'team-leaves' (pending team leave requests), 'lop-overrides' (LOP override requests), 'full-day-requests' (pending full-day work-from-home requests).",
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            description:
+              "Which attendance data to fetch. One of: 'my-attendance', 'team-attendance', 'summary', 'my-summary', 'my-leaves', 'leave-balance', 'team-leaves', 'lop-overrides', 'full-day-requests'. Defaults to 'my-attendance'.",
+          },
+          date: {
+            type: "string",
+            description:
+              "Date in YYYY-MM-DD format. Required for 'team-attendance'. Optional for others.",
+          },
+          startDate: {
+            type: "string",
+            description:
+              "Start date in YYYY-MM-DD format. Used with 'summary' action.",
+          },
+          endDate: {
+            type: "string",
+            description:
+              "End date in YYYY-MM-DD format. Used with 'summary' action.",
+          },
+        },
+      },
+    },
   },
 ];
 
-async function executeExpressTool(
+// ── Tool executor ─────────────────────────────────────────────────────────────
+
+async function executeTool(
   name: string,
   args: Record<string, unknown>,
   token?: string
@@ -162,9 +185,11 @@ async function executeExpressTool(
     "Content-Type": "application/json",
     "x-n8n-secret": process.env.N8N_SECRET || "",
   };
-  
+
   if (token) {
-    headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+    headers["Authorization"] = token.startsWith("Bearer ")
+      ? token
+      : `Bearer ${token}`;
   }
 
   try {
@@ -220,7 +245,9 @@ async function executeExpressTool(
       }
 
       case "get_dashboard_summary":
-        return fetch(`${base}/realtime-data`, { headers }).then((r) => r.json());
+        return fetch(`${base}/realtime-data`, { headers }).then((r) =>
+          r.json()
+        );
 
       case "get_attendance": {
         const params = new URLSearchParams();
@@ -242,19 +269,75 @@ async function executeExpressTool(
   }
 }
 
+// ── Groq API call with retry + backoff on 429 ────────────────────────────────
+
+async function callGroq(
+  messages: unknown[],
+  apiKey: string,
+  retries = 4
+): Promise<any> {
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        tools,
+        tool_choice: "auto",
+        max_tokens: 1024,
+      }),
+    });
+
+    if (res.status === 429) {
+      // Parse retry-after from the response body if available
+      let waitMs = 20000; // default 20s
+      try {
+        const errBody = await res.json();
+        const retryMatch = errBody?.error?.message?.match(/retry in (\d+)/i);
+        if (retryMatch) waitMs = (parseInt(retryMatch[1]) + 2) * 1000;
+      } catch {}
+      console.warn(
+        `⏳ Groq rate limit hit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Groq API Error: ${res.status} ${errorText}`);
+    }
+
+    return res.json();
+  }
+
+  throw new Error("Groq API Error: Rate limit exceeded after multiple retries. Please try again in a moment.");
+}
+
+// ── POST handler ──────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, userRole, userEmail, userName } = await req.json();
-    const token = req.headers.get("x-auth-token") || req.headers.get("authorization") || "";
+    const token =
+      req.headers.get("x-auth-token") ||
+      req.headers.get("authorization") ||
+      "";
     const firstName = userName?.split(" ")[0] || "there";
 
-    const systemInstruction = `You are Aria, the AI assistant for Hogwarts Media Studio CRM. You help the internal team manage clients, shoots, payments, editing workflows, and general studio operations.
+    const systemPrompt = `You are Aria, the AI assistant for Hogwarts Media Studio CRM. You help the internal team manage clients, shoots, payments, editing workflows, and general studio operations.
 
 Current user: ${firstName} | Role: ${userRole} | Email: ${userEmail}
 
 PERSONALITY: Professional, warm, concise. Address the user by their first name occasionally. Use emojis sparingly but meaningfully.
 
-DATABASE ACCESS: You have live tools to query the CRM database. Use them proactively when users ask about specific clients, payments, shoots, tasks, or team members. Always fetch fresh data rather than guessing.
+DATABASE ACCESS: You have live tools to query the CRM database. Use them proactively when users ask about specific clients, payments, shoots, tasks, attendance, or team members. Always fetch fresh data rather than guessing.
 
 ROLE-BASED ACCESS RULES — strictly enforce these:
 - admin / manager / super_admin: full access to all tools and data
@@ -277,86 +360,69 @@ RESPONSE FORMAT:
 - When showing multiple records, format as a clean numbered list
 - For errors or no data found, be helpful and suggest what to try instead`;
 
-    const rawHistory = messages.map((m: { role: string; content: string }) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
+    // Build OpenAI-format message history
+    const groqMessages: any[] = [{ role: "system", content: systemPrompt }];
 
-    const history: Array<any> = [];
-    for (const msg of rawHistory) {
-      if (history.length > 0 && history[history.length - 1].role === msg.role) {
-        history[history.length - 1].parts[0].text += "\n\n" + msg.parts[0].text;
-      } else {
-        history.push(msg);
-      }
-    }
-    
-    if (history.length > 0 && history[0].role === "model") {
-      history.shift();
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY!;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
-
-    let currentContents = [...history];
-
-    const makeRequest = async (contents: any[]) => {
-      const payload = {
-        contents,
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        tools,
-      };
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    for (const m of messages) {
+      groqMessages.push({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
       });
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Gemini API Error: ${res.status} ${errorText}`);
-      }
-      return res.json();
-    };
+    }
 
-    let responseJson = await makeRequest(currentContents);
+    const apiKey = process.env.GROQ_API_KEY!;
+
+    // Agentic loop — keep calling until no more tool calls (max 5 iterations)
     let iterations = 0;
 
-    // Agentic loop
-    while (
-      responseJson.candidates?.[0]?.content?.parts?.some((p: any) => p.functionCall) &&
-      iterations < 5
-    ) {
-      iterations++;
-      const modelContent = responseJson.candidates[0].content;
-      // Push exactly what the model returned to history, preserving thought_signatures
-      currentContents.push(modelContent);
+    while (iterations < 5) {
+      const responseJson = await callGroq(groqMessages, apiKey);
+      const choice = responseJson.choices?.[0];
+      const assistantMsg = choice?.message;
 
-      const functionCalls = modelContent.parts.filter((p: any) => p.functionCall).map((p: any) => p.functionCall);
-      const toolResultsParts = [];
+      if (!assistantMsg) {
+        throw new Error("Empty response from Groq");
+      }
 
-      for (const call of functionCalls) {
-        const result = await executeExpressTool(call.name, call.args, token);
-        toolResultsParts.push({
-          functionResponse: {
-            name: call.name,
-            response: { result },
-          },
+      // Push assistant message (may contain tool_calls)
+      groqMessages.push(assistantMsg);
+
+      const toolCalls = assistantMsg.tool_calls;
+
+      // No tool calls → final text response
+      if (!toolCalls || toolCalls.length === 0) {
+        const text = assistantMsg.content || "I processed the data.";
+        return Response.json({ message: text });
+      }
+
+      // Execute each tool call and push results
+      for (const call of toolCalls) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(call.function.arguments || "{}");
+        } catch {}
+
+        const result = await executeTool(call.function.name, args, token);
+
+        groqMessages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(result),
         });
       }
 
-      // Add tool responses as a 'user' message
-      currentContents.push({
-        role: "user",
-        parts: toolResultsParts,
-      });
-
-      responseJson = await makeRequest(currentContents);
+      iterations++;
     }
 
-    const finalParts = responseJson.candidates?.[0]?.content?.parts || [];
-    const textPart = finalParts.find((p: any) => p.text);
-    
-    return Response.json({ message: textPart?.text || "I processed the data." });
+    // Fallback: ask for a plain response after max iterations
+    groqMessages.push({
+      role: "user",
+      content: "Please summarise the data you have retrieved so far.",
+    });
+    const finalJson = await callGroq(groqMessages, apiKey);
+    const finalText =
+      finalJson.choices?.[0]?.message?.content || "I processed the data.";
+    return Response.json({ message: finalText });
   } catch (err: any) {
     console.error("Chat API error:", err);
     return Response.json(

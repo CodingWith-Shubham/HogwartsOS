@@ -338,7 +338,6 @@ async function callGroq(
         messages,
         tools,
         tool_choice: "auto",
-        max_tokens: 1024,
       }),
     });
 
@@ -420,7 +419,10 @@ RESPONSE FORMAT:
     // Build OpenAI-format message history
     const groqMessages: any[] = [{ role: "system", content: systemPrompt }];
 
-    for (const m of messages) {
+    // Only take the last 10 messages from the conversation history
+    const recentMessages = messages.slice(-10);
+
+    for (const m of recentMessages) {
       groqMessages.push({
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content,
@@ -461,10 +463,17 @@ RESPONSE FORMAT:
 
         const result = await executeTool(call.function.name, args, token);
 
+        // Prevent massive payloads from crashing the AI
+        let stringifiedResult = JSON.stringify(result);
+        if (stringifiedResult.length > 5000) {
+          stringifiedResult = stringifiedResult.substring(0, 5000) + 
+          "... [DATA TRUNCATED: The result was too large. Please narrow your search criteria.]";
+        }
+
         groqMessages.push({
           role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify(result),
+          content: stringifiedResult,
         });
       }
 

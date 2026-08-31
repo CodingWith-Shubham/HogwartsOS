@@ -212,12 +212,21 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     const options = {
       httpOnly: true,
       secure: true,
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    }
+    const refreshOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 365 days
     }
     const { accessToken, refreshToken: newRefreshToken } = await generateAccessandRefreshToken(user._id);
-    user.refreshToken = newRefreshToken;
-    await user.save({ validateBeforeSave: false });
 
-    return res.status(200).cookie("accessToken", accessToken, options).cookie("refreshToken", newRefreshToken, options).json(new ApiResponse(200, { accessToken, refreshToken: newRefreshToken }, "Access token refreshed successfully"));
+    return res.status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, refreshOptions)
+      .json(new ApiResponse(200, { accessToken, refreshToken: newRefreshToken }, "Access token refreshed successfully"));
 
   } catch (error) {
     throw new ApiError(401, "Unauthorized: Invalid refresh token", []);

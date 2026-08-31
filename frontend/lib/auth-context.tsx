@@ -25,20 +25,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const initAuth = useCallback(() => {
+  const initAuth = useCallback(async () => {
     if (typeof window === 'undefined') {
       setIsLoading(false);
       return;
     }
     try {
       const session = window.localStorage.getItem(SESSION_KEY);
-      if (session) {
-        const parsedUser = JSON.parse(session);
-        setUser(parsedUser);
-        fetchUsers();
+      if (!session) {
+        setIsLoading(false);
+        return;
+      }
+      // We have a stored session — verify it's still valid with the backend
+      const res = await authFetch('/api/auth/me');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          // Refresh the stored session with the latest user data from server
+          window.localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+          setUser(data.user);
+          fetchUsers();
+        } else {
+          // Server responded but session is invalid — clear and go to login
+          window.localStorage.removeItem(SESSION_KEY);
+          window.localStorage.removeItem(TOKEN_KEY);
+        }
+      } else {
+        // authFetch already tried to refresh the token automatically.
+        // If we still get a non-ok response, the session is truly dead.
+        window.localStorage.removeItem(SESSION_KEY);
+        window.localStorage.removeItem(TOKEN_KEY);
       }
     } catch (e) {
-      console.warn('Failed to parse auth session:', e);
+      console.warn('Failed to verify auth session with backend:', e);
+      // On network error, fall back to the stored session so offline use still works
+      try {
+        const session = window.localStorage.getItem(SESSION_KEY);
+        if (session) setUser(JSON.parse(session));
+      } catch (_) {}
     } finally {
       setIsLoading(false);
     }

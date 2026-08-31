@@ -7,6 +7,7 @@ export async function POST() {
   try {
     cookies().delete('howgarts_session');
     cookies().delete('howgarts_token');
+    cookies().delete('howgarts_refresh_token');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Logout API error:', error);

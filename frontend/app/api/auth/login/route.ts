@@ -35,21 +35,32 @@ export async function POST(request: Request) {
 
     const user = resData.data.user;
     const accessToken = resData.data.accessToken;
+    const refreshToken = resData.data.refreshToken;
 
     // Store user session info in a non-httpOnly cookie (readable by client JS)
     cookies().set('howgarts_session', JSON.stringify(user), {
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       httpOnly: false,
     });
 
     // Store the JWT access token in an httpOnly cookie (used by server-side API routes)
     cookies().set('howgarts_token', accessToken, {
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       httpOnly: true,
       sameSite: 'lax',
     });
+
+    // Store the refresh token in an httpOnly cookie (used for silent token refresh)
+    if (refreshToken) {
+      cookies().set('howgarts_refresh_token', refreshToken, {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365, // 365 days
+        httpOnly: true,
+        sameSite: 'lax',
+      });
+    }
 
     return NextResponse.json({ success: true, user, token: accessToken });
   } catch (error) {

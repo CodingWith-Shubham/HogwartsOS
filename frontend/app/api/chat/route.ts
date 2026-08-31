@@ -302,12 +302,10 @@ async function resolveGroqModel(apiKey: string): Promise<string> {
       }
     }
 
-    // Fallback: use first available model
-    if (available.length > 0) {
-      console.warn(`⚠️ No preferred model available, falling back to: ${available[0]}`);
-      cachedModel = available[0];
-      return available[0];
-    }
+    // We shouldn't blindly fallback to available[0] as it might be an audio or gated model.
+    console.warn(`⚠️ No preferred model found in your Groq tier, defaulting to llama-3.1-8b-instant`);
+    cachedModel = "llama-3.1-8b-instant";
+    return cachedModel;
   } catch (e) {
     console.error("Model resolution failed, using default fallback:", e);
   }

@@ -269,7 +269,54 @@ async function executeTool(
   }
 }
 
-// ── Groq API call with retry + backoff on 429 ────────────────────────────────
+// ── Dynamic model resolution ──────────────────────────────────────────────────
+// Preferred models in order — best tool-use quality first.
+// The resolver picks the first one that exists on the account's tier.
+const MODEL_PREFERENCE = [
+  "llama-3.3-70b-specdec",
+  "llama-3.3-70b-versatile",
+  "llama3-groq-70b-8192-tool-use-preview",
+  "llama-3.1-70b-versatile",
+  "llama3-groq-8b-8192-tool-use-preview",
+  "llama-3.1-8b-instant",
+];
+
+let cachedModel: string | null = null;
+
+async function resolveGroqModel(apiKey: string): Promise<string> {
+  if (cachedModel) return cachedModel;
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) throw new Error("Could not fetch model list");
+    const data = await res.json();
+    const available: string[] = (data.data ?? []).map((m: any) => m.id);
+
+    for (const preferred of MODEL_PREFERENCE) {
+      if (available.includes(preferred)) {
+        console.log(`✅ Groq model selected: ${preferred}`);
+        cachedModel = preferred;
+        return preferred;
+      }
+    }
+
+    // Fallback: use first available model
+    if (available.length > 0) {
+      console.warn(`⚠️ No preferred model available, falling back to: ${available[0]}`);
+      cachedModel = available[0];
+      return available[0];
+    }
+  } catch (e) {
+    console.error("Model resolution failed, using default fallback:", e);
+  }
+
+  // Hard fallback if model list fetch itself fails
+  return "llama-3.1-8b-instant";
+}
+
+// ── Groq API call with retry + backoff on 429 / model rotation on 404 ─────────
 
 async function callGroq(
   messages: unknown[],
@@ -277,6 +324,7 @@ async function callGroq(
   retries = 4
 ): Promise<any> {
   const url = "https://api.groq.com/openai/v1/chat/completions";
+  let model = await resolveGroqModel(apiKey);
 
   for (let attempt = 0; attempt < retries; attempt++) {
     const res = await fetch(url, {
@@ -286,7 +334,7 @@ async function callGroq(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model,
         messages,
         tools,
         tool_choice: "auto",
@@ -294,18 +342,27 @@ async function callGroq(
       }),
     });
 
+    // Rate limit — wait and retry
     if (res.status === 429) {
-      // Parse retry-after from the response body if available
-      let waitMs = 20000; // default 20s
+      let waitMs = 20000;
       try {
         const errBody = await res.json();
-        const retryMatch = errBody?.error?.message?.match(/retry in (\d+)/i);
-        if (retryMatch) waitMs = (parseInt(retryMatch[1]) + 2) * 1000;
+        const retryMatch = errBody?.error?.message?.match(/retry in ([\d.]+)/i);
+        if (retryMatch) waitMs = (parseFloat(retryMatch[1]) + 2) * 1000;
       } catch {}
-      console.warn(
-        `⏳ Groq rate limit hit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`
-      );
+      console.warn(`⏳ Groq rate limit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
+      continue;
+    }
+
+    // Model not found — clear cache, rotate to next preferred model
+    if (res.status === 404) {
+      console.warn(`⚠️ Model "${model}" not available, rotating to next...`);
+      cachedModel = null;
+      const currentIdx = MODEL_PREFERENCE.indexOf(model);
+      const next = MODEL_PREFERENCE.slice(currentIdx + 1);
+      model = next.length > 0 ? next[0] : "llama-3.1-8b-instant";
+      cachedModel = model;
       continue;
     }
 

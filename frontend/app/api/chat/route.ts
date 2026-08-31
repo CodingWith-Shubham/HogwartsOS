@@ -8,16 +8,10 @@ const tools = [
     type: "function",
     function: {
       name: "get_client_by_lead_id",
-      description:
-        "Get a specific client or lead from the database by their lead ID. Use when user mentions a specific lead ID like HL-XXXXX.",
+      description: "Get client by lead ID e.g. HL-XXXXX",
       parameters: {
         type: "object",
-        properties: {
-          lead_id: {
-            type: "string",
-            description: "The lead ID e.g. HL-MRUJE2WM",
-          },
-        },
+        properties: { lead_id: { type: "string" } },
         required: ["lead_id"],
       },
     },
@@ -26,20 +20,12 @@ const tools = [
     type: "function",
     function: {
       name: "get_clients_list",
-      description:
-        "Get list of all clients and leads from the database, optionally filtered by status. Use for questions like 'show me all new leads' or 'how many clients do we have'.",
+      description: "List clients, filter by status",
       parameters: {
         type: "object",
         properties: {
-          status: {
-            type: "string",
-            description:
-              "Filter by status. Valid values: New Lead, Proposal Sent, Proposal Accepted, Awaiting Payment, Payment Under Review, Awaiting Shoot, Shoot Scheduled, Shoot Done, Payment Completed",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum number of results to return. Default 20.",
-          },
+          status: { type: "string" },
+          limit: { type: "number" },
         },
       },
     },
@@ -48,19 +34,12 @@ const tools = [
     type: "function",
     function: {
       name: "get_payments",
-      description:
-        "Get payment records from the database. Use for questions about payments, pending amounts, verified payments.",
+      description: "Get payments by lead ID or payment ID",
       parameters: {
         type: "object",
         properties: {
-          lead_id: {
-            type: "string",
-            description: "Filter payments by lead ID",
-          },
-          payment_id: {
-            type: "string",
-            description: "Get a specific payment by payment ID",
-          },
+          lead_id: { type: "string" },
+          payment_id: { type: "string" },
         },
       },
     },
@@ -69,19 +48,12 @@ const tools = [
     type: "function",
     function: {
       name: "get_shoots",
-      description:
-        "Get shoot records from the database. Use for questions about scheduled shoots, upcoming shoots, shoot dates.",
+      description: "Get shoots by lead ID or date",
       parameters: {
         type: "object",
         properties: {
-          lead_id: {
-            type: "string",
-            description: "Filter shoots by lead ID",
-          },
-          shoot_date: {
-            type: "string",
-            description: "Filter shoots by date in YYYY-MM-DD format",
-          },
+          lead_id: { type: "string" },
+          shoot_date: { type: "string" },
         },
       },
     },
@@ -90,16 +62,10 @@ const tools = [
     type: "function",
     function: {
       name: "get_editing_tasks",
-      description:
-        "Get editing tasks from the database. Use for questions about editing work, editor assignments, draft status.",
+      description: "Get editing tasks by editor email",
       parameters: {
         type: "object",
-        properties: {
-          editor_email: {
-            type: "string",
-            description: "Filter tasks by editor email address",
-          },
-        },
+        properties: { editor_email: { type: "string" } },
       },
     },
   },
@@ -107,20 +73,12 @@ const tools = [
     type: "function",
     function: {
       name: "get_users",
-      description:
-        "Get team members and users from the database. Use for questions about team members, editors, salespersons.",
+      description: "Get team members by name or role",
       parameters: {
         type: "object",
         properties: {
-          name: {
-            type: "string",
-            description: "Filter users by name",
-          },
-          role: {
-            type: "string",
-            description:
-              "Filter by role: admin, manager, sales, editor, shoot",
-          },
+          name: { type: "string" },
+          role: { type: "string" },
         },
       },
     },
@@ -129,43 +87,22 @@ const tools = [
     type: "function",
     function: {
       name: "get_dashboard_summary",
-      description:
-        "Get overall CRM dashboard summary and live statistics. Use for questions like 'how are we doing this month' or 'give me a summary'.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
+      description: "Get dashboard summary",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
     type: "function",
     function: {
       name: "get_attendance",
-      description:
-        "Get attendance data from the CRM. Use for any questions about attendance, check-ins, check-outs, leaves, leave balance, team attendance, LOP (Loss of Pay), absences, late arrivals, or monthly attendance summary. Actions available: 'my-attendance' (personal today's record), 'team-attendance' (full team for a date), 'summary' (team summary for a date range), 'my-summary' (personal monthly breakdown), 'my-leaves' (personal leave history), 'leave-balance' (remaining leaves), 'team-leaves' (pending team leave requests), 'lop-overrides' (LOP override requests), 'full-day-requests' (pending full-day work-from-home requests).",
+      description: "Action: 'my-attendance', 'team-attendance', 'summary', 'my-summary', 'my-leaves', 'leave-balance', 'team-leaves', 'lop-overrides', 'full-day-requests'",
       parameters: {
         type: "object",
         properties: {
-          action: {
-            type: "string",
-            description:
-              "Which attendance data to fetch. One of: 'my-attendance', 'team-attendance', 'summary', 'my-summary', 'my-leaves', 'leave-balance', 'team-leaves', 'lop-overrides', 'full-day-requests'. Defaults to 'my-attendance'.",
-          },
-          date: {
-            type: "string",
-            description:
-              "Date in YYYY-MM-DD format. Required for 'team-attendance'. Optional for others.",
-          },
-          startDate: {
-            type: "string",
-            description:
-              "Start date in YYYY-MM-DD format. Used with 'summary' action.",
-          },
-          endDate: {
-            type: "string",
-            description:
-              "End date in YYYY-MM-DD format. Used with 'summary' action.",
-          },
+          action: { type: "string" },
+          date: { type: "string" },
+          startDate: { type: "string" },
+          endDate: { type: "string" },
         },
       },
     },
@@ -341,12 +278,19 @@ async function callGroq(
 
     // Rate limit — wait and retry
     if (res.status === 429) {
-      let waitMs = 20000;
+      const retryAfter = res.headers.get("retry-after");
+      let waitMs = retryAfter ? (parseInt(retryAfter) + 1) * 1000 : 20000;
+      
       try {
         const errBody = await res.json();
-        const retryMatch = errBody?.error?.message?.match(/retry in ([\d.]+)/i);
-        if (retryMatch) waitMs = (parseFloat(retryMatch[1]) + 2) * 1000;
+        console.error("GROQ RATE LIMIT PAYLOAD:", JSON.stringify(errBody, null, 2));
+        
+        if (!retryAfter) {
+          const retryMatch = errBody?.error?.message?.match(/retry in ([\d.]+)/i);
+          if (retryMatch) waitMs = (parseFloat(retryMatch[1]) + 2) * 1000;
+        }
       } catch {}
+      
       console.warn(`⏳ Groq rate limit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       continue;

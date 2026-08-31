@@ -214,7 +214,7 @@ async function callGeminiOpenAI(
   retries = 4
 ): Promise<any> {
   const url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.6-flash";
 
   for (let attempt = 0; attempt < retries; attempt++) {
     const res = await fetch(url, {

@@ -117,6 +117,36 @@ const tools = [
           properties: {},
         },
       },
+      {
+        name: "get_attendance",
+        description:
+          "Get attendance data from the CRM. Use for any questions about attendance, check-ins, check-outs, leaves, leave balance, team attendance, LOP (Loss of Pay), absences, late arrivals, or monthly attendance summary. Actions available: 'my-attendance' (personal today's record), 'team-attendance' (full team for a date), 'summary' (team summary for a date range), 'my-summary' (personal monthly breakdown), 'my-leaves' (personal leave history), 'leave-balance' (remaining leaves), 'team-leaves' (pending team leave requests), 'lop-overrides' (LOP override requests), 'full-day-requests' (pending full-day work-from-home requests).",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            action: {
+              type: "STRING",
+              description:
+                "Which attendance data to fetch. One of: 'my-attendance', 'team-attendance', 'summary', 'my-summary', 'my-leaves', 'leave-balance', 'team-leaves', 'lop-overrides', 'full-day-requests'. Defaults to 'my-attendance'.",
+            },
+            date: {
+              type: "STRING",
+              description:
+                "Date in YYYY-MM-DD format. Required for 'team-attendance'. Optional for others.",
+            },
+            startDate: {
+              type: "STRING",
+              description:
+                "Start date in YYYY-MM-DD format. Used with 'summary' action.",
+            },
+            endDate: {
+              type: "STRING",
+              description:
+                "End date in YYYY-MM-DD format. Used with 'summary' action.",
+            },
+          },
+        },
+      },
     ],
   },
 ];
@@ -192,6 +222,18 @@ async function executeExpressTool(
       case "get_dashboard_summary":
         return fetch(`${base}/realtime-data`, { headers }).then((r) => r.json());
 
+      case "get_attendance": {
+        const params = new URLSearchParams();
+        const action = args.action ? String(args.action) : "my-attendance";
+        params.set("action", action);
+        if (args.date) params.set("date", String(args.date));
+        if (args.startDate) params.set("startDate", String(args.startDate));
+        if (args.endDate) params.set("endDate", String(args.endDate));
+        return fetch(`${base}/attendance?${params}`, { headers }).then((r) =>
+          r.json()
+        );
+      }
+
       default:
         return { error: "Unknown tool" };
     }
@@ -215,10 +257,10 @@ PERSONALITY: Professional, warm, concise. Address the user by their first name o
 DATABASE ACCESS: You have live tools to query the CRM database. Use them proactively when users ask about specific clients, payments, shoots, tasks, or team members. Always fetch fresh data rather than guessing.
 
 ROLE-BASED ACCESS RULES — strictly enforce these:
-- admin / manager: full access to all tools and data
-- sales: can only use get_clients_list, get_client_by_lead_id, get_payments. Politely decline other data requests.
-- editor: can only use get_editing_tasks (filtered to their own email). Politely decline other data requests.
-- shoot: can only use get_shoots. Politely decline other data requests.
+- admin / manager / super_admin: full access to all tools and data
+- sales: can only use get_clients_list, get_client_by_lead_id, get_payments, get_attendance (my-attendance, my-leaves, leave-balance only). Politely decline other data requests.
+- editor: can only use get_editing_tasks (filtered to their own email), get_attendance (my-attendance, my-leaves, leave-balance only). Politely decline other data requests.
+- shoot: can only use get_shoots, get_attendance (my-attendance, my-leaves, leave-balance only). Politely decline other data requests.
 
 HOGWARTS MEDIA STUDIO INFO (answer these without tools):
 - Services: Podcast production, Reel editing, Long-format videos, Teasers, Thumbnails, Product shoots, Corporate videos
@@ -226,6 +268,7 @@ HOGWARTS MEDIA STUDIO INFO (answer these without tools):
 - Payment modes: Online (UPI/Bank transfer) and Cash
 - Editing statuses: Assigned → In Progress → Review → Completed
 - Lead statuses: New Lead → Proposal Sent → Proposal Accepted → Awaiting Payment → Awaiting Shoot → Shoot Scheduled → Shoot Done → Payment Completed
+- Attendance: Tracked per employee daily. Statuses include Present, Absent, Late, Half Day, Weekly Off, Leave. Use get_attendance tool with the appropriate action to fetch real data.
 
 RESPONSE FORMAT:
 - Keep answers under 150 words unless showing data tables

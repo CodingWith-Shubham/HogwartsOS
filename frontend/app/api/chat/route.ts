@@ -206,60 +206,15 @@ async function executeTool(
   }
 }
 
-// ── Dynamic model resolution ──────────────────────────────────────────────────
-// Preferred models in order — best tool-use quality first.
-// The resolver picks the first one that exists on the account's tier.
-const MODEL_PREFERENCE = [
-  "llama-3.3-70b-specdec",
-  "llama-3.3-70b-versatile",
-  "llama3-groq-70b-8192-tool-use-preview",
-  "llama-3.1-70b-versatile",
-  "llama3-groq-8b-8192-tool-use-preview",
-  "llama-3.1-8b-instant",
-];
+// ── Gemini API call via OpenAI Compatibility Endpoint ─────────────────────────
 
-let cachedModel: string | null = null;
-
-async function resolveGroqModel(apiKey: string): Promise<string> {
-  if (cachedModel) return cachedModel;
-
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) throw new Error("Could not fetch model list");
-    const data = await res.json();
-    const available: string[] = (data.data ?? []).map((m: any) => m.id);
-
-    for (const preferred of MODEL_PREFERENCE) {
-      if (available.includes(preferred)) {
-        console.log(`✅ Groq model selected: ${preferred}`);
-        cachedModel = preferred;
-        return preferred;
-      }
-    }
-
-    // We shouldn't blindly fallback to available[0] as it might be an audio or gated model.
-    console.warn(`⚠️ No preferred model found in your Groq tier, defaulting to llama-3.1-8b-instant`);
-    cachedModel = "llama-3.1-8b-instant";
-    return cachedModel;
-  } catch (e) {
-    console.error("Model resolution failed, using default fallback:", e);
-  }
-
-  // Hard fallback if model list fetch itself fails
-  return "llama-3.1-8b-instant";
-}
-
-// ── Groq API call with retry + backoff on 429 / model rotation on 404 ─────────
-
-async function callGroq(
+async function callGeminiOpenAI(
   messages: unknown[],
   apiKey: string,
   retries = 4
 ): Promise<any> {
-  const url = "https://api.groq.com/openai/v1/chat/completions";
-  let model = await resolveGroqModel(apiKey);
+  const url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+  const model = "gemini-2.5-flash";
 
   for (let attempt = 0; attempt < retries; attempt++) {
     const res = await fetch(url, {
@@ -278,44 +233,21 @@ async function callGroq(
 
     // Rate limit — wait and retry
     if (res.status === 429) {
-      const retryAfter = res.headers.get("retry-after");
-      let waitMs = retryAfter ? (parseInt(retryAfter) + 1) * 1000 : 20000;
-      
-      try {
-        const errBody = await res.json();
-        console.error("GROQ RATE LIMIT PAYLOAD:", JSON.stringify(errBody, null, 2));
-        
-        if (!retryAfter) {
-          const retryMatch = errBody?.error?.message?.match(/retry in ([\d.]+)/i);
-          if (retryMatch) waitMs = (parseFloat(retryMatch[1]) + 2) * 1000;
-        }
-      } catch {}
-      
-      console.warn(`⏳ Groq rate limit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`);
+      const waitMs = 20000;
+      console.warn(`⏳ Gemini rate limit hit. Waiting ${waitMs / 1000}s (attempt ${attempt + 1}/${retries})...`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
-      continue;
-    }
-
-    // Model not found — clear cache, rotate to next preferred model
-    if (res.status === 404) {
-      console.warn(`⚠️ Model "${model}" not available, rotating to next...`);
-      cachedModel = null;
-      const currentIdx = MODEL_PREFERENCE.indexOf(model);
-      const next = MODEL_PREFERENCE.slice(currentIdx + 1);
-      model = next.length > 0 ? next[0] : "llama-3.1-8b-instant";
-      cachedModel = model;
       continue;
     }
 
     if (!res.ok) {
       const errorText = await res.text();
-      throw new Error(`Groq API Error: ${res.status} ${errorText}`);
+      throw new Error(`Gemini API Error: ${res.status} ${errorText}`);
     }
 
     return res.json();
   }
 
-  throw new Error("Groq API Error: Rate limit exceeded after multiple retries. Please try again in a moment.");
+  throw new Error("Gemini API Error: Rate limit exceeded after multiple retries. Please try again in a moment.");
 }
 
 // ── POST handler ──────────────────────────────────────────────────────────────
@@ -359,34 +291,34 @@ RESPONSE FORMAT:
 - For errors or no data found, be helpful and suggest what to try instead`;
 
     // Build OpenAI-format message history
-    const groqMessages: any[] = [{ role: "system", content: systemPrompt }];
+    const aiMessages: any[] = [{ role: "system", content: systemPrompt }];
 
     // Only take the last 10 messages from the conversation history
     const recentMessages = messages.slice(-10);
 
     for (const m of recentMessages) {
-      groqMessages.push({
+      aiMessages.push({
         role: m.role === "assistant" ? "assistant" : "user",
         content: m.content,
       });
     }
 
-    const apiKey = process.env.GROQ_API_KEY!;
+    const apiKey = process.env.GEMINI_API_KEY!;
 
     // Agentic loop — keep calling until no more tool calls (max 5 iterations)
     let iterations = 0;
 
     while (iterations < 5) {
-      const responseJson = await callGroq(groqMessages, apiKey);
+      const responseJson = await callGeminiOpenAI(aiMessages, apiKey);
       const choice = responseJson.choices?.[0];
       const assistantMsg = choice?.message;
 
       if (!assistantMsg) {
-        throw new Error("Empty response from Groq");
+        throw new Error("Empty response from Gemini API");
       }
 
       // Push assistant message (may contain tool_calls)
-      groqMessages.push(assistantMsg);
+      aiMessages.push(assistantMsg);
 
       const toolCalls = assistantMsg.tool_calls;
 
@@ -412,7 +344,7 @@ RESPONSE FORMAT:
           "... [DATA TRUNCATED: The result was too large. Please narrow your search criteria.]";
         }
 
-        groqMessages.push({
+        aiMessages.push({
           role: "tool",
           tool_call_id: call.id,
           content: stringifiedResult,
@@ -423,11 +355,11 @@ RESPONSE FORMAT:
     }
 
     // Fallback: ask for a plain response after max iterations
-    groqMessages.push({
+    aiMessages.push({
       role: "user",
       content: "Please summarise the data you have retrieved so far.",
     });
-    const finalJson = await callGroq(groqMessages, apiKey);
+    const finalJson = await callGeminiOpenAI(aiMessages, apiKey);
     const finalText =
       finalJson.choices?.[0]?.message?.content || "I processed the data.";
     return Response.json({ message: finalText });

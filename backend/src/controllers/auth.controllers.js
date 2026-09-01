@@ -16,7 +16,9 @@ const generateAccessandRefreshToken = async (userId) => {
     const user = await User.findById(userId);
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-    user.refreshToken = refreshToken;
+    // Keep at most 5 active sessions (removes the oldest when limit is reached)
+    const tokens = Array.isArray(user.refreshTokens) ? user.refreshTokens : [];
+    user.refreshTokens = [...tokens.slice(-4), refreshToken];
     await user.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };
   } catch (error) {
@@ -116,19 +118,26 @@ const loginUser = asyncHandler(async (req, res, next) => {
   const { accessToken, refreshToken } = await generateAccessandRefreshToken(
     user._id,
   );
-  const options = {
+  const accessOptions = {
     httpOnly: true,
     secure: true,
     sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000,   // 30 days
   };
-  res.cookie("refreshToken", refreshToken, options);
-  res.cookie("accessToken", accessToken, options);
+  const refreshCookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 365 * 24 * 60 * 60 * 1000,  // 365 days
+  };
+  res.cookie("accessToken", accessToken, accessOptions);
+  res.cookie("refreshToken", refreshToken, refreshCookieOptions);
   return res.status(200).json(
     new ApiResponse(
       200,
       {
         accessToken,
+        refreshToken,
         user: sanitizeUser(user),
       },
       "Login successful",
@@ -162,12 +171,23 @@ const verifyEmail = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(req.user._id, { refreshToken: null }, { new: true });
+  // Remove only the current device's refresh token so other sessions stay active
+  const currentRefreshToken = req.cookies?.refreshToken;
+  if (currentRefreshToken) {
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { $pull: { refreshTokens: currentRefreshToken } },
+      { new: true }
+    );
+  }
   const options = {
     httpOnly: true,
     secure: true
   }
-  return res.status(200).clearCookie("refreshToken", options).clearCookie("accessToken", options).json(new ApiResponse(200, {}, "Logout successful"))
+  return res.status(200)
+    .clearCookie("refreshToken", options)
+    .clearCookie("accessToken", options)
+    .json(new ApiResponse(200, {}, "Logout successful"));
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
@@ -206,10 +226,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     const decodedToken = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     const user = await User.findById(decodedToken._id);
-    if(!user || user.refreshToken !== refreshToken){
+    if (!user || !Array.isArray(user.refreshTokens) || !user.refreshTokens.includes(refreshToken)) {
       throw new ApiError(401, "Unauthorized: Invalid refresh token", []);
     }
-    const options = {
+    const accessOptions = {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
@@ -221,10 +241,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       sameSite: "strict",
       maxAge: 365 * 24 * 60 * 60 * 1000, // 365 days
     }
+    // Rotate: remove old token, add new one (token rotation for security)
+    await User.findByIdAndUpdate(user._id, { $pull: { refreshTokens: refreshToken } });
     const { accessToken, refreshToken: newRefreshToken } = await generateAccessandRefreshToken(user._id);
 
     return res.status(200)
-      .cookie("accessToken", accessToken, options)
+      .cookie("accessToken", accessToken, accessOptions)
       .cookie("refreshToken", newRefreshToken, refreshOptions)
       .json(new ApiResponse(200, { accessToken, refreshToken: newRefreshToken }, "Access token refreshed successfully"));
 

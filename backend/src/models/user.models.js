@@ -62,8 +62,9 @@ const userSchema = new Schema({
         type: String,
         default: "https://placehold.co/200x200"
     },
-    refreshToken: {
-        type: String
+    refreshTokens: {
+        type: [String],
+        default: []
     },
     emailVerificationToken: {
         type: String

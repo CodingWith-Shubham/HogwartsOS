@@ -59,10 +59,27 @@ function getThisMonthIST(): { year: number; month: number } {
   return { year: ist.getFullYear(), month: ist.getMonth() };
 }
 
-/** Returns true if a YYYY-MM-DD date string falls in the given IST month. */
+/** Safely parses DD/MM/YYYY, YYYY-MM-DD, or ISO strings into a Date object */
+function parseSafeDate(dateStr: string | undefined | null): Date {
+  if (!dateStr) return new Date(NaN);
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      // Assume DD/MM/YYYY
+      return new Date(`${year}-${month}-${day}T00:00:00`);
+    }
+  }
+  if (dateStr.includes('T')) {
+    return new Date(dateStr);
+  }
+  return new Date(dateStr + 'T00:00:00');
+}
+
+/** Returns true if a date string falls in the given IST month. */
 function isInMonth(dateStr: string | undefined, year: number, month: number): boolean {
   if (!dateStr) return false;
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = parseSafeDate(dateStr);
   if (isNaN(d.getTime())) return false;
   return d.getFullYear() === year && d.getMonth() === month;
 }
@@ -76,7 +93,7 @@ function safeNum(v: string | undefined | null): number {
 /** Days between a date string and now, rounded down. */
 function daysSince(dateStr: string | undefined): number {
   if (!dateStr) return 0;
-  const d = new Date(dateStr);
+  const d = parseSafeDate(dateStr);
   if (isNaN(d.getTime())) return 0;
   return Math.floor((Date.now() - d.getTime()) / 86_400_000);
 }
@@ -162,7 +179,7 @@ export async function GET(request: Request) {
     }
 
     const parsePaymentDate = (p: Payment) => {
-      const d = p.paymentLinkSentAt ? new Date(p.paymentLinkSentAt) : new Date(0);
+      const d = parseSafeDate(p.paymentLinkSentAt);
       return isNaN(d.getTime()) ? 0 : d.getTime();
     };
 
@@ -187,7 +204,7 @@ export async function GET(request: Request) {
         status = 'unpaid';
       }
 
-      const linkSentDate = p.paymentLinkSentAt ? new Date(p.paymentLinkSentAt) : null;
+      const linkSentDate = p.paymentLinkSentAt ? parseSafeDate(p.paymentLinkSentAt) : null;
       let dueDateStr = '';
       if (linkSentDate && !isNaN(linkSentDate.getTime())) {
         const dueDateObj = new Date(linkSentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -229,7 +246,7 @@ export async function GET(request: Request) {
     const currentYear = new Date().getFullYear();
     const getMonthName = (dateStr: string | undefined) => {
       if (!dateStr) return null;
-      const d = new Date(dateStr);
+      const d = parseSafeDate(dateStr);
       if (isNaN(d.getTime())) return null;
       if (d.getFullYear() === currentYear) {
         return MONTH_NAMES[d.getMonth()];
@@ -489,12 +506,10 @@ export async function GET(request: Request) {
       editTotal++;
       const statusRaw = (task.status || '').trim();
       const statusLower = statusRaw.toLowerCase();
-      const isDelivered = task.final_delivered === 'true' || task.final_delivered === true as unknown as string || statusLower === 'delivered';
-      const deadlineMs = task.deadline_at ? new Date(task.deadline_at).getTime() : 0;
+      const isDelivered = task.finalDelivered === 'true' || task.finalDelivered === true as unknown as string || statusLower === 'delivered';
+      const deadlineMs = task.deadlineAt ? new Date(task.deadlineAt).getTime() : 0;
       const isOutOfTAT = !isDelivered && deadlineMs > 0 && now > deadlineMs;
-      const assignedAtMs = task.deadline_at ? new Date(task.deadline_at).getTime() : 0; // use assigned_at below
-      const assignedAtActual = (task as any).assigned_at;
-      const assignedAtParsed = assignedAtActual ? new Date(assignedAtActual).getTime() : 0;
+      const assignedAtParsed = task.assignedAt ? new Date(task.assignedAt).getTime() : 0;
 
       if (isDelivered) {
         editDelivered++;
@@ -516,20 +531,20 @@ export async function GET(request: Request) {
       if (!isDelivered) {
         const days = assignedAtParsed > 0 ? Math.floor((now - assignedAtParsed) / 86_400_000) : 0;
         agingList.push({
-          task_id: task.task_id,
-          client_name: task.client_name,
-          task_label: task.task_label,
-          assigned_to_name: task.assigned_to_name,
+          task_id: task.taskId || task.task_id,
+          client_name: task.clientName || task.client_name,
+          task_label: task.taskLabel || task.task_label,
+          assigned_to_name: task.assignedToName || task.assigned_to_name,
           days,
         });
       }
 
       // Per-editor stats
-      const editorKey = task.assigned_to_email || task.assigned_to_name || 'unknown';
+      const editorKey = task.assignedToEmail || task.assigned_to_email || task.assignedToName || task.assigned_to_name || 'unknown';
       if (!editorStatsMap[editorKey]) {
         editorStatsMap[editorKey] = {
-          editor_name: task.assigned_to_name || 'Unknown',
-          editor_email: task.assigned_to_email || '',
+          editor_name: task.assignedToName || task.assigned_to_name || 'Unknown',
+          editor_email: task.assignedToEmail || task.assigned_to_email || '',
           assigned: 0,
           inProgress: 0,
           sharedForReview: 0,

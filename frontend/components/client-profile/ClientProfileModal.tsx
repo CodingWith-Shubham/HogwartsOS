@@ -678,13 +678,13 @@ export function ClientProfileModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <DialogHeader className="pb-3 border-b border-border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
                 <User className="h-5 w-5" />
               </div>
-              <div>
-                <DialogTitle className="text-xl font-bold">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-bold truncate">
                   {formData.name ? formData.name : 'Client Profile'}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
@@ -697,10 +697,10 @@ export function ClientProfileModal({
                 variant="outline"
                 className={
                   formData.clientStatus === 'VIP'
-                    ? 'border-amber-500 bg-amber-500/10 text-amber-500 font-semibold'
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-500 font-semibold shrink-0'
                     : formData.clientStatus === 'Active'
-                    ? 'border-green-500 bg-green-500/10 text-green-500 font-semibold'
-                    : 'border-muted bg-muted/20 text-muted-foreground'
+                    ? 'border-green-500 bg-green-500/10 text-green-500 font-semibold shrink-0'
+                    : 'border-muted bg-muted/20 text-muted-foreground shrink-0'
                 }
               >
                 {formData.clientStatus}
@@ -743,33 +743,40 @@ export function ClientProfileModal({
         ) : (
           <form onSubmit={handleSave} className="space-y-6 pt-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-6 bg-muted/60 p-1 rounded-lg">
-                {!hideContactInfo && (
-                  <>
-                    <TabsTrigger value="basic" className="text-xs md:text-sm">
-                      Basic Info
+              {/* Horizontally-scrollable tab bar — never clips or overlaps on mobile */}
+              <div className="relative">
+                <div className="tabs-scroll-container">
+                  <TabsList className="flex w-max bg-muted/60 p-1 rounded-lg">
+                    {!hideContactInfo && (
+                      <>
+                        <TabsTrigger value="basic" className="shrink-0 text-xs sm:text-sm">
+                          Basic Info
+                        </TabsTrigger>
+                        <TabsTrigger value="sales" className="shrink-0 text-xs sm:text-sm">
+                          Sales Details
+                        </TabsTrigger>
+                      </>
+                    )}
+                    <TabsTrigger value="preferences" className="shrink-0 text-xs sm:text-sm">
+                      Client Prefs
                     </TabsTrigger>
-                    <TabsTrigger value="sales" className="text-xs md:text-sm">
-                      Sales Details
+                    <TabsTrigger
+                      value="editor"
+                      className="shrink-0 text-xs sm:text-sm bg-purple-500/10 data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium"
+                    >
+                      Editor Prefs ✨
                     </TabsTrigger>
-                  </>
-                )}
-                <TabsTrigger value="preferences" className="text-xs md:text-sm">
-                  Client Prefs
-                </TabsTrigger>
-                <TabsTrigger
-                  value="editor"
-                  className="text-xs md:text-sm bg-purple-500/10 data-[state=active]:bg-purple-600 data-[state=active]:text-white font-medium"
-                >
-                  Editor Prefs ✨
-                </TabsTrigger>
-                <TabsTrigger value="status" className="text-xs md:text-sm">
-                  Status
-                </TabsTrigger>
-                <TabsTrigger value="history" className="text-xs md:text-sm">
-                  History ({previousProjects.length})
-                </TabsTrigger>
-              </TabsList>
+                    <TabsTrigger value="status" className="shrink-0 text-xs sm:text-sm">
+                      Status
+                    </TabsTrigger>
+                    <TabsTrigger value="history" className="shrink-0 text-xs sm:text-sm">
+                      History ({previousProjects.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                {/* Right-edge fade affordance to hint more tabs exist */}
+                <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-card to-transparent rounded-r-lg" />
+              </div>
 
               {/* SECTION 1: BASIC INFORMATION */}
               {!hideContactInfo && (

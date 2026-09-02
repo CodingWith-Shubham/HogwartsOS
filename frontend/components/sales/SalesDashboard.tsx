@@ -1468,6 +1468,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         <span className="text-muted-foreground tabular-nums">{lead.serialNo}</span>
       ),
       className: 'w-16',
+      hideOnMobile: true,
     },
     {
       key: 'client',
@@ -1491,6 +1492,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           </div>
         </div>
       ),
+      mobilePrimary: true,
     },
     {
       key: 'assignedTo',
@@ -1504,6 +1506,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       key: 'status',
       header: 'Status',
       cell: (lead) => renderStatusCell(lead),
+      mobileHighlight: true,
     },
     {
       key: 'remaining',
@@ -1516,6 +1519,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       header: 'Actions',
       cell: (lead) => renderActions(lead),
       className: 'w-auto',
+      mobileFooter: true,
     },
   ];
 
@@ -1525,6 +1529,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       header: 'Client / Shoot',
       sortable: true,
       sortValue: (shoot) => shoot.clientName,
+      mobilePrimary: true,
       cell: (shoot) => (
         <div>
           <p className="font-medium">{shoot.clientName}</p>
@@ -1546,6 +1551,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'status',
       header: 'Status',
+      mobileHighlight: true,
       cell: (shoot) => {
         const status = (shoot.addonPaymentStatus || 'pending').toLowerCase();
         let badgeVariant: 'default' | 'outline' | 'secondary' = 'outline';
@@ -1572,10 +1578,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'actions',
       header: 'Actions',
+      mobileFooter: true,
       cell: (shoot) => {
         const status = (shoot.addonPaymentStatus || 'pending').toLowerCase();
         return (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
             {(status === 'pending' || status === 'price_set') && (
               <Button 
                 size="sm" 
@@ -1622,6 +1629,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'client',
       header: 'Client Info',
+      mobilePrimary: true,
       cell: (edit) => (
         <div>
           <p className="font-medium">{edit.clientName}</p>
@@ -1646,6 +1654,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'status',
       header: 'Status',
+      mobileHighlight: true,
       cell: (edit) => {
         let status = (edit.addonPaymentStatus || 'pending').toLowerCase();
         
@@ -1670,6 +1679,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     {
       key: 'actions',
       header: 'Actions',
+      mobileFooter: true,
       cell: (edit) => {
         let status = (edit.addonPaymentStatus || 'pending').toLowerCase();
 
@@ -1927,6 +1937,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                   {
                     key: 'client',
                     header: 'Client',
+                    mobilePrimary: true,
                     cell: (lead) => <span className="font-medium">{lead.name}</span>,
                   },
                   {
@@ -1940,6 +1951,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                   {
                     key: 'status',
                     header: 'Status',
+                    mobileHighlight: true,
                     cell: (lead) => renderStatusCell(lead),
                   },
                   {
@@ -1951,6 +1963,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                       ) : (
                         <span className="text-xs text-muted-foreground">Pending</span>
                       ),
+                    hideOnMobile: true,
                   },
                 ]}
                 searchKeys={['name', 'phoneNumber']}

@@ -196,6 +196,10 @@
     -ms-overflow-style: none; /* IE/Edge */
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
+    /* Prevent the container itself from collapsing */
+    display: flex;
+    min-width: 0;
+    width: 100%;
   }
   .tabs-scroll-container::-webkit-scrollbar {
     display: none;
@@ -229,6 +233,17 @@
   @media (max-width: 639px) {
     .min-h-touch {
       min-height: 44px;
+    }
+  }
+
+  /* Prevent horizontal page scroll caused by overflowing children */
+  @media (max-width: 639px) {
+    body {
+      overflow-x: hidden;
+    }
+    /* Clamp any direct overflow on main content containers */
+    .max-w-\[1400px\] {
+      overflow-x: hidden;
     }
   }
 

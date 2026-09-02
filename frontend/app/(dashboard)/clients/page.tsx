@@ -375,6 +375,7 @@ export default function ClientsPage() {
       header: 'Client / Company',
       sortable: true,
       sortValue: (c) => c.name,
+      mobilePrimary: true,
       cell: (c) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
@@ -430,10 +431,12 @@ export default function ClientsPage() {
       key: 'status',
       header: 'Status',
       cell: (c) => <LeadStatusBadge status={c.status} />,
+      mobileHighlight: true,
     },
     {
       key: 'actions',
       header: 'Actions',
+      mobileFooter: true,
       cell: (c: any) => (
         <div className="flex gap-1">
           <Button

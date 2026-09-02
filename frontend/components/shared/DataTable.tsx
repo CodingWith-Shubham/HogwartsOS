@@ -22,6 +22,12 @@ export interface Column<T> {
   sortValue?: (row: T) => string | number;
   className?: string;
   hideOnMobile?: boolean;
+  /** If true, this column is treated as the card's primary/title cell on mobile. Defaults to the first non-hidden column. */
+  mobilePrimary?: boolean;
+  /** If true, this column's content is rendered prominently (e.g. status) on mobile. */
+  mobileHighlight?: boolean;
+  /** If true, this column is displayed as a full-width footer row in the mobile card (ideal for action buttons). */
+  mobileFooter?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -85,6 +91,18 @@ export function DataTable<T extends { id: string }>({
     }
   };
 
+  // Categorise columns for mobile card rendering
+  const visibleColumns = columns.filter((c) => !c.hideOnMobile);
+  const primaryCol =
+    visibleColumns.find((c) => c.mobilePrimary) ?? visibleColumns[0] ?? null;
+  const footerCols = visibleColumns.filter((c) => c.mobileFooter);
+  const highlightCols = visibleColumns.filter(
+    (c) => c.mobileHighlight && c !== primaryCol && !c.mobileFooter
+  );
+  const bodyCols = visibleColumns.filter(
+    (c) => c !== primaryCol && !c.mobileFooter && !c.mobileHighlight
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
@@ -102,7 +120,8 @@ export function DataTable<T extends { id: string }>({
         {toolbar && <div className="flex items-center gap-2">{toolbar}</div>}
       </div>
 
-      <div className="table-scroll-wrapper rounded-md border border-border overflow-hidden">
+      {/* ── Desktop table (md+) ── */}
+      <div className="table-scroll-wrapper rounded-md border border-border overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -110,7 +129,7 @@ export function DataTable<T extends { id: string }>({
                 {columns.map((col) => (
                   <TableHead
                     key={col.key}
-                    className={cn(col.hideOnMobile && 'hidden md:table-cell', col.className)}
+                    className={cn(col.className)}
                   >
                     {col.sortable ? (
                       <button
@@ -162,6 +181,77 @@ export function DataTable<T extends { id: string }>({
             </TableBody>
           </Table>
         </div>
+      </div>
+
+      {/* ── Mobile card layout (<md) ── */}
+      <div className="md:hidden space-y-2">
+        {paged.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 text-muted-foreground py-10">
+            <Inbox className="h-5 w-5" />
+            <span className="text-sm">{emptyMessage}</span>
+          </div>
+        ) : (
+          paged.map((row) => (
+            <div
+              key={row.id}
+              onClick={() => onRowClick?.(row)}
+              className={cn(
+                'rounded-lg border border-border bg-card p-3 space-y-2',
+                onRowClick && 'cursor-pointer active:bg-secondary/60'
+              )}
+            >
+              {/* Primary / title row */}
+              {primaryCol && (
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">{primaryCol.cell(row)}</div>
+                  {/* Highlight cols (e.g. status badge) shown inline with primary on mobile */}
+                  {highlightCols.length > 0 && (
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {highlightCols.map((col) => (
+                        <div key={col.key}>{col.cell(row)}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Body label-value pairs */}
+              {bodyCols.length > 0 && (
+                <div className="space-y-1.5">
+                  {bodyCols.map((col) => (
+                    <div key={col.key} className="flex items-start gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0 w-20">{col.header}</span>
+                      <div className="text-xs min-w-0 flex-1">{col.cell(row)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer / actions row */}
+              {footerCols.length > 0 && (
+                <div className="pt-1 border-t border-border flex flex-wrap gap-1.5">
+                  {footerCols.map((col) => (
+                    <div key={col.key} className="flex-1 min-w-0">{col.cell(row)}</div>
+                  ))}
+                </div>
+              )}
+
+              {/* Fallback: if no column flags are set (all columns are body cols after primary),
+                  show the status+actions columns without labels since they have enough visual hierarchy */}
+              {footerCols.length === 0 && highlightCols.length === 0 && bodyCols.length === 0 && primaryCol && (
+                // All remaining visible columns are rendered in a compact grid
+                <div className="space-y-1.5">
+                  {visibleColumns.filter(c => c !== primaryCol).map((col) => (
+                    <div key={col.key} className="flex items-start gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0 w-20">{col.header}</span>
+                      <div className="text-xs min-w-0 flex-1">{col.cell(row)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       {sorted.length > pageSize && (

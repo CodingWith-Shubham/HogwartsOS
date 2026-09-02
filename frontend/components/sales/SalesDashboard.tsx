@@ -1861,7 +1861,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <DataTable
               data={filteredLeads}
               columns={columns}
-              searchKeys={['searchText']}
+              searchKeys={['name', 'phoneNumber']}
               searchPlaceholder="Search by client name or phone..."
               onRowClick={setPaymentHistoryLead}
             />
@@ -1953,7 +1953,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                       ),
                   },
                 ]}
-                searchKeys={['searchText']}
+                searchKeys={['name', 'phoneNumber']}
                 searchPlaceholder="Search..."
               />
             </CardContent>

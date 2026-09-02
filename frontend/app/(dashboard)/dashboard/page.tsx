@@ -90,11 +90,11 @@ export default function DashboardPage() {
   };
 
   const pipelineStages = [
-    { label: 'New Leads', count: leadsByStatus(['New Lead']), color: '#8B949E' },
-    { label: 'In Proposal', count: leadsByStatus(['Proposal Sent', 'Proposal Accepted', 'Awaiting Payment']), color: '#D29922' },
-    { label: 'In Production', count: leadsByStatus(['Shoot Scheduled', 'Footage Received', 'Payment Confirmed', 'Payment Verified']), color: '#58A6FF' },
-    { label: 'In Editing', count: leadsByStatus(['Editing', 'Draft Sent']), color: '#E57C2B' },
-    { label: 'Delivered', count: leadsByStatus(['Delivered', 'Closed']), color: '#3FB950' },
+    { label: 'New Leads', count: leadsByStatus(['New Lead']), color: 'hsl(var(--muted-foreground))' },
+    { label: 'In Proposal', count: leadsByStatus(['Proposal Sent', 'Proposal Accepted', 'Awaiting Payment']), color: 'hsl(var(--theme-warning))' },
+    { label: 'In Production', count: leadsByStatus(['Shoot Scheduled', 'Footage Received', 'Payment Confirmed', 'Payment Verified']), color: 'hsl(var(--theme-accent))' },
+    { label: 'In Editing', count: leadsByStatus(['Editing', 'Draft Sent']), color: 'hsl(var(--chart-4))' },
+    { label: 'Delivered', count: leadsByStatus(['Delivered', 'Closed']), color: 'hsl(var(--success))' },
   ];
 
   // 3. Recent Projects (leads where proposalAccepted === true)
@@ -123,11 +123,11 @@ export default function DashboardPage() {
 
   const editingPipeline = editingMetrics
     ? [
-        { label: 'Not Started', value: editingMetrics.notStarted, color: '#8B949E', bg: 'rgba(139,148,158,0.15)' },
-        { label: 'In Progress', value: editingMetrics.inProgress, color: '#58A6FF', bg: 'rgba(88,166,255,0.15)' },
-        { label: 'For Review', value: editingMetrics.sharedForReview, color: '#A371F7', bg: 'rgba(163,113,247,0.15)' },
-        { label: 'Delivered', value: editingMetrics.delivered, color: '#3FB950', bg: 'rgba(63,185,80,0.15)' },
-        { label: 'Out of TAT', value: editingMetrics.outOfTAT, color: '#F85149', bg: 'rgba(248,81,73,0.15)' },
+        { label: 'Not Started', value: editingMetrics.notStarted, color: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted-foreground) / 0.15)' },
+        { label: 'In Progress', value: editingMetrics.inProgress, color: 'hsl(var(--theme-accent))', bg: 'hsl(var(--theme-accent) / 0.15)' },
+        { label: 'For Review', value: editingMetrics.sharedForReview, color: 'hsl(var(--chart-5))', bg: 'hsl(var(--chart-5) / 0.15)' },
+        { label: 'Delivered', value: editingMetrics.delivered, color: 'hsl(var(--success))', bg: 'hsl(var(--success) / 0.15)' },
+        { label: 'Out of TAT', value: editingMetrics.outOfTAT, color: 'hsl(var(--danger))', bg: 'hsl(var(--danger) / 0.15)' },
       ]
     : [];
 
@@ -174,19 +174,19 @@ export default function DashboardPage() {
                 <AreaChart data={revenueData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#58A6FF" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#58A6FF" stopOpacity={0} />
+                      <stop offset="5%" stopColor="hsl(var(--theme-accent))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--theme-accent))" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#21262D" vertical={false} />
-                  <XAxis dataKey="month" stroke="#6E7681" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#6E7681" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 100000}L`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${v / 100000}L`} />
                   <Tooltip
-                    contentStyle={{ background: '#161B22', border: '1px solid #30363D', borderRadius: '6px', fontSize: '12px' }}
-                    labelStyle={{ color: '#F0F6FC' }}
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px', fontSize: '12px' }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
                     formatter={(v: number) => [formatINR(v), 'Revenue']}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#58A6FF" strokeWidth={2} fill="url(#revGrad)" />
+                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--theme-accent))" strokeWidth={2} fill="url(#revGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -291,25 +291,25 @@ export default function DashboardPage() {
       {salesMetrics && (
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <IndianRupee className="h-4 w-4 text-[#3FB950]" />
+            <IndianRupee className="h-4 w-4 text-success" />
             Sales Overview
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
             {/* Total Collection Value */}
-            <Card className="border-[#3FB950]/30 bg-[#3FB950]/5">
+            <Card className="border-success/30 bg-success/5">
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground mb-1">Total Collected</p>
-                <p className="text-xl font-bold tabular-nums text-[#3FB950]">
+                <p className="text-xl font-bold tabular-nums text-success">
                   {formatINR(salesMetrics.totalCollectionValue)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Verified payments</p>
               </CardContent>
             </Card>
             {/* Total Pending Amount */}
-            <Card className="border-[#D29922]/30 bg-[#D29922]/5">
+            <Card className="border-theme-warning/30 bg-theme-warning/5">
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground mb-1">Pending Amount</p>
-                <p className="text-xl font-bold tabular-nums text-[#D29922]">
+                <p className="text-xl font-bold tabular-nums text-theme-warning">
                   {formatINR(salesMetrics.totalPendingAmount)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Remaining balance</p>
@@ -369,23 +369,23 @@ export default function DashboardPage() {
       {shootMetrics && (
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Video className="h-4 w-4 text-[#58A6FF]" />
+            <Video className="h-4 w-4 text-theme-accent" />
             Shoot Overview
           </h2>
 
           {/* Today / Future / Past */}
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <Card className="border-[#58A6FF]/30 bg-[#58A6FF]/5">
+            <Card className="border-theme-accent/30 bg-theme-accent/5">
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Today</p>
-                <p className="text-3xl font-bold tabular-nums text-[#58A6FF]">{shootMetrics.shootsToday}</p>
+                <p className="text-3xl font-bold tabular-nums text-theme-accent">{shootMetrics.shootsToday}</p>
                 <p className="text-xs text-muted-foreground mt-1">shoots scheduled</p>
               </CardContent>
             </Card>
-            <Card className="border-[#3FB950]/30 bg-[#3FB950]/5">
+            <Card className="border-success/30 bg-success/5">
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Upcoming</p>
-                <p className="text-3xl font-bold tabular-nums text-[#3FB950]">{shootMetrics.shootsFuture}</p>
+                <p className="text-3xl font-bold tabular-nums text-success">{shootMetrics.shootsFuture}</p>
                 <p className="text-xs text-muted-foreground mt-1">future shoots</p>
               </CardContent>
             </Card>
@@ -403,7 +403,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Timer className="h-3.5 w-3.5 text-[#E57C2B]" />
+                  <Timer className="h-3.5 w-3.5 text-[hsl(var(--chart-4))]" />
                   <p className="text-xs text-muted-foreground">Extra Hours (Month)</p>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{shootMetrics.shootExtraHoursSummary}h</p>
@@ -412,7 +412,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Zap className="h-3.5 w-3.5 text-[#A371F7]" />
+                  <Zap className="h-3.5 w-3.5 text-[hsl(var(--chart-5))]" />
                   <p className="text-xs text-muted-foreground">Extra Equipment (Month)</p>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{shootMetrics.shootExtraEquipment} shoots</p>
@@ -421,7 +421,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Clock className="h-3.5 w-3.5 text-[#58A6FF]" />
+                  <Clock className="h-3.5 w-3.5 text-theme-accent" />
                   <p className="text-xs text-muted-foreground">Avg Record Time</p>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{shootMetrics.avgRecordTime}h</p>
@@ -430,7 +430,7 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <Clock className="h-3.5 w-3.5 text-[#3FB950]" />
+                  <Clock className="h-3.5 w-3.5 text-success" />
                   <p className="text-xs text-muted-foreground">Avg Studio Time</p>
                 </div>
                 <p className="text-lg font-bold tabular-nums">{shootMetrics.avgStudioTime}h</p>
@@ -444,7 +444,7 @@ export default function DashboardPage() {
       {editingMetrics && (
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Layers className="h-4 w-4 text-[#E57C2B]" />
+            <Layers className="h-4 w-4 text-[hsl(var(--chart-4))]" />
             Editing Pipeline
           </h2>
 
@@ -471,7 +471,7 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Users className="h-4 w-4 text-[#58A6FF]" />
+                  <Users className="h-4 w-4 text-theme-accent" />
                   Editor Load Capacity
                 </CardTitle>
               </CardHeader>
@@ -491,11 +491,11 @@ export default function DashboardPage() {
                       .map((e: any) => (
                         <div key={e.editor_email || e.editor_name} className="grid grid-cols-4 text-xs py-1 items-center">
                           <span className="font-medium truncate pr-2">{e.editor_name}</span>
-                          <span className="text-center tabular-nums font-semibold text-[#58A6FF]">
+                          <span className="text-center tabular-nums font-semibold text-theme-accent">
                             {e.assigned + e.inProgress}
                           </span>
-                          <span className="text-center tabular-nums text-[#3FB950]">{e.delivered}</span>
-                          <span className={`text-center tabular-nums ${e.outOfTAT > 0 ? 'text-[#F85149] font-semibold' : 'text-muted-foreground'}`}>
+                          <span className="text-center tabular-nums text-success">{e.delivered}</span>
+                          <span className={`text-center tabular-nums ${e.outOfTAT > 0 ? 'text-danger font-semibold' : 'text-muted-foreground'}`}>
                             {e.outOfTAT}
                           </span>
                         </div>
@@ -509,7 +509,7 @@ export default function DashboardPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-[#D29922]" />
+                  <AlertCircle className="h-4 w-4 text-theme-warning" />
                   Aging Tasks (Non-Delivered)
                 </CardTitle>
               </CardHeader>
@@ -527,10 +527,10 @@ export default function DashboardPage() {
                         <span
                           className={`shrink-0 text-xs font-bold tabular-nums px-2 py-0.5 rounded-full ${
                             t.days > 7
-                              ? 'bg-[#F85149]/15 text-[#F85149]'
+                              ? 'bg-danger/15 text-danger'
                               : t.days > 3
-                              ? 'bg-[#D29922]/15 text-[#D29922]'
-                              : 'bg-[#8B949E]/15 text-[#8B949E]'
+                              ? 'bg-theme-warning/15 text-theme-warning'
+                              : 'bg-muted/15 text-[hsl(var(--muted-foreground))]'
                           }`}
                         >
                           {t.days}d

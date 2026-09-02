@@ -125,7 +125,7 @@ export function PWAInstallPrompt() {
                 disabled={installing}
                 className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-95 disabled:opacity-60"
                 style={{
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  background: 'linear-gradient(135deg, hsl(var(--theme-accent)) 0%, hsl(var(--chart-1)) 100%)',
                   boxShadow: '0 4px 15px rgba(99, 102, 241, 0.35)',
                 }}
               >

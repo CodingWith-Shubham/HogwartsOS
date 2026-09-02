@@ -33,7 +33,7 @@ export function StatCard({ title, value, description, icon: Icon, trend, classNa
             <span
               className={cn(
                 'text-xs font-medium',
-                trend.positive ? 'text-[#3FB950]' : 'text-[#F85149]'
+                trend.positive ? 'text-success' : 'text-danger'
               )}
             >
               {trend.positive ? '↑' : '↓'} {trend.value}

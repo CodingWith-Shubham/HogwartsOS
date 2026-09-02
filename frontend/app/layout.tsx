@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/auth-context';
 import { PWAInstallPrompt } from '@/components/shared/PWAInstallPrompt';
+import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import maintenanceData from '../maintenance.json';
 import { MaintenanceScreen } from '@/components/shared/MaintenanceScreen';
 
@@ -35,7 +36,7 @@ export default function RootLayout({
 }) {
   if (maintenanceData.isMaintenance) {
     return (
-      <html lang="en" className={inter.variable}>
+      <html lang="en" className={inter.variable} suppressHydrationWarning>
         <body className="font-sans antialiased min-h-screen bg-background text-foreground flex items-center justify-center">
           <MaintenanceScreen reason={maintenanceData.reason} />
         </body>
@@ -44,7 +45,7 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Service Worker Registration */}
         <script
@@ -62,9 +63,15 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        <AuthProvider>{children}</AuthProvider>
-        <Toaster position="bottom-right" />
-        <PWAInstallPrompt />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+        >
+          <AuthProvider>{children}</AuthProvider>
+          <Toaster position="bottom-right" />
+          <PWAInstallPrompt />
+        </ThemeProvider>
       </body>
     </html>
   );

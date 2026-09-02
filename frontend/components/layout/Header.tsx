@@ -25,6 +25,7 @@ import {
 import { Search, LogOut, Settings, Menu, Command } from 'lucide-react';
 import { getNavForRole } from '@/lib/navigation';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -67,6 +68,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <div className="flex-1" />
 
+        <ThemeToggle />
         <NotificationBell />
 
         <DropdownMenu>

@@ -542,12 +542,12 @@ export default function AttendancePage() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 p-6 rounded-xl border border-indigo-900/50 shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-indigo-500/10 dark:from-indigo-950 dark:via-slate-900 dark:to-purple-950 p-6 rounded-xl border border-border shadow-md">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Clock className="h-6 w-6 text-indigo-400" /> Employee Attendance Portal
           </h1>
-          <p className="text-sm text-slate-300 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Track daily check-ins, GPS locations, and attendance history
           </p>
         </div>

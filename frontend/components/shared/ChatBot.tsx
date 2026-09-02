@@ -86,7 +86,7 @@ function TypingIndicator() {
               key={delay}
               className="inline-block w-2 h-2 rounded-full animate-bounce"
               style={{
-                background: "#6366f1",
+                background: "hsl(var(--theme-accent))",
                 animationDelay: `${delay}ms`,
                 animationDuration: "0.8s",
               }}
@@ -230,7 +230,7 @@ export default function ChatBot() {
           width: 56,
           height: 56,
           background: "hsl(var(--card))",
-          border: "1.5px solid #6366f1",
+          border: "1.5px solid hsl(var(--theme-accent))",
           boxShadow: "0 0 20px rgba(99,102,241,0.4)",
         }}
       >
@@ -246,7 +246,7 @@ export default function ChatBot() {
                 style={{
                   width: 10,
                   height: 10,
-                  background: "#ef4444",
+                  background: "hsl(var(--danger))",
                   border: "2px solid hsl(var(--background))",
                   top: 2,
                   right: 2,
@@ -285,9 +285,9 @@ export default function ChatBot() {
             }}
           >
             <div className="flex items-center gap-2">
-              <Sparkles size={18} color="#6366f1" />
-              <span className="font-bold text-white text-sm">Aria</span>
-              <span className="text-xs" style={{ color: "#22c55e" }}>
+              <Sparkles size={18} color="hsl(var(--theme-accent))" />
+              <span className="font-bold text-foreground text-sm">Aria</span>
+              <span className="text-xs" style={{ color: "hsl(var(--success))" }}>
                 ● Online
               </span>
             </div>
@@ -315,14 +315,14 @@ export default function ChatBot() {
                   style={
                     msg.role === "user"
                       ? {
-                          background: "#6366f1",
+                          background: "hsl(var(--theme-accent))",
                           color: "white",
                           borderRadius: "16px 16px 4px 16px",
                           maxWidth: "80%",
                         }
                       : {
                           background: "hsl(var(--card))",
-                          color: "white",
+                          color: "hsl(var(--foreground))",
                           borderRadius: "16px 16px 16px 4px",
                           border: "1px solid rgba(99,102,241,0.15)",
                           maxWidth: "85%",
@@ -391,7 +391,7 @@ export default function ChatBot() {
               onKeyDown={handleKeyDown}
               disabled={isLoading}
               placeholder="Ask Aria anything..."
-              className="flex-1 bg-transparent text-sm text-white placeholder-white/30 outline-none rounded-xl px-3 py-2.5 disabled:opacity-50"
+              className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none rounded-xl px-3 py-2.5 disabled:opacity-50"
               style={{
                 background: "hsl(var(--card))",
                 border: "1px solid rgba(99,102,241,0.3)",
@@ -404,7 +404,7 @@ export default function ChatBot() {
               aria-label="Send message to Aria"
               className="flex items-center justify-center rounded-xl transition-opacity disabled:opacity-40"
               style={{
-                background: "#6366f1",
+                background: "hsl(var(--theme-accent))",
                 padding: 10,
                 minWidth: 40,
                 minHeight: 40,

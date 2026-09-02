@@ -25,14 +25,14 @@ export const dynamic = 'force-dynamic';
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const SERVICE_COLORS: Record<string, string> = {
-  'Podcast': '#58A6FF',
-  'Brand Film': '#3FB950',
-  'Reel': '#D29922',
-  'Product Video': '#E57C2B',
-  'Event Coverage': '#F85149',
-  'Social Media': '#8B949E',
-  'Rentals': '#A371F7',
-  'Other': '#76E3EA',
+  'Podcast': 'hsl(var(--theme-accent))',
+  'Brand Film': 'hsl(var(--success))',
+  'Reel': 'hsl(var(--theme-warning))',
+  'Product Video': 'hsl(var(--chart-4))',
+  'Event Coverage': 'hsl(var(--danger))',
+  'Social Media': 'hsl(var(--muted-foreground))',
+  'Rentals': 'hsl(var(--chart-5))',
+  'Other': 'hsl(var(--chart-2))',
 };
 
 function normalizeService(service: string | undefined): string {
@@ -311,7 +311,7 @@ export async function GET(request: Request) {
     const SERVICE_DISTRIBUTION = Object.keys(serviceCounts).map((name) => ({
       name,
       value: serviceCounts[name],
-      color: SERVICE_COLORS[name] || '#8B949E',
+      color: SERVICE_COLORS[name] || 'hsl(var(--muted-foreground))',
     }));
 
     // Status distribution
@@ -334,10 +334,10 @@ export async function GET(request: Request) {
       }
     }
     const STATUS_DISTRIBUTION = [
-      { name: 'Active', value: statusCounts['Active'], color: '#3FB950' },
-      { name: 'In Progress', value: statusCounts['In Progress'], color: '#58A6FF' },
-      { name: 'On Hold', value: statusCounts['On Hold'], color: '#D29922' },
-      { name: 'Closed', value: statusCounts['Closed'], color: '#6E7681' },
+      { name: 'Active', value: statusCounts['Active'], color: 'hsl(var(--success))' },
+      { name: 'In Progress', value: statusCounts['In Progress'], color: 'hsl(var(--theme-accent))' },
+      { name: 'On Hold', value: statusCounts['On Hold'], color: 'hsl(var(--theme-warning))' },
+      { name: 'Closed', value: statusCounts['Closed'], color: 'hsl(var(--muted-foreground))' },
     ];
 
     // Editors performance (from Editing sheet)
@@ -437,7 +437,7 @@ export async function GET(request: Request) {
     const serviceWiseClients = Object.entries(serviceClientCounts).map(([name, count]) => ({
       name,
       count,
-      color: SERVICE_COLORS[name] || '#8B949E',
+      color: SERVICE_COLORS[name] || 'hsl(var(--muted-foreground))',
     }));
 
     const salesMetrics = {

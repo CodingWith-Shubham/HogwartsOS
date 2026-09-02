@@ -60,23 +60,23 @@ export function CorrectionsVsRevisionsWidget() {
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.slice(0, 15)} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="projectName" 
-                    tick={{ fill: '#888', fontSize: 12 }} 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
                   />
-                  <YAxis tick={{ fill: '#888', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip 
                     cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                    contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '8px' }}
-                    labelStyle={{ color: '#888', marginBottom: '8px' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                    labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '8px' }}
                   />
                   <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Bar dataKey="correctionCount" name="Internal Corrections" fill="#d97706" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="revisionCount" name="Client Revisions" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="correctionCount" name="Internal Corrections" fill="hsl(var(--theme-warning))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revisionCount" name="Client Revisions" fill="hsl(var(--theme-accent))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -99,11 +99,11 @@ export function CorrectionsVsRevisionsWidget() {
                       <td className="px-4 py-3 font-medium">{row.projectName}</td>
                       <td className="px-4 py-3 text-muted-foreground">{row.clientName}</td>
                       <td className="px-4 py-3">{row.editorName || '-'}</td>
-                      <td className="px-4 py-3 text-center tabular-nums font-medium text-amber-500">{row.correctionCount}</td>
-                      <td className="px-4 py-3 text-center tabular-nums font-medium text-blue-500">{row.revisionCount}</td>
+                      <td className="px-4 py-3 text-center tabular-nums font-medium text-theme-warning">{row.correctionCount}</td>
+                      <td className="px-4 py-3 text-center tabular-nums font-medium text-theme-accent">{row.revisionCount}</td>
                       <td className="px-4 py-3 text-center">
                         {row.openCorrections > 0 ? (
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">
+                          <Badge variant="outline" className="bg-theme-warning/10 text-theme-warning border-theme-warning/30">
                             {row.openCorrections} Open
                           </Badge>
                         ) : (

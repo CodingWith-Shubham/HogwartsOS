@@ -22,6 +22,16 @@ const config: Config = {
       colors: {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        'bg-primary': 'hsl(var(--bg-primary))',
+        'bg-secondary': 'hsl(var(--bg-secondary))',
+        'bg-elevated': 'hsl(var(--bg-elevated))',
+        'text-primary': 'hsl(var(--text-primary))',
+        'text-secondary': 'hsl(var(--text-secondary))',
+        'theme-accent': 'hsl(var(--accent))',
+        'theme-accent-hover': 'hsl(var(--accent-hover))',
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        danger: 'hsl(var(--danger))',
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',

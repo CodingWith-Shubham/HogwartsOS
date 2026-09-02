@@ -85,15 +85,15 @@ export function UpsellMetricsWidget() {
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={metrics.monthlyBreakdown}>
-              <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+              <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                 cursor={{ fill: 'hsl(var(--muted))' }}
               />
               <Legend />
-              <Bar dataKey="leads" name="New Leads" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="upsells" name="Upsells" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="leads" name="New Leads" fill="hsl(var(--theme-accent))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="upsells" name="Upsells" fill="hsl(var(--theme-warning))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

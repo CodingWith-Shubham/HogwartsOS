@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-const COLORS = ['#58A6FF', '#3FB950', '#D29922', '#E57C2B', '#F85149', '#8B949E', '#A371F7', '#76E3EA'];
+const COLORS = ['hsl(var(--theme-accent))', 'hsl(var(--success))', 'hsl(var(--theme-warning))', 'hsl(var(--chart-4))', 'hsl(var(--danger))', 'hsl(var(--muted-foreground))', 'hsl(var(--chart-5))', 'hsl(var(--chart-2))'];
 
 function exportToCSV(data: any[], filename: string) {
   if (!data || data.length === 0) {
@@ -162,7 +162,7 @@ export default function FinancePage() {
       </div>
 
       {/* Filter Bar */}
-      <Card className="bg-[#161B22]/60 border-[#30363D] shadow-sm">
+      <Card className="bg-[hsl(var(--card))]/60 border-[hsl(var(--border))] shadow-sm">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5 flex-1 min-w-[200px]">
@@ -220,14 +220,14 @@ export default function FinancePage() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i} className="animate-pulse bg-[#161B22]/50 border-[#30363D] h-[104px]" />
+              <Card key={i} className="animate-pulse bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] h-[104px]" />
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-             <Card className="animate-pulse bg-[#161B22]/50 border-[#30363D] h-[300px]" />
-             <Card className="animate-pulse bg-[#161B22]/50 border-[#30363D] h-[300px]" />
+             <Card className="animate-pulse bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] h-[300px]" />
+             <Card className="animate-pulse bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] h-[300px]" />
           </div>
-          <Card className="animate-pulse bg-[#161B22]/50 border-[#30363D] h-[400px]" />
+          <Card className="animate-pulse bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] h-[400px]" />
         </div>
       ) : (
         <>
@@ -240,7 +240,7 @@ export default function FinancePage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Revenue By Service */}
-            <Card className="bg-[#161B22]/50 border-[#30363D] col-span-1 lg:col-span-2">
+            <Card className="bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] col-span-1 lg:col-span-2">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Revenue by Service (Collected)</CardTitle>
               </CardHeader>
@@ -248,11 +248,11 @@ export default function FinancePage() {
                 {data?.breakdowns.revenueByService.length ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.breakdowns.revenueByService} margin={{ top: 10, right: 10, left: 20, bottom: 20 }}>
-                      <XAxis dataKey="name" stroke="#8B949E" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#8B949E" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
+                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${(val/1000).toFixed(0)}k`} />
                       <RechartsTooltip 
-                        cursor={{ fill: '#30363D', opacity: 0.4 }}
-                        contentStyle={{ backgroundColor: '#0D1117', borderColor: '#30363D', borderRadius: '8px' }}
+                        cursor={{ fill: 'hsl(var(--border))', opacity: 0.4 }}
+                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                         formatter={(value: number) => [formatINR(value), 'Revenue']}
                       />
                       <Bar dataKey="value" radius={[4, 4, 0, 0]}>
@@ -269,7 +269,7 @@ export default function FinancePage() {
             </Card>
 
             {/* Upsell vs New Sale */}
-            <Card className="bg-[#161B22]/50 border-[#30363D]">
+            <Card className="bg-[hsl(var(--card))]/50 border-[hsl(var(--border))]">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Acquisition Source</CardTitle>
               </CardHeader>
@@ -287,11 +287,11 @@ export default function FinancePage() {
                         dataKey="value"
                       >
                         {data.breakdowns.upsellVsNewSale.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? '#3FB950' : '#58A6FF'} />
+                          <Cell key={`cell-${index}`} fill={index === 0 ? 'hsl(var(--success))' : 'hsl(var(--theme-accent))'} />
                         ))}
                       </Pie>
                       <RechartsTooltip 
-                        contentStyle={{ backgroundColor: '#0D1117', borderColor: '#30363D', borderRadius: '8px' }}
+                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                         formatter={(value: number) => [formatINR(value), 'Revenue']}
                       />
                     </PieChart>
@@ -300,14 +300,14 @@ export default function FinancePage() {
                   <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No data available</div>
                 )}
                 <div className="flex justify-center gap-6 mt-auto pb-4">
-                   <div className="flex items-center gap-2 text-sm text-muted-foreground"><div className="w-3 h-3 rounded-full bg-[#3FB950]"></div>New Sale</div>
-                   <div className="flex items-center gap-2 text-sm text-muted-foreground"><div className="w-3 h-3 rounded-full bg-[#58A6FF]"></div>Upsell</div>
+                   <div className="flex items-center gap-2 text-sm text-muted-foreground"><div className="w-3 h-3 rounded-full bg-success"></div>New Sale</div>
+                   <div className="flex items-center gap-2 text-sm text-muted-foreground"><div className="w-3 h-3 rounded-full bg-theme-accent"></div>Upsell</div>
                 </div>
               </CardContent>
             </Card>
 
              {/* Aging Breakdown */}
-             <Card className="bg-[#161B22]/50 border-[#30363D] col-span-1 lg:col-span-3">
+             <Card className="bg-[hsl(var(--card))]/50 border-[hsl(var(--border))] col-span-1 lg:col-span-3">
               <CardHeader className="pb-2 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Receivables Aging (Unpaid/Overdue)</CardTitle>
@@ -317,7 +317,7 @@ export default function FinancePage() {
               <CardContent className="mt-4">
                  <div className="grid grid-cols-3 gap-4">
                     {data?.breakdowns.aging.map((tier, idx) => (
-                      <div key={idx} className="bg-[#0D1117] rounded-xl p-5 border border-[#30363D] flex flex-col items-center justify-center text-center">
+                      <div key={idx} className="bg-[hsl(var(--background))] rounded-xl p-5 border border-[hsl(var(--border))] flex flex-col items-center justify-center text-center">
                         <div className="text-muted-foreground text-sm mb-2">{tier.name}</div>
                         <div className={`text-2xl font-bold ${idx === 2 ? 'text-red-400' : idx === 1 ? 'text-orange-400' : 'text-blue-400'}`}>
                           {formatINR(tier.value)}
@@ -329,7 +329,7 @@ export default function FinancePage() {
             </Card>
           </div>
 
-          <Card className="bg-[#161B22]/50 border-[#30363D]">
+          <Card className="bg-[hsl(var(--card))]/50 border-[hsl(var(--border))]">
             <CardHeader>
               <CardTitle>Invoices</CardTitle>
             </CardHeader>

@@ -4,40 +4,75 @@
 
 @layer base {
   :root {
+    --bg-primary: 216 33% 98%;
+    --bg-secondary: 0 0% 100%;
+    --bg-elevated: 0 0% 100%;
+    --border: 214 32% 91%;
+    --text-primary: 220 26% 14%;
+    --text-secondary: 218 17% 35%;
+    --accent: 221 83% 53%;
+    --accent-hover: 222 76% 48%;
+    --success: 142 76% 36%;
+    --warning: 38 92% 44%;
+    --danger: 0 72% 51%;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+
+    /* Shadcn UI tokens - Light */
+    --background: var(--bg-primary);
+    --foreground: var(--text-primary);
+    --card: var(--bg-elevated);
+    --card-foreground: var(--text-primary);
+    --popover: var(--bg-elevated);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--accent);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--bg-secondary);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--bg-secondary);
+    --muted-foreground: var(--text-secondary);
+    --destructive: var(--danger);
+    --destructive-foreground: 0 0% 100%;
+    --input: var(--border);
+    --ring: var(--accent);
+
+    --radius: 0.375rem;
+
+    --chart-1: 221 83% 53%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 44%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 218 17% 35%;
+  }
+
+  .dark {
+    --bg-primary: 213 30% 7%;
+    --bg-secondary: 215 24% 16%;
+    --bg-elevated: 215 28% 11%;
+    --border: 215 14% 21%;
+    --text-primary: 213 32% 97%;
+    --text-secondary: 213 16% 63%;
+    --accent: 215 24% 18%;
+    --accent-hover: 215 24% 22%;
+    --success: 137 55% 47%;
+    --warning: 41 74% 52%;
+    --danger: 0 72% 63%;
+    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+
+    /* Shadcn UI tokens - Dark (Original Values to avoid regression) */
     --background: 213 30% 7%;
     --foreground: 213 32% 97%;
-
     --card: 215 28% 11%;
     --card-foreground: 213 32% 97%;
-
     --popover: 215 28% 11%;
     --popover-foreground: 213 32% 97%;
-
     --primary: 213 32% 97%;
     --primary-foreground: 213 30% 7%;
-
     --secondary: 215 24% 16%;
     --secondary-foreground: 213 32% 97%;
-
     --muted: 215 24% 16%;
     --muted-foreground: 213 16% 63%;
-
-    --accent: 215 24% 18%;
-    --accent-foreground: 213 32% 97%;
-
     --destructive: 0 72% 63%;
     --destructive-foreground: 213 32% 97%;
-
-    --success: 137 55% 47%;
-    --success-foreground: 213 32% 97%;
-
-    --warning: 41 74% 52%;
-    --warning-foreground: 213 30% 7%;
-
-    --info: 211 100% 68%;
-    --info-foreground: 213 30% 7%;
-
-    --border: 215 14% 21%;
     --input: 215 14% 21%;
     --ring: 211 100% 68%;
 
@@ -46,8 +81,6 @@
     --chart-3: 41 74% 52%;
     --chart-4: 0 72% 63%;
     --chart-5: 213 16% 63%;
-
-    --radius: 0.375rem;
   }
 }
 

@@ -198,7 +198,7 @@ function OnboardingForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-foreground bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-[500px] bg-primary/5 blur-[120px] rounded-full mix-blend-screen pointer-events-none" />
       
       <div className="max-w-4xl mx-auto relative z-10">

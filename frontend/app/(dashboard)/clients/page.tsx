@@ -549,13 +549,14 @@ export default function ClientsPage() {
         </div>
 
         <TabsContent value="clients" className="mt-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
             <StatCard title="Total Clients" value={totalClients} icon={Users} />
             <StatCard title="Active" value={activeClients} icon={Building2} />
             <StatCard title="Total Revenue" value={formatINR(totalRevenue)} icon={Wallet} />
             <StatCard title="Leads" value={leadsCount} icon={TrendingUp} />
             <StatCard title="Upsells" value={upsellCount} icon={ArrowUpCircle} />
             <StatCard title="Cross-Sells" value={crosssellCount} icon={Shuffle} />
+            <StatCard title="New Sales" value={newsaleCount} icon={ShoppingCart} />
           </div>
 
           <DataTable

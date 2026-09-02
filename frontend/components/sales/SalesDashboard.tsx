@@ -983,6 +983,48 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
   };
 
+  const handleAcceptProposal = async (lead: Lead) => {
+    try {
+      const upsellCrosssellId = lead.isUpsell ? (lead as any).upsell_crosssell_id : '';
+      const url = `https://n8n.hogwartsstudios.com/webhook/proposal-accept?lead_id=${lead.leadId}&client_email=${lead.email}&upsell_crosssell_id=${upsellCrosssellId || ''}`;
+      
+      await fetch(url, { mode: 'no-cors' });
+      toast.success('Proposal accepted successfully!');
+      
+      setLeads((prev) =>
+        prev.map((l) => (l.leadId === lead.leadId ? { ...l, status: 'Proposal Accepted', proposalAccepted: true } : l))
+      );
+      await refreshLeads(true);
+    } catch (error) {
+      toast.error('Failed to accept proposal', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  const handleRejectProposal = async (lead: Lead) => {
+    try {
+      const upsellCrosssellId = lead.isUpsell ? (lead as any).upsell_crosssell_id : '';
+      await postWebhook('/proposal-revoke', {
+        lead_id: lead.leadId,
+        client_email: lead.email,
+        client_name: lead.name,
+        feedback: 'Rejected by Sales Rep on behalf of client',
+        upsell_crosssell_id: upsellCrosssellId || '',
+      });
+      toast.success('Proposal revoked successfully!');
+      
+      setLeads((prev) =>
+        prev.map((l) => (l.leadId === lead.leadId ? { ...l, status: 'Proposal Revoked', proposalAccepted: false, proposalSent: false } : l))
+      );
+      await refreshLeads(true);
+    } catch (error) {
+      toast.error('Failed to revoke proposal', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
   const renderProposalAction = (lead: Lead) => {
     if (lead.proposalAccepted) {
       return (
@@ -1010,9 +1052,37 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
     if (lead.status === 'Proposal Sent') {
       return (
-        <Button variant="outline" size="sm" disabled className="text-muted-foreground">
-          Proposal Sent
-        </Button>
+        <div className="flex flex-col gap-1.5 w-full">
+          <Button variant="outline" size="sm" disabled className="text-muted-foreground w-full">
+            Proposal Sent
+          </Button>
+          <div className="flex items-center gap-1.5 w-full">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="flex-1 bg-green-500/10 text-green-600 hover:bg-green-500/20 hover:text-green-700 h-7 text-xs border-green-500/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAcceptProposal(lead);
+              }}
+            >
+              <CheckCircle className="mr-1 h-3 w-3" />
+              Accept
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="flex-1 bg-red-500/10 text-red-600 hover:bg-red-500/20 hover:text-red-700 h-7 text-xs border-red-500/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRejectProposal(lead);
+              }}
+            >
+              <XCircle className="mr-1 h-3 w-3" />
+              Reject
+            </Button>
+          </div>
+        </div>
       );
     }
 

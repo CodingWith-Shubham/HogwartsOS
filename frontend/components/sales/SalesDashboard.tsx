@@ -986,7 +986,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const handleAcceptProposal = async (lead: Lead) => {
     try {
       const upsellCrosssellId = lead.isUpsell ? (lead as any).upsell_crosssell_id : '';
-      const url = `https://n8n.hogwartsstudios.com/webhook/proposal-accept?lead_id=${lead.leadId}&client_email=${lead.email}&upsell_crosssell_id=${upsellCrosssellId || ''}`;
+      const url = `https://n8n.hogwartsstudios.com/webhook/proposal-accept?lead_id=${lead.leadId}&client_email=${lead.clientEmail}&upsell_crosssell_id=${upsellCrosssellId || ''}`;
       
       await fetch(url, { mode: 'no-cors' });
       toast.success('Proposal accepted successfully!');
@@ -1007,7 +1007,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       const upsellCrosssellId = lead.isUpsell ? (lead as any).upsell_crosssell_id : '';
       await postWebhook('/proposal-revoke', {
         lead_id: lead.leadId,
-        client_email: lead.email,
+        client_email: lead.clientEmail,
         client_name: lead.name,
         feedback: 'Rejected by Sales Rep on behalf of client',
         upsell_crosssell_id: upsellCrosssellId || '',
@@ -1015,7 +1015,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       toast.success('Proposal revoked successfully!');
       
       setLeads((prev) =>
-        prev.map((l) => (l.leadId === lead.leadId ? { ...l, status: 'Proposal Revoked', proposalAccepted: false, proposalSent: false } : l))
+        prev.map((l) => (l.leadId === lead.leadId ? { ...l, status: 'Proposal Revoked', proposalAccepted: false, proposalSent: 'false' } : l))
       );
       await refreshLeads(true);
     } catch (error) {
@@ -1050,11 +1050,20 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       );
     }
 
-    if (lead.status === 'Proposal Sent') {
+    if (lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true') {
       return (
         <div className="flex flex-col gap-1.5 w-full">
-          <Button variant="outline" size="sm" disabled className="text-muted-foreground w-full">
-            Proposal Sent
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              openProposalModal(lead);
+            }}
+          >
+            <Send className="mr-1 h-3 w-3" />
+            Resend Proposal
           </Button>
           <div className="flex items-center gap-1.5 w-full">
             <Button 

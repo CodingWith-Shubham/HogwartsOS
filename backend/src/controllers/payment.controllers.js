@@ -367,4 +367,37 @@ const verifyPayment = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { payment }, "Payment updated successfully"));
 });
 
-export { getPayments, createPayment, verifyPayment };
+import path from "path";
+import fs from "fs";
+
+const uploadsDir = path.resolve("uploads", "payment-screenshots");
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const uploadPaymentScreenshot = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "No file uploaded");
+  }
+  
+  const fileUrl = `/api/v1/payments/screenshots/${req.file.filename}`;
+  
+  return res.status(200).json(
+    new ApiResponse(200, { 
+      url: fileUrl, 
+      filename: req.file.originalname,
+      size: req.file.size
+    }, "Screenshot uploaded successfully")
+  );
+});
+
+const getPaymentScreenshot = asyncHandler(async (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.resolve(uploadsDir, filename);
+  
+  if (!fs.existsSync(filePath)) {
+    throw new ApiError(404, "Screenshot not found");
+  }
+  
+  res.sendFile(filePath);
+});
+
+export { getPayments, createPayment, verifyPayment, uploadPaymentScreenshot, getPaymentScreenshot };

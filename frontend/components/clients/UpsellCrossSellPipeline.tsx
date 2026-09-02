@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Trash2, ExternalLink, Loader2, Scissors, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Trash2, ExternalLink, Loader2, Scissors, AlertCircle, CheckCircle2, Send, CheckCircle, XCircle } from 'lucide-react';
 import { authFetch } from '@/lib/auth-fetch';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -22,10 +22,12 @@ import type { Shoot } from '@/lib/sheets/types';
 import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
 import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
+import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialog';
 import {
   SERVICE_NOTE_OPTIONS,
   type ProposalFormValues,
 } from '@/components/pipeline/stageDialogShared';
+import { postWebhook } from '@/lib/editing';
 
 export interface UpsellCrossSellEntry {
   _id: string;
@@ -124,7 +126,7 @@ export function UpsellStatusBadge({ status }: { status: string }) {
   return <Badge className={meta.className}>{meta.label}</Badge>;
 }
 
-type StageModalKind = 'proposal' | 'payment' | 'schedule' | 'driveLink';
+type StageModalKind = 'proposal' | 'payment' | 'schedule' | 'driveLink' | 'upload_ss';
 
 interface PipelineAction {
   label: string;
@@ -193,9 +195,9 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
     actions.push({ label: 'Verify Payment', nextStatus: entry.status === 'payment_sent' ? 'payment_done' : entry.status, verify: true });
   } else if (isAwaitingSS) {
     actions.push({
-      label: 'Awaiting Verification',
+      label: 'Upload SS',
       nextStatus: 'payment_done',
-      disabledReason: 'Waiting for the client to upload the payment screenshot',
+      modal: 'upload_ss'
     });
   }
 
@@ -204,14 +206,6 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       actions.push({ label: 'Send Proposal', nextStatus: 'proposal_sent', modal: 'proposal' });
       break;
     case 'proposal_sent':
-      if (!entry.proposalAccepted) {
-        actions.push({
-          label: 'Send Payment Link',
-          nextStatus: 'payment_sent',
-          modal: 'payment',
-          disabledReason: 'Waiting for the client to accept the proposal',
-        });
-      }
       break;
     case 'payment_done':
     case 'shoot_scheduled': {
@@ -326,6 +320,42 @@ export function UpsellCrossSellPipeline({
     if (!res.ok) throw new Error(payload.error || 'Failed to update status');
   };
 
+  const handleAcceptProposal = async (entry: UpsellCrossSellEntry) => {
+    try {
+      const url = `https://n8n.hogwartsstudios.com/webhook/proposal-accept?lead_id=${entry.clientLeadId}&client_email=${entry.clientEmail || ''}&upsell_crosssell_id=${entry._id}`;
+      
+      await fetch(url, { mode: 'no-cors' });
+      toast.success('Proposal accepted successfully!');
+      
+      await patchStatus(entry._id, { proposalAccepted: true });
+      onRefresh?.();
+    } catch (error) {
+      toast.error('Failed to accept proposal', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  const handleRejectProposal = async (entry: UpsellCrossSellEntry) => {
+    try {
+      await postWebhook('/proposal-revoke', {
+        lead_id: entry.clientLeadId,
+        client_email: entry.clientEmail || '',
+        client_name: entry.clientName,
+        feedback: 'Rejected by Sales Rep on behalf of client',
+        upsell_crosssell_id: entry._id,
+      });
+      toast.success('Proposal revoked successfully!');
+      
+      await patchStatus(entry._id, { proposalRevoked: true, proposalAccepted: false, status: 'initiated' });
+      onRefresh?.();
+    } catch (error) {
+      toast.error('Failed to revoke proposal', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
   const advanceEntry = async (
     entry: UpsellCrossSellEntry,
     nextStatus: string,
@@ -416,7 +446,7 @@ export function UpsellCrossSellPipeline({
       await advanceEntry(entry, action.nextStatus);
       return;
     }
-    if (action.modal === 'proposal' || action.modal === 'payment') {
+    if (action.modal === 'proposal' || action.modal === 'payment' || action.modal === 'upload_ss') {
       setStageModal({ entry, kind: action.modal });
       return;
     }
@@ -677,6 +707,39 @@ export function UpsellCrossSellPipeline({
               {action.label}
             </Button>
           ))}
+          {canAdvance && entry.status === 'proposal_sent' && !entry.proposalAccepted && (
+            <div className="flex flex-col gap-1.5 min-w-[140px]">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
+                onClick={() => setStageModal({ entry, kind: 'proposal' })}
+              >
+                <Send className="mr-1 h-3 w-3" />
+                Resend Proposal
+              </Button>
+              <div className="flex items-center gap-1.5 w-full">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 bg-green-500/10 text-green-600 hover:bg-green-500/20 hover:text-green-700 h-7 text-xs border-green-500/20 px-0"
+                  onClick={() => handleAcceptProposal(entry)}
+                >
+                  <CheckCircle className="mr-1 h-3 w-3" />
+                  Accept
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 bg-red-500/10 text-red-600 hover:bg-red-500/20 hover:text-red-700 h-7 text-xs border-red-500/20 px-0"
+                  onClick={() => handleRejectProposal(entry)}
+                >
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Reject
+                </Button>
+              </div>
+            </div>
+          )}
           {canDelete && (
             <Button
               variant="outline"
@@ -793,6 +856,19 @@ export function UpsellCrossSellPipeline({
           if (stageModal?.kind === 'schedule') {
             void fetchShoots();
             return advanceEntry(stageModal.entry, 'shoot_scheduled');
+          }
+        }}
+      />
+
+      <UploadScreenshotDialog 
+        open={stageModal?.kind === 'upload_ss'}
+        onOpenChange={(open) => {
+          if (!open) setStageModal(null);
+        }}
+        payment={stageModal?.kind === 'upload_ss' ? latestPaymentFor(stageModal.entry) as any : null}
+        onSuccess={() => {
+          if (onRefresh) {
+            onRefresh();
           }
         }}
       />

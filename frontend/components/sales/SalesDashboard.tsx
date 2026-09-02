@@ -57,6 +57,7 @@ import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDial
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
 import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
 import { SetRevisionPriceDialog } from '@/components/sales/SetRevisionPriceDialog';
+import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialog';
 import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
 
@@ -350,6 +351,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [revisionPriceOpen, setRevisionPriceOpen] = useState(false);
   const [revisionAddon, setRevisionAddon] = useState<EditingProject | null>(null);
   const [verifyingRevisionId, setVerifyingRevisionId] = useState<string | null>(null);
+
+  const [uploadSSOpen, setUploadSSOpen] = useState(false);
+  const [uploadSSPayment, setUploadSSPayment] = useState<PaymentInstallment | null>(null);
 
   const refreshLeads = useCallback(async (silent = false, forceFresh = false) => {
     if (!silent) setRefreshing(true);
@@ -785,6 +789,25 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
 
+    const email = (form.get('clientEmail') as string || '').trim();
+    const phone = (form.get('contact') as string || '').trim();
+
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Invalid Email', { description: 'Please enter a valid email address.' });
+        return;
+      }
+    }
+
+    if (phone) {
+      const phoneRegex = /^\+?[\d\s-]{10,}$/;
+      if (!phoneRegex.test(phone)) {
+        toast.error('Invalid Phone Number', { description: 'Please enter a valid phone number with at least 10 digits.' });
+        return;
+      }
+    }
+
     setCreatingLead(true);
     try {
       const response = await authFetch('/api/clients', {
@@ -826,6 +849,25 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     if (!editingLead) return;
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
+
+    const email = (form.get('clientEmail') as string || '').trim();
+    const phone = (form.get('contact') as string || '').trim();
+
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Invalid Email', { description: 'Please enter a valid email address.' });
+        return;
+      }
+    }
+
+    if (phone) {
+      const phoneRegex = /^\+?[\d\s-]{10,}$/;
+      if (!phoneRegex.test(phone)) {
+        toast.error('Invalid Phone Number', { description: 'Please enter a valid phone number with at least 10 digits.' });
+        return;
+      }
+    }
 
     try {
       const response = await authFetch('/api/clients', {
@@ -1113,10 +1155,28 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
 
     if (lead.proposalAccepted && hasPaymentAwaitingVerification) {
+      const pendingPayment = payments.find(p => ['link sent', 'payment link sent', 'pending verification', 'screenshot uploaded - pending verification', 'screenshot received', 'screenshot uploaded'].includes(p.payment_status.trim().toLowerCase()));
       return (
-        <Button variant="outline" size="sm" disabled className="text-muted-foreground">
-          Awaiting Verification
-        </Button>
+        <div className="flex flex-col gap-1 w-full">
+          <Button variant="outline" size="sm" disabled className="text-muted-foreground w-full">
+            Awaiting Verification
+          </Button>
+          {pendingPayment && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setUploadSSPayment(pendingPayment);
+                setUploadSSOpen(true);
+              }}
+            >
+              <Upload className="mr-1 h-3 w-3" />
+              Upload SS
+            </Button>
+          )}
+        </div>
       );
     }
 
@@ -1125,6 +1185,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         <Button
           variant="outline"
           size="sm"
+          className="w-full"
           onClick={(e) => {
             e.stopPropagation();
             setPaymentLead(lead);
@@ -2396,6 +2457,16 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           )}
         </SheetContent>
       </Sheet>
+
+      <UploadScreenshotDialog 
+        open={uploadSSOpen}
+        onOpenChange={setUploadSSOpen}
+        payment={uploadSSPayment}
+        onSuccess={() => {
+          refreshLeads(true);
+          refreshPaymentHistory(true);
+        }}
+      />
     </div>
     </TooltipProvider>
   );

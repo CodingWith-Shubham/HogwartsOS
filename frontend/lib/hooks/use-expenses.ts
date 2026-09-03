@@ -5,6 +5,7 @@ import { authFetch } from '@/lib/auth-fetch';
 
 export interface Expense {
   _id: string;
+  id: string;
   amount: number;
   category: string;
   description: string;
@@ -40,8 +41,15 @@ export function useExpenses(filters: ExpenseFilters) {
       if (!response.ok || !resData.success) {
         throw new Error(resData.message || resData.error || 'Failed to fetch expenses');
       }
-      
-      setData(resData.data);
+      const mappedExpenses = resData.data.expenses.map((exp: any) => ({
+        ...exp,
+        id: exp._id
+      }));
+
+      setData({
+        expenses: mappedExpenses,
+        metrics: resData.data.metrics
+      });
     } catch (err) {
       console.error('Failed fetching expenses:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');

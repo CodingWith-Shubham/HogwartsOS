@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --bg-primary: 216 33% 98%;
     --bg-secondary: 0 0% 100%;
     --bg-elevated: 0 0% 100%;
@@ -45,6 +46,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --bg-primary: 213 30% 7%;
     --bg-secondary: 215 24% 16%;
     --bg-elevated: 215 28% 11%;
@@ -119,10 +121,6 @@
 }
 
 @layer utilities {
-  .schedule-shoot-date-input::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-    opacity: 1;
-  }
 
   /* Smooth transition texture */
   button, input, select, textarea, a, [role="button"], .card, .table-row {

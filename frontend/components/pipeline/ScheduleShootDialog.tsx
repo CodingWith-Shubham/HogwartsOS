@@ -353,7 +353,6 @@ export function ScheduleShootDialog({
                         id="shootDate"
                         type="date"
                         required
-                        className="schedule-shoot-date-input"
                         value={scheduleForm.shootDate}
                         onChange={(e) => setScheduleForm(prev => ({ ...prev, shootDate: e.target.value }))}
                       />

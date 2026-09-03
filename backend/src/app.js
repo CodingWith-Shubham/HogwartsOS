@@ -20,6 +20,7 @@ import notificationRouter from './routes/notification.routes.js';
 import marketingRouter from './routes/marketing.routes.js';
 import financeRouter from './routes/finance.routes.js';
 import expenseRouter from './routes/expense.routes.js';
+import salesTargetRouter from './routes/salesTarget.routes.js';
 
 import errorHandler from './utils/error-handler.js';
 import { ApiError } from './utils/api-error.js';
@@ -56,6 +57,7 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/marketing', marketingRouter);
 app.use('/api/v1/finance', financeRouter);
 app.use('/api/v1/expenses', expenseRouter);
+app.use('/api/v1/sales-targets', salesTargetRouter);
 
 app.get('/', (req, res) => {
     res.json({ message: 'Hogwarts Studio CRM Backend API Running' });

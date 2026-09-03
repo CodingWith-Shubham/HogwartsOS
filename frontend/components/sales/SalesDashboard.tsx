@@ -58,6 +58,7 @@ import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
 import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
 import { SetRevisionPriceDialog } from '@/components/sales/SetRevisionPriceDialog';
 import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialog';
+import { SalesTargetTab } from '@/components/sales/SalesTargetTab';
 import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
 
@@ -1788,6 +1789,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <TabsTrigger value="pipeline" className="shrink-0">Pipeline</TabsTrigger>
             <TabsTrigger value="payments" className="shrink-0">Payments</TabsTrigger>
             <TabsTrigger value="calendar" className="shrink-0">Calendar</TabsTrigger>
+            <TabsTrigger value="sales-target" className="shrink-0">Sales Target</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1975,6 +1977,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
         <TabsContent value="calendar" className="mt-4">
           <SalesCalendar shoots={shoots} />
+        </TabsContent>
+
+        <TabsContent value="sales-target" className="mt-4">
+          <SalesTargetTab salesMembers={salesMembers} />
         </TabsContent>
 
       </Tabs>

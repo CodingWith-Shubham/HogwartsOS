@@ -362,7 +362,7 @@ function ShootCard({
           <UploadStatusBadge shoot={shoot} />
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div>
             <p className="text-xs text-muted-foreground">Shoot Date</p>
             <p>{formatDate(shoot.shootDate)}</p>
@@ -376,6 +376,10 @@ function ShootCard({
           <div>
             <p className="text-xs text-muted-foreground">Record Time</p>
             <p>{shoot.recordTime || '-'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Studio Time</p>
+            <p>{shoot.studioTime || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Room</p>

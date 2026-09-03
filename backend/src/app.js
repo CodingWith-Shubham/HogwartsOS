@@ -19,6 +19,7 @@ import clientProfileRouter from './routes/clientProfile.routes.js';
 import notificationRouter from './routes/notification.routes.js';
 import marketingRouter from './routes/marketing.routes.js';
 import financeRouter from './routes/finance.routes.js';
+import expenseRouter from './routes/expense.routes.js';
 
 import errorHandler from './utils/error-handler.js';
 import { ApiError } from './utils/api-error.js';
@@ -54,6 +55,7 @@ app.use('/api/v1/upsell-crosssell', upsellCrossSellRouter); // Upsell & Cross-Se
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/marketing', marketingRouter);
 app.use('/api/v1/finance', financeRouter);
+app.use('/api/v1/expenses', expenseRouter);
 
 app.get('/', (req, res) => {
     res.json({ message: 'Hogwarts Studio CRM Backend API Running' });

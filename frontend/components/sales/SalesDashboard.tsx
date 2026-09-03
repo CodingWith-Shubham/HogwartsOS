@@ -53,6 +53,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { findAssignedSalespersonEmail, findClientEmail, isExtraRevisionNeeded, postWebhook } from '@/lib/editing';
 import { SendProposalDialog } from '@/components/pipeline/SendProposalDialog';
+import { ViewSentProposalDialog } from '@/components/pipeline/ViewSentProposalDialog';
 import { SendPaymentLinkDialog } from '@/components/pipeline/SendPaymentLinkDialog';
 import { ScheduleShootDialog } from '@/components/pipeline/ScheduleShootDialog';
 import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
@@ -321,6 +322,8 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     }
   }, [salesMembers, assignedTo]);
   const [proposalOpen, setProposalOpen] = useState(false);
+  const [viewProposalOpen, setViewProposalOpen] = useState(false);
+  const [viewProposalLead, setViewProposalLead] = useState<Lead | null>(null);
   const [leadOpen, setLeadOpen] = useState(false);
   const [editLeadOpen, setEditLeadOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -1096,18 +1099,33 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     if (lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true') {
       return (
         <div className="flex flex-col gap-1.5 w-full">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full"
-            onClick={(e) => {
-              e.stopPropagation();
-              openProposalModal(lead);
-            }}
-          >
-            <Send className="mr-1 h-3 w-3" />
-            Resend Proposal
-          </Button>
+          <div className="flex items-center gap-1.5 w-full">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex-1 text-xs px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewProposalLead(lead);
+                setViewProposalOpen(true);
+              }}
+            >
+              <FileText className="mr-1 h-3 w-3" />
+              View
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex-1 text-xs px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                openProposalModal(lead);
+              }}
+            >
+              <Send className="mr-1 h-3 w-3" />
+              Resend
+            </Button>
+          </div>
           <div className="flex items-center gap-1.5 w-full">
             <Button 
               size="sm" 
@@ -1993,6 +2011,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         onSuccess={async () => {
           await refreshLeads(true);
         }}
+      />
+
+      <ViewSentProposalDialog
+        open={viewProposalOpen}
+        onOpenChange={setViewProposalOpen}
+        lead={viewProposalLead}
       />
 
       <SendPaymentLinkDialog

@@ -121,6 +121,8 @@ const createShoot = asyncHandler(async (req, res) => {
         dataLink: body.dataLink || "",
         driveLinkUploaded: parseBoolean(body.driveLinkUploaded),
         setName,
+        recordTime: body.recordTime || body.record_time || "",
+        studioTime: body.studioTime || body.studio_time || "",
         deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0,
         // Tag the shoot with the upsell entry ID so it is isolated from the original lead's shoots
         upsellCrossSellId

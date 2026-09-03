@@ -80,6 +80,16 @@ function formatDate(value: string) {
   });
 }
 
+function formatTime12Hour(time: string | undefined | null) {
+  if (!time || time === '-') return '-';
+  const [hours, minutes] = time.split(':');
+  if (!hours || !minutes) return time;
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${minutes} ${ampm}`;
+}
+
 function monthLabel(date: Date) {
   return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 }
@@ -290,7 +300,7 @@ function ShootCalendar({
                       className="w-full rounded bg-blue-500/15 border border-blue-500/30 px-2 py-1 text-left text-[11px] text-blue-600 hover:bg-blue-500/20"
                     >
                       <span className="block truncate font-medium">{shoot.clientName}</span>
-                      <span className="block truncate">{shoot.shootStartTime || '-'}</span>
+                      <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)}</span>
                     </button>
                   ))}
                 </div>
@@ -352,14 +362,24 @@ function ShootCard({
           <UploadStatusBadge shoot={shoot} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <div>
             <p className="text-xs text-muted-foreground">Shoot Date</p>
             <p>{formatDate(shoot.shootDate)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Time</p>
-            <p>{shoot.shootStartTime || '-'} - {shoot.shootEndTime || '-'}</p>
+            <p className="text-xs text-muted-foreground">Shoot Time</p>
+            <p>
+              {formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Record Time</p>
+            <p>{shoot.recordTime || '-'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Room</p>
+            <p>{shoot.setName || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Camera</p>

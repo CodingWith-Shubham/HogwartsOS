@@ -53,7 +53,7 @@ export interface ScheduleShootDialogProps {
   onOpenChange: (open: boolean) => void;
   lead: ScheduleDialogLead | null;
   prefill?: ScheduleDialogPrefill;
-  /** Existing shoots, used for set/member conflict detection (same check as the Sales dashboard). */
+  /** Existing shoots, used for room (set) conflict detection (same check as the Sales dashboard). */
   existingShoots: Shoot[];
   /** Extra fields appended to each shoot webhook payload (e.g. `{ upsell_crosssell_id }`). */
   extraPayload?: Record<string, string>;
@@ -242,6 +242,11 @@ export function ScheduleShootDialog({
     event.preventDefault();
     if (!lead || selectedSetIndex === null) return;
 
+    // Room-based conflict detection: a conflict is shown ONLY when the shoot
+    // being booked/rescheduled overlaps in time with an existing shoot in the
+    // SAME room (set). Sharing a shoot member across overlapping shoots is
+    // allowed, and same-room shoots at non-overlapping times never conflict.
+    // Tentative bookings are excluded — no conflict checks run for them.
     if (bookingMode === 'confirmed' && scheduleForm.setName && scheduleForm.setName !== 'Outdoor Shoot') {
       const conflict = existingShoots.find((existingShoot) => {
         // The shoot being rescheduled must not conflict with itself, and slots
@@ -251,19 +256,14 @@ export function ScheduleShootDialog({
         if (existingShoot.shootDate !== scheduleForm.shootDate) return false;
         const overlap = checkTimeOverlap(scheduleForm.shootStartTime, scheduleForm.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
         if (!overlap) return false;
-        const setMatches = scheduleForm.setName === existingShoot.setName || scheduleForm.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
-        const memberMatches = scheduleForm.shootMemberName === existingShoot.shootMemberName;
-        return setMatches || memberMatches;
+        // Same room: exact set match, or either shoot books the Entire Studio
+        // (which occupies every room).
+        return scheduleForm.setName === existingShoot.setName || scheduleForm.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
       });
 
       if (conflict) {
-        if (conflict.shootMemberName === scheduleForm.shootMemberName) {
-          setConflictError(`Conflict: ${scheduleForm.shootMemberName} is already assigned to a shoot for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
-          return;
-        } else {
-          setConflictError(`⚠️ The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}. Please confirm this is intentional before proceeding.`);
-          // Warn but allow going through by clearing conflict if they click again
-        }
+        setConflictError(`⚠️ The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}. Please confirm this is intentional before proceeding.`);
+        // Warn but allow going through by clearing conflict if they click again
       }
     }
     // Tentative mode: no conflict checks at all — multiple clients may hold the same slot.
@@ -428,8 +428,6 @@ export function ScheduleShootDialog({
         let errorMessage = `A scheduling conflict occurred.`;
         if (resConflict.conflict_type === 'duplicate') {
            errorMessage = `This shoot instance has already been scheduled.`;
-        } else if (resConflict.conflict_type === 'member') {
-          errorMessage = `${resConflict.conflicting_member || scheduleForm.shootMemberName} is already assigned to a shoot for ${resConflict.conflicting_client} from ${resConflict.conflicting_start} to ${resConflict.conflicting_end}. Please assign a different member or change the time.`;
         } else {
           errorMessage = `"${resConflict.conflicting_set || payload.set_name}" is already booked for ${resConflict.conflicting_client} from ${resConflict.conflicting_start} to ${resConflict.conflicting_end}. Please choose a different set or time.`;
         }

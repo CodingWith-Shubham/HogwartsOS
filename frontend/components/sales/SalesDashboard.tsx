@@ -297,6 +297,8 @@ function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
 
 export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: SalesDashboardProps) {
   const { user, users } = useAuth();
+  // Only manager (master), admin, and super_admin can delete leads
+  const canDeleteLeads = ['manager', 'admin', 'super_admin'].includes(user?.role || '');
 
   const salesMembers = useMemo(() => {
     const list = users.filter((u) => (u.role === 'sales' || u.role === 'manager' || u.role === 'admin' || u.role === 'super_admin') && u.isActive !== false);
@@ -1557,22 +1559,24 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               <Edit className="h-4 w-4" />
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
-            disabled={deletingLeadId === lead.leadId}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteLead(lead);
-            }}
-          >
-            {deletingLeadId === lead.leadId ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-          </Button>
+          {canDeleteLeads && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
+              disabled={deletingLeadId === lead.leadId}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteLead(lead);
+              }}
+            >
+              {deletingLeadId === lead.leadId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          )}
         </div>
         {renderProposalAction(lead)}
         {renderPaymentAction(lead)}

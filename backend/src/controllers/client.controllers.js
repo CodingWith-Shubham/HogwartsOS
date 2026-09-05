@@ -257,6 +257,11 @@ const getClientByLeadId = asyncHandler(async (req, res) => {
 });
 
 const deleteClient = asyncHandler(async (req, res) => {
+    // Only manager (master), admin, and super_admin can delete leads
+    if (!req.user || !["manager", "admin", "super_admin"].includes(req.user.role)) {
+        throw new ApiError(403, "Only managers, admins, or super admins can delete leads");
+    }
+
     const { leadId } = req.params;
 
     const deleted = await Client.findOneAndDelete({ leadId });

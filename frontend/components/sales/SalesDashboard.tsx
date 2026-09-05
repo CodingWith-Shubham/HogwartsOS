@@ -31,7 +31,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle, Clock } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle, Clock, CalendarClock } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -62,7 +62,7 @@ import { SetRevisionPriceDialog } from '@/components/sales/SetRevisionPriceDialo
 import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialog';
 import { SalesTargetTab } from '@/components/sales/SalesTargetTab';
 import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
-import type { ScheduleDialogPrefill } from '@/components/pipeline/ScheduleShootDialog';
+import type { ScheduleDialogPrefill, ScheduleDialogLead } from '@/components/pipeline/ScheduleShootDialog';
 
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
   'https://n8n.hogwartsstudios.com/webhook/final-payment-completed';
@@ -189,7 +189,7 @@ function buildMonthDays(month: Date) {
   });
 }
 
-function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
+function SalesCalendar({ shoots, onReschedule }: { shoots: Shoot[]; onReschedule?: (shoot: Shoot) => void }) {
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<Shoot | null>(null);
   const days = useMemo(() => buildMonthDays(month), [month]);
@@ -287,6 +287,21 @@ function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
                 <div><span className="text-muted-foreground">BTS:</span> {selected.bts || 'No'}</div>
                 <div><span className="text-muted-foreground">Member:</span> {selected.shootMemberName || '-'}</div>
               </div>
+              {onReschedule && (
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onReschedule(selected);
+                      setSelected(null);
+                    }}
+                  >
+                    <CalendarClock className="mr-1.5 h-4 w-4" />
+                    Reschedule Shoot
+                  </Button>
+                </DialogFooter>
+              )}
             </>
           )}
         </DialogContent>
@@ -358,6 +373,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [scheduleLead, setScheduleLead] = useState<Lead | null>(null);
   const [tentativeScheduleOpen, setTentativeScheduleOpen] = useState(false);
   const [tentativeScheduleLead, setTentativeScheduleLead] = useState<Lead | null>(null);
+  const [rescheduleShoot, setRescheduleShoot] = useState<Shoot | null>(null);
   const [cancelShootModalOpen, setCancelShootModalOpen] = useState(false);
   const [cancelShootLead, setCancelShootLead] = useState<Lead | null>(null);
   const [cancellingShootId, setCancellingShootId] = useState<string | null>(null);
@@ -700,6 +716,24 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     });
     setTentativeScheduleOpen(true);
   };
+
+  // Reschedule: build the minimal lead shape the ScheduleShootDialog needs from
+  // the shoot being rescheduled (client details come from the shoot record;
+  // deliverable sets are pulled from the matching lead when available so the
+  // dialog can show the service name).
+  const rescheduleLead = useMemo<ScheduleDialogLead | null>(() => {
+    if (!rescheduleShoot) return null;
+    const lead = leads.find((l) => l.leadId === rescheduleShoot.leadId);
+    return {
+      leadId: rescheduleShoot.leadId,
+      name: rescheduleShoot.clientName || lead?.name || '',
+      phoneNumber: rescheduleShoot.contactNum || lead?.phoneNumber || '',
+      clientEmail: rescheduleShoot.emailId || lead?.clientEmail || '',
+      assignedTo: rescheduleShoot.assignedTo || lead?.assignedTo || '',
+      deliverableSets: lead?.deliverableSets || (lead as any)?.deliverable_sets || [],
+      upsellCrossSellId: rescheduleShoot.upsellCrossSellId,
+    };
+  }, [rescheduleShoot, leads]);
 
   const cancelShoot = async (shoot: Shoot) => {
     if (!confirm(`Cancel ${shoot.bookingStatus === 'tentative' ? 'tentative hold' : 'shoot'} for ${shoot.clientName}? This cannot be undone.`)) return;
@@ -2103,7 +2137,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         </TabsContent>
 
         <TabsContent value="calendar" className="mt-4">
-          <SalesCalendar shoots={shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''))} />
+          <SalesCalendar
+            shoots={shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''))}
+            onReschedule={(shoot) => setRescheduleShoot(shoot)}
+          />
         </TabsContent>
 
         <TabsContent value="sales-target" className="mt-4">
@@ -2282,6 +2319,22 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         prefill={schedulePrefill}
         existingShoots={shoots}
         mode="tentative"
+        onSuccess={async () => {
+          await Promise.all([refreshLeads(true), refreshShoots(true)]);
+        }}
+      />
+
+      {/* Reschedule dialog (opened from the calendar shoot-details popup). The
+          dialog itself handles releasing the old shoot + re-firing the n8n
+          schedule-shoot webhook with the new date/time. */}
+      <ScheduleShootDialog
+        open={Boolean(rescheduleShoot)}
+        onOpenChange={(open) => {
+          if (!open) setRescheduleShoot(null);
+        }}
+        lead={rescheduleLead}
+        existingShoots={shoots}
+        rescheduleShoot={rescheduleShoot}
         onSuccess={async () => {
           await Promise.all([refreshLeads(true), refreshShoots(true)]);
         }}

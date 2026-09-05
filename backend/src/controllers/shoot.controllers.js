@@ -290,6 +290,47 @@ const updateShoot = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { shoot: updated }, "Shoot updated successfully"));
 });
 
+// ── Reschedule support ─────────────────────────────────────────────────────
+// Releases the existing shoot so it can be rescheduled: marks it cancelled with
+// a "Rescheduled" note and frees its deliverableSetIndex. The frontend calls
+// this FIRST, then fires the same n8n schedule-shoot webhook (unchanged) with
+// the new date/time so n8n creates the updated shoot + sends the calendar
+// invite exactly like a normal schedule. If the webhook call fails, the
+// frontend restores this shoot via the regular PUT /shoots/:shootId update.
+const rescheduleShoot = asyncHandler(async (req, res) => {
+    const { shootId } = req.params;
+
+    const shoot = await Shoot.findOne({ shootId });
+    if (!shoot) throw new ApiError(404, "Shoot not found");
+
+    if (shoot.bookingStatus === 'conflict') {
+        throw new ApiError(400, "This shoot is already marked as conflicted — it cannot be rescheduled.");
+    }
+    if (shoot.bookingStatus === 'cancelled') {
+        throw new ApiError(400, "This shoot has already been cancelled.");
+    }
+
+    const { newDate, newStartTime, newEndTime } = req.body || {};
+    const rescheduledBy = req.user?.name || req.user?.email || 'Staff';
+    const target = newDate
+        ? ` → ${newDate}${newStartTime ? ` ${newStartTime}` : ''}${newEndTime ? `-${newEndTime}` : ''}`
+        : '';
+
+    await Shoot.findOneAndUpdate(
+        { shootId },
+        {
+            $set: {
+                bookingStatus: 'cancelled',
+                bookingStatusNote: `Rescheduled by ${rescheduledBy}${target}`,
+                deliverableSetIndex: -1,
+                deliverable_set_index: -1
+            }
+        }
+    );
+
+    return res.status(200).json(new ApiResponse(200, {}, "Shoot released for rescheduling"));
+});
+
 const deleteShoot = asyncHandler(async (req, res) => {
     const { shootId } = req.params;
 
@@ -426,4 +467,4 @@ const resolveShootConflicts = async (leadId, upsellCrossSellId = "") => {
     }
 };
 
-export { getShoots, getShootById, createShoot, updateShoot, deleteShoot, resolveShootConflicts };
+export { getShoots, getShootById, createShoot, updateShoot, deleteShoot, rescheduleShoot, resolveShootConflicts };

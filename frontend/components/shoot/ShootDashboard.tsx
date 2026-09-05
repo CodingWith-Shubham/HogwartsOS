@@ -23,9 +23,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Camera, CheckCircle, Clock, ExternalLink, Upload, XCircle } from 'lucide-react';
+import { Calendar, CalendarClock, Camera, CheckCircle, Clock, ExternalLink, Upload, XCircle } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { toast } from 'sonner';
+import { ScheduleShootDialog, type ScheduleDialogLead } from '@/components/pipeline/ScheduleShootDialog';
 import type { Shoot } from '@/lib/sheets/types';
 import type { User } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -525,6 +526,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   const [handingOverId, setHandingOverId] = useState<string | null>(null);
   const [cancellingShootId, setCancellingShootId] = useState<string | null>(null);
   const [showAllShoots, setShowAllShoots] = useState(false);
+  const [rescheduleShoot, setRescheduleShoot] = useState<Shoot | null>(null);
   const [activeTab, setActiveTab] = useState('today');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [postShootForm, setPostShootForm] = useState<PostShootForm>({
@@ -597,6 +599,21 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
     if (showAllShoots) return shoots;
     return shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''));
   }, [shoots, showAllShoots]);
+
+  // Reschedule: build the minimal lead shape the ScheduleShootDialog needs from
+  // the shoot being rescheduled (client details live on the shoot record).
+  const rescheduleLead = useMemo<ScheduleDialogLead | null>(() => {
+    if (!rescheduleShoot) return null;
+    return {
+      leadId: rescheduleShoot.leadId,
+      name: rescheduleShoot.clientName || '',
+      phoneNumber: rescheduleShoot.contactNum || '',
+      clientEmail: rescheduleShoot.emailId || (rescheduleShoot as any).clientEmailId || '',
+      assignedTo: rescheduleShoot.assignedTo || '',
+      deliverableSets: [],
+      upsellCrossSellId: rescheduleShoot.upsellCrossSellId,
+    };
+  }, [rescheduleShoot]);
 
   const today = todayKey();
   const todaysShoots = activeShoots
@@ -955,10 +972,44 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
               </div>
               {detail.bookingStatusNote && <p className="text-sm text-red-500/90 italic font-medium">{detail.bookingStatusNote}</p>}
               {detail.shootNotes && <p className="text-sm text-muted-foreground">{detail.shootNotes}</p>}
+              {/* Reschedule is only offered for shoots that haven't happened yet
+                  (footage not uploaded) and are still active. */}
+              {!isTrue(detail.driveLinkUploaded) &&
+                !['cancelled', 'conflict'].includes(detail.bookingStatus ?? '') && (
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRescheduleShoot(detail);
+                      setDetail(null);
+                    }}
+                  >
+                    <CalendarClock className="mr-1.5 h-4 w-4" />
+                    Reschedule Shoot
+                  </Button>
+                </DialogFooter>
+              )}
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule dialog (opened from the shoot details popup above). The
+          dialog itself handles releasing the old shoot + re-firing the n8n
+          schedule-shoot webhook with the new date/time. */}
+      <ScheduleShootDialog
+        open={Boolean(rescheduleShoot)}
+        onOpenChange={(open) => {
+          if (!open) setRescheduleShoot(null);
+        }}
+        lead={rescheduleLead}
+        existingShoots={shoots}
+        rescheduleShoot={rescheduleShoot}
+        onSuccess={async () => {
+          await refreshShoots(true, true);
+        }}
+      />
 
       <Dialog open={Boolean(editShoot)} onOpenChange={(open) => !open && setEditShoot(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

@@ -58,6 +58,14 @@ export interface ScheduleShootDialogProps {
   /** Extra fields appended to each shoot webhook payload (e.g. `{ upsell_crosssell_id }`). */
   extraPayload?: Record<string, string>;
   mode?: 'confirmed' | 'tentative';
+  /**
+   * Reschedule mode: when set, the dialog opens directly on the scheduling form
+   * with every field prefilled from this shoot EXCEPT date / start / end time.
+   * On submit the old shoot is released (soft-cancelled via the reschedule API)
+   * and the unchanged n8n schedule-shoot webhook is fired again with the new
+   * date/time so the existing workflow creates the updated shoot + invite.
+   */
+  rescheduleShoot?: Shoot | null;
   /** Called after all shoots were scheduled — e.g. advance pipeline status. */
   onSuccess?: () => void | Promise<void>;
 }
@@ -86,6 +94,7 @@ export function ScheduleShootDialog({
   existingShoots,
   extraPayload,
   mode = 'confirmed',
+  rescheduleShoot = null,
   onSuccess,
 }: ScheduleShootDialogProps) {
   const { users } = useAuth();
@@ -94,6 +103,21 @@ export function ScheduleShootDialog({
     const list = users.filter((u) => u.role === 'shoot' && u.isActive !== false);
     return list.length > 0 ? list.map(u => ({ name: u.name, email: u.email })) : FALLBACK_SHOOT_MEMBERS;
   }, [users]);
+
+  // In reschedule mode, guarantee the shoot's currently-assigned member appears
+  // in the dropdown even if they are no longer in the active shoot-user list.
+  const memberOptions = useMemo(() => {
+    if (
+      rescheduleShoot?.shootMemberName &&
+      !shootMembers.some((m) => m.name === rescheduleShoot.shootMemberName)
+    ) {
+      return [
+        ...shootMembers,
+        { name: rescheduleShoot.shootMemberName, email: rescheduleShoot.shootMemberEmail || '' },
+      ];
+    }
+    return shootMembers;
+  }, [shootMembers, rescheduleShoot]);
 
   // Derived unscheduled sets
   const leadDeliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
@@ -139,10 +163,42 @@ export function ScheduleShootDialog({
 
   useEffect(() => {
     if (!open) return;
-    setSelectedSetIndex(null);
     setConflictError('');
+
+    if (rescheduleShoot) {
+      // ── Reschedule mode ────────────────────────────────────────────────────
+      // Skip the services list and prefill EVERYTHING from the existing shoot
+      // except the date, start time and end time (those are chosen fresh).
+      // Tentative holds stay tentative (direct backend save, no n8n); confirmed
+      // shoots go through the unchanged n8n schedule-shoot webhook again.
+      setBookingMode(rescheduleShoot.bookingStatus === 'tentative' ? 'tentative' : 'confirmed');
+      const storedIndex = Number(rescheduleShoot.deliverableSetIndex ?? 0);
+      const memberName = rescheduleShoot.shootMemberName || shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name;
+      const memberEmail = rescheduleShoot.shootMemberEmail || shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email;
+      setScheduleForm({
+        ...DEFAULT_SCHEDULE_FORM,
+        shootDate: '',
+        shootStartTime: '',
+        shootEndTime: '',
+        totalHours: rescheduleShoot.totalHours || '',
+        camera: rescheduleShoot.camera || '1',
+        teleprompter: rescheduleShoot.teleprompter || 'No',
+        bts: rescheduleShoot.bts || 'No',
+        recordTime: rescheduleShoot.recordTime || '',
+        setName: rescheduleShoot.setName || '',
+        studioTime: rescheduleShoot.studioTime || '',
+        shootMemberName: memberName,
+        shootMemberEmail: memberEmail,
+        deliverableSetIndex: storedIndex,
+      });
+      setSelectedSetIndex(storedIndex >= 100 ? storedIndex % 100 : storedIndex);
+      return;
+    }
+
+    setSelectedSetIndex(null);
     setBookingMode(mode);
-  }, [open, mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, rescheduleShoot]);
 
   const handleSelectSet = (index: number) => {
     const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
@@ -188,6 +244,10 @@ export function ScheduleShootDialog({
 
     if (bookingMode === 'confirmed' && scheduleForm.setName && scheduleForm.setName !== 'Outdoor Shoot') {
       const conflict = existingShoots.find((existingShoot) => {
+        // The shoot being rescheduled must not conflict with itself, and slots
+        // freed by cancelled/conflict shoots should never block a booking.
+        if (rescheduleShoot && existingShoot.shootId === rescheduleShoot.shootId) return false;
+        if (['cancelled', 'conflict'].includes(existingShoot.bookingStatus ?? '')) return false;
         if (existingShoot.shootDate !== scheduleForm.shootDate) return false;
         const overlap = checkTimeOverlap(scheduleForm.shootStartTime, scheduleForm.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
         if (!overlap) return false;
@@ -211,8 +271,62 @@ export function ScheduleShootDialog({
     setSchedulingShoot(true);
     if (bookingMode !== 'confirmed') setConflictError('');
 
+    // ── Reschedule bookkeeping ───────────────────────────────────────────────
+    const isReschedule = Boolean(rescheduleShoot);
+    const originalBookingStatus = rescheduleShoot?.bookingStatus || 'confirmed';
+    const originalSetIndex = Number(rescheduleShoot?.deliverableSetIndex ?? 0);
+    const originalStatusNote = rescheduleShoot?.bookingStatusNote || '';
+    // Upsell linkage: normally provided via extraPayload; in reschedule mode it
+    // is recovered from the shoot being rescheduled.
+    const effectiveUpsellId =
+      extraPayload?.upsell_crosssell_id ||
+      (rescheduleShoot?.upsellCrossSellId && rescheduleShoot.upsellCrossSellId.trim() !== ''
+        ? rescheduleShoot.upsellCrossSellId
+        : undefined);
+
+    // Best-effort restore of the original shoot if booking the new slot fails.
+    const restoreOriginalShoot = async () => {
+      if (!rescheduleShoot) return;
+      try {
+        const { authFetch } = await import('@/lib/auth-fetch');
+        await authFetch('/api/shoots', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shootId: rescheduleShoot.shootId,
+            bookingStatus: originalBookingStatus,
+            bookingStatusNote: originalStatusNote,
+            deliverableSetIndex: originalSetIndex,
+            deliverable_set_index: originalSetIndex,
+          }),
+        });
+      } catch {
+        // best-effort — the error toast already tells the user what happened
+      }
+    };
+
     try {
       const assignedTo = getAssignedSalespersonName(lead.assignedTo, users);
+
+      if (isReschedule && rescheduleShoot) {
+        // Step 1 (reschedule only): release the OLD shoot first so it disappears
+        // from Today/Upcoming and both calendars, and so the unchanged n8n
+        // workflow's duplicate/conflict checks don't trip on the old booking.
+        const { authFetch } = await import('@/lib/auth-fetch');
+        const releaseRes = await authFetch(`/api/shoots/${rescheduleShoot.shootId}/reschedule`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            newDate: scheduleForm.shootDate,
+            newStartTime: scheduleForm.shootStartTime,
+            newEndTime: scheduleForm.shootEndTime,
+          }),
+        });
+        if (!releaseRes.ok) {
+          const err = await releaseRes.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to release the existing shoot slot');
+        }
+      }
 
       if (bookingMode === 'tentative') {
         // ── Tentative path: save directly to the backend (no n8n webhook) ────────
@@ -230,17 +344,20 @@ export function ScheduleShootDialog({
           teleprompter: scheduleForm.teleprompter,
           bts: scheduleForm.bts,
           recordTime: scheduleForm.recordTime,
-          setName: extraPayload?.upsell_crosssell_id
-            ? `${scheduleForm.setName} ||| UPSELL:${extraPayload.upsell_crosssell_id}`
+          setName: effectiveUpsellId
+            ? `${scheduleForm.setName} ||| UPSELL:${effectiveUpsellId}`
             : scheduleForm.setName,
           studioTime: scheduleForm.studioTime,
           assignedTo,
           shootMemberName: scheduleForm.shootMemberName,
           shootMemberEmail: scheduleForm.shootMemberEmail,
-          deliverableSetIndex: extraPayload?.upsell_crosssell_id
-            ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
-            : scheduleForm.deliverableSetIndex,
+          deliverableSetIndex: isReschedule
+            ? originalSetIndex
+            : effectiveUpsellId
+              ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
+              : scheduleForm.deliverableSetIndex,
           bookingStatus: 'tentative',
+          ...(effectiveUpsellId ? { upsell_crosssell_id: effectiveUpsellId } : {}),
           ...(extraPayload ?? {}),
         };
 
@@ -252,11 +369,19 @@ export function ScheduleShootDialog({
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || 'Failed to book tentative shoot');
+          throw new Error(err.message || err.error || 'Failed to book tentative shoot');
         }
 
-        toast.success('Tentative hold placed! Slot will be confirmed when payment is received first.');
-        setSelectedSetIndex(null);
+        toast.success(
+          isReschedule
+            ? 'Tentative hold rescheduled! Slot will be confirmed when payment is received first.'
+            : 'Tentative hold placed! Slot will be confirmed when payment is received first.'
+        );
+        if (isReschedule) {
+          onOpenChange(false);
+        } else {
+          setSelectedSetIndex(null);
+        }
         await onSuccess?.();
         return;
       }
@@ -274,19 +399,24 @@ export function ScheduleShootDialog({
         teleprompter: scheduleForm.teleprompter,
         bts: scheduleForm.bts,
         record_time: scheduleForm.recordTime,
-        set_name: extraPayload?.upsell_crosssell_id 
-          ? `${scheduleForm.setName} ||| UPSELL:${extraPayload.upsell_crosssell_id}` 
+        set_name: effectiveUpsellId
+          ? `${scheduleForm.setName} ||| UPSELL:${effectiveUpsellId}`
           : scheduleForm.setName,
         studio_time: scheduleForm.studioTime,
         assigned_to: assignedTo,
         shoot_member_name: scheduleForm.shootMemberName,
         shoot_member_email: scheduleForm.shootMemberEmail,
-        deliverable_set_index: extraPayload?.upsell_crosssell_id 
-          ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
-          : scheduleForm.deliverableSetIndex,
+        deliverable_set_index: isReschedule
+          ? originalSetIndex
+          : effectiveUpsellId
+            ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
+            : scheduleForm.deliverableSetIndex,
+        ...(effectiveUpsellId ? { upsell_crosssell_id: effectiveUpsellId } : {}),
         ...(extraPayload ?? {}),
       };
 
+      // The n8n workflow is intentionally left UNCHANGED for reschedules — the
+      // same webhook creates the updated shoot and sends the calendar invite.
       const response = await fetch(SCHEDULE_SHOOT_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -303,19 +433,30 @@ export function ScheduleShootDialog({
         } else {
           errorMessage = `"${resConflict.conflicting_set || payload.set_name}" is already booked for ${resConflict.conflicting_client} from ${resConflict.conflicting_start} to ${resConflict.conflicting_end}. Please choose a different set or time.`;
         }
+        await restoreOriginalShoot();
         setConflictError(errorMessage);
         return;
       }
 
-      if (!response.ok) throw new Error(`Failed to schedule shoot`);
+      if (!response.ok) throw new Error(`Failed to ${isReschedule ? 'reschedule' : 'schedule'} shoot`);
 
-      toast.success('Shoot scheduled successfully!');
-      setSelectedSetIndex(null);
+      toast.success(isReschedule ? 'Shoot rescheduled successfully!' : 'Shoot scheduled successfully!');
+      if (isReschedule) {
+        onOpenChange(false);
+      } else {
+        setSelectedSetIndex(null);
+      }
       await onSuccess?.();
     } catch (error) {
-      toast.error(bookingMode === 'tentative' ? 'Failed to place tentative hold' : 'Failed to schedule shoot', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+      await restoreOriginalShoot();
+      toast.error(
+        bookingMode === 'tentative'
+          ? (isReschedule ? 'Failed to reschedule tentative hold' : 'Failed to place tentative hold')
+          : (isReschedule ? 'Failed to reschedule shoot' : 'Failed to schedule shoot'),
+        {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
     } finally {
       setSchedulingShoot(false);
     }
@@ -325,8 +466,12 @@ export function ScheduleShootDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Schedule Shoot</DialogTitle>
-          <DialogDescription>Send shoot details to the production team.</DialogDescription>
+          <DialogTitle>{rescheduleShoot ? 'Reschedule Shoot' : 'Schedule Shoot'}</DialogTitle>
+          <DialogDescription>
+            {rescheduleShoot
+              ? 'Pick a new date & time for this shoot — everything else is prefilled from the existing booking.'
+              : 'Send shoot details to the production team.'}
+          </DialogDescription>
         </DialogHeader>
         {lead && (
           <div className="space-y-5">
@@ -388,16 +533,18 @@ export function ScheduleShootDialog({
               </div>
             ) : (
               <form onSubmit={handleScheduleShoot} className="space-y-5 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedSetIndex(null)} className="-ml-3 text-muted-foreground">
-                    <ArrowLeft className="mr-1 h-4 w-4" />
-                    Back to Services
-                  </Button>
-                </div>
-                
+                {!rescheduleShoot && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedSetIndex(null)} className="-ml-3 text-muted-foreground">
+                      <ArrowLeft className="mr-1 h-4 w-4" />
+                      Back to Services
+                    </Button>
+                  </div>
+                )}
+
                 <div className="space-y-4 rounded-md border border-border p-4">
                   <h4 className="font-semibold text-sm border-b pb-2 text-primary">
-                    Scheduling: {(lead?.deliverableSets || (lead as any)?.deliverable_sets)?.[selectedSetIndex]?.serviceName || 'Service'}
+                    {rescheduleShoot ? 'Rescheduling' : 'Scheduling'}: {(lead?.deliverableSets || (lead as any)?.deliverable_sets)?.[selectedSetIndex]?.serviceName || (rescheduleShoot ? 'Shoot' : 'Service')}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -544,7 +691,7 @@ export function ScheduleShootDialog({
                       >
                         <SelectTrigger id="shootMember"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {shootMembers.map((member) => (
+                          {memberOptions.map((member) => (
                             <SelectItem key={member.name} value={member.name}>
                               {member.name}
                             </SelectItem>
@@ -572,12 +719,16 @@ export function ScheduleShootDialog({
                 )}
 
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setSelectedSetIndex(null)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => (rescheduleShoot ? onOpenChange(false) : setSelectedSetIndex(null))}
+                  >
                     Cancel
                   </Button>
                   <Button type="submit" disabled={schedulingShoot || !scheduleForm.totalHours}>
                     <Camera className="mr-1.5 h-4 w-4" />
-                    Send to Shoot Team
+                    {rescheduleShoot ? (schedulingShoot ? 'Rescheduling…' : 'Reschedule Shoot') : 'Send to Shoot Team'}
                   </Button>
                 </DialogFooter>
               </form>

@@ -57,6 +57,7 @@ export interface ScheduleShootDialogProps {
   existingShoots: Shoot[];
   /** Extra fields appended to each shoot webhook payload (e.g. `{ upsell_crosssell_id }`). */
   extraPayload?: Record<string, string>;
+  mode?: 'confirmed' | 'tentative';
   /** Called after all shoots were scheduled — e.g. advance pipeline status. */
   onSuccess?: () => void | Promise<void>;
 }
@@ -84,6 +85,7 @@ export function ScheduleShootDialog({
   prefill,
   existingShoots,
   extraPayload,
+  mode = 'confirmed',
   onSuccess,
 }: ScheduleShootDialogProps) {
   const { users } = useAuth();
@@ -104,6 +106,7 @@ export function ScheduleShootDialog({
     const upsellId = lead?.upsellCrossSellId ?? '';
     const leadShoots = existingShoots.filter(s => {
       if (s.leadId !== lead?.leadId) return false;
+      if (s.bookingStatus === 'cancelled' || s.bookingStatus === 'conflict') return false;
       if (upsellId) {
         // Upsell context: only consider shoots that belong to this upsell entry
         return (s.upsellCrossSellId ?? '') === upsellId;
@@ -129,12 +132,14 @@ export function ScheduleShootDialog({
   const [scheduleForm, setScheduleForm] = useState(DEFAULT_SCHEDULE_FORM);
   const [schedulingShoot, setSchedulingShoot] = useState(false);
   const [conflictError, setConflictError] = useState('');
+  const [bookingMode, setBookingMode] = useState<'confirmed' | 'tentative'>(mode);
 
   useEffect(() => {
     if (!open) return;
     setSelectedSetIndex(null);
     setConflictError('');
-  }, [open]);
+    setBookingMode(mode);
+  }, [open, mode]);
 
   const handleSelectSet = (index: number) => {
     const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
@@ -174,39 +179,84 @@ export function ScheduleShootDialog({
     return startAMins < endBMins && startBMins < endAMins;
   };
 
-  const handleScheduleShoot = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleScheduleShoot = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!lead || selectedSetIndex === null) return;
 
-    if (!scheduleForm.setName) {
-      setConflictError('Please select a set / location.');
-      return;
-    }
+    if (bookingMode === 'confirmed' && scheduleForm.setName && scheduleForm.setName !== 'Outdoor Shoot') {
+      const conflict = existingShoots.find((existingShoot) => {
+        if (existingShoot.shootDate !== scheduleForm.shootDate) return false;
+        const overlap = checkTimeOverlap(scheduleForm.shootStartTime, scheduleForm.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
+        if (!overlap) return false;
+        const setMatches = scheduleForm.setName === existingShoot.setName || scheduleForm.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
+        const memberMatches = scheduleForm.shootMemberName === existingShoot.shootMemberName;
+        return setMatches || memberMatches;
+      });
 
-    const conflict = existingShoots.find((existingShoot) => {
-      if (existingShoot.shootDate !== scheduleForm.shootDate) return false;
-      const overlap = checkTimeOverlap(scheduleForm.shootStartTime, scheduleForm.shootEndTime, existingShoot.shootStartTime, existingShoot.shootEndTime);
-      if (!overlap) return false;
-      const setMatches = scheduleForm.setName === existingShoot.setName || scheduleForm.setName === 'Entire Studio' || existingShoot.setName === 'Entire Studio';
-      const memberMatches = scheduleForm.shootMemberName === existingShoot.shootMemberName;
-      return setMatches || memberMatches;
-    });
-
-    if (conflict) {
-      if (conflict.shootMemberName === scheduleForm.shootMemberName) {
-        setConflictError(`Conflict: ${scheduleForm.shootMemberName} is already assigned to a shoot for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
-        return;
-      } else {
-        setConflictError(`Conflict: The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
-        return;
+      if (conflict) {
+        if (conflict.shootMemberName === scheduleForm.shootMemberName) {
+          setConflictError(`Conflict: ${scheduleForm.shootMemberName} is already assigned to a shoot for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}.`);
+          return;
+        } else {
+          setConflictError(`⚠️ The set "${conflict.setName || 'Entire Studio'}" is already booked for ${conflict.clientName} from ${conflict.shootStartTime} to ${conflict.shootEndTime}. Please confirm this is intentional before proceeding.`);
+          // Warn but allow going through by clearing conflict if they click again
+        }
       }
     }
+    // Tentative mode: no conflict checks at all — multiple clients may hold the same slot.
 
     setSchedulingShoot(true);
-    setConflictError('');
+    if (bookingMode !== 'confirmed') setConflictError('');
 
     try {
       const assignedTo = getAssignedSalespersonName(lead.assignedTo, users);
+
+      if (bookingMode === 'tentative') {
+        // ── Tentative path: save directly to the backend (no n8n webhook) ────────
+        const { authFetch } = await import('@/lib/auth-fetch');
+        const payload = {
+          leadId: lead.leadId,
+          clientName: lead.name,
+          contactNum: lead.phoneNumber,
+          clientEmailId: lead.clientEmail,
+          shootDate: scheduleForm.shootDate,
+          shootStartTime: scheduleForm.shootStartTime,
+          shootEndTime: scheduleForm.shootEndTime,
+          totalHours: scheduleForm.totalHours,
+          camera: scheduleForm.camera,
+          teleprompter: scheduleForm.teleprompter,
+          bts: scheduleForm.bts,
+          recordTime: scheduleForm.recordTime,
+          setName: extraPayload?.upsell_crosssell_id
+            ? `${scheduleForm.setName} ||| UPSELL:${extraPayload.upsell_crosssell_id}`
+            : scheduleForm.setName,
+          studioTime: scheduleForm.studioTime,
+          assignedTo,
+          shootMemberName: scheduleForm.shootMemberName,
+          shootMemberEmail: scheduleForm.shootMemberEmail,
+          deliverableSetIndex: extraPayload?.upsell_crosssell_id
+            ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
+            : scheduleForm.deliverableSetIndex,
+          bookingStatus: 'tentative',
+          ...(extraPayload ?? {}),
+        };
+
+        const res = await authFetch('/api/shoots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to book tentative shoot');
+        }
+
+        toast.success('Tentative hold placed! Slot will be confirmed when payment is received first.');
+        setSelectedSetIndex(null);
+        await onSuccess?.();
+        return;
+      }
       
       const payload = {
         lead_id: lead.leadId,
@@ -260,7 +310,7 @@ export function ScheduleShootDialog({
       setSelectedSetIndex(null);
       await onSuccess?.();
     } catch (error) {
-      toast.error('Failed to schedule shoot', {
+      toast.error(bookingMode === 'tentative' ? 'Failed to place tentative hold' : 'Failed to schedule shoot', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {

@@ -125,7 +125,14 @@ const createShoot = asyncHandler(async (req, res) => {
         studioTime: body.studioTime || body.studio_time || "",
         deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0,
         // Tag the shoot with the upsell entry ID so it is isolated from the original lead's shoots
-        upsellCrossSellId
+        upsellCrossSellId,
+        // Booking mode: 'confirmed' (default, from n8n schedule-shoot webhook) or
+        // 'tentative' (from the new Tentative Booking button in the Sales dashboard).
+        // Confirmed shoots trigger an n8n calendar invite immediately.
+        // Tentative shoots are held without a calendar invite; the payment verifier
+        // resolves conflicts and triggers n8n for the winning shoot only.
+        bookingStatus: body.bookingStatus || 'confirmed',
+        bookingStatusNote: body.bookingStatusNote || ''
     });
 
     if (upsellCrossSellId) {
@@ -283,4 +290,140 @@ const updateShoot = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, { shoot: updated }, "Shoot updated successfully"));
 });
 
-export { getShoots, getShootById, createShoot, updateShoot };
+const deleteShoot = asyncHandler(async (req, res) => {
+    const { shootId } = req.params;
+
+    const shoot = await Shoot.findOne({ shootId });
+    if (!shoot) throw new ApiError(404, "Shoot not found");
+
+    // Only tentative or confirmed shoots may be cancelled; already-resolved or
+    // already-cancelled shoots are read-only from this endpoint.
+    if (shoot.bookingStatus === 'conflict') {
+        throw new ApiError(400, "This shoot is already marked as conflicted — no cancellation needed.");
+    }
+    if (shoot.bookingStatus === 'cancelled') {
+        throw new ApiError(400, "This shoot has already been cancelled.");
+    }
+
+    const cancelledBy = req.user?.name || req.user?.email || 'Staff';
+    await Shoot.findOneAndUpdate(
+        { shootId },
+        {
+            $set: {
+                bookingStatus: 'cancelled',
+                bookingStatusNote: `Manually cancelled by ${cancelledBy}`,
+                deliverableSetIndex: -1
+            }
+        }
+    );
+
+    return res.status(200).json(new ApiResponse(200, {}, "Shoot cancelled successfully"));
+});
+
+/**
+ * resolveShootConflicts
+ * Called after a payment is verified for a lead. Finds the lead's tentative
+ * shoot (if any), marks it 'confirmed', then marks all other tentative shoots
+ * that share the same date + room + overlapping time window as 'conflict'.
+ *
+ * This is NOT an HTTP handler — it is called internally by payment.controllers.
+ * It does NOT throw; errors are logged and swallowed so the payment flow is
+ * never blocked.
+ *
+ * @param {string} leadId
+ * @param {string} [upsellCrossSellId] - Set when the payment belongs to an upsell entry.
+ */
+const resolveShootConflicts = async (leadId, upsellCrossSellId = "") => {
+    try {
+        // Find the winner: the active shoot belonging to this lead/upsell.
+        const winnerFilter = { leadId, bookingStatus: { $in: ['tentative', 'confirmed'] } };
+        if (upsellCrossSellId) {
+            winnerFilter.upsellCrossSellId = upsellCrossSellId;
+        } else {
+            // Exclude upsell shoots from the main-lead winner search
+            winnerFilter.$or = [
+                { upsellCrossSellId: "" },
+                { upsellCrossSellId: { $exists: false } }
+            ];
+        }
+
+        const winner = await Shoot.findOne(winnerFilter);
+        if (!winner) return; // No active shoot for this lead — nothing to resolve.
+
+        // Confirm the winner.
+        if (winner.bookingStatus !== 'confirmed') {
+            winner.bookingStatus = 'confirmed';
+            winner.bookingStatusNote = 'Confirmed — payment received first';
+            await winner.save();
+        }
+
+        // If the winner has no date/set/time info we cannot run conflict detection.
+        if (!winner.shootDate || !winner.setName || !winner.shootStartTime || !winner.shootEndTime) return;
+
+        // Helper: check whether two time windows overlap.
+        const toMins = (t) => {
+            const [h, m] = (t || '').split(':').map(Number);
+            return (h * 60) + (m || 0);
+        };
+        const overlaps = (s1, e1, s2, e2) => toMins(s1) < toMins(e2) && toMins(s2) < toMins(e1);
+
+        // Find all other active shoots on the same date that could conflict.
+        const candidates = await Shoot.find({
+            shootDate: winner.shootDate,
+            bookingStatus: { $in: ['tentative', 'confirmed'] },
+            _id: { $ne: winner._id }
+        });
+
+        // Filter out candidates that have ALREADY PAID
+        const unpaidCandidates = [];
+        for (const c of candidates) {
+            let hasPaid = false;
+            if (c.upsellCrossSellId) {
+                const upsell = await UpsellCrossSell.findById(c.upsellCrossSellId);
+                if (upsell && ['payment_done', 'shoot_scheduled', 'shoot_done'].includes(upsell.status)) {
+                    hasPaid = true;
+                }
+            } else {
+                const client = await Client.findOne({ leadId: c.leadId });
+                if (client && ['Payment Verified', 'Assign Editor'].includes(client.status)) {
+                    hasPaid = true;
+                }
+            }
+            if (!hasPaid) {
+                unpaidCandidates.push(c);
+            }
+        }
+
+        const conflicted = unpaidCandidates.filter((c) => {
+            // Room/set matching — 'Entire Studio' conflicts with everything.
+            const setConflicts =
+                c.setName === winner.setName ||
+                c.setName === 'Entire Studio' ||
+                winner.setName === 'Entire Studio';
+            if (!setConflicts) return false;
+            return overlaps(
+                winner.shootStartTime, winner.shootEndTime,
+                c.shootStartTime, c.shootEndTime
+            );
+        });
+
+        if (conflicted.length > 0) {
+            const conflictedIds = conflicted.map((c) => c._id);
+            await Shoot.updateMany(
+                { _id: { $in: conflictedIds } },
+                {
+                    $set: {
+                        bookingStatus: 'conflict',
+                        bookingStatusNote: `Slot taken — ${winner.clientName || 'another client'} confirmed payment first`,
+                        deliverableSetIndex: -1
+                    }
+                }
+            );
+        }
+    } catch (err) {
+        // Non-fatal: log and continue. The payment flow must not be blocked.
+        console.error('[resolveShootConflicts] Error:', err);
+    }
+};
+
+export { getShoots, getShootById, createShoot, updateShoot, deleteShoot, resolveShootConflicts };

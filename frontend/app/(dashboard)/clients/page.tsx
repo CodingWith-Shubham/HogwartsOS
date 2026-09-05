@@ -579,7 +579,7 @@ export default function ClientsPage() {
             entries={ucxEntries.filter((e) => e.type === 'upsell')}
             showClientName
             canAdvance={isEditable}
-            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            canDelete={true}
             paymentsByEntryId={ucxPayments}
             onRefresh={fetchUpsells}
           />
@@ -632,7 +632,7 @@ export default function ClientsPage() {
             entries={ucxEntries.filter((e) => e.type === 'crosssell')}
             showClientName
             canAdvance={isEditable}
-            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            canDelete={true}
             paymentsByEntryId={ucxPayments}
             onRefresh={fetchUpsells}
           />
@@ -685,7 +685,7 @@ export default function ClientsPage() {
             entries={ucxEntries.filter((e) => e.type === 'newsale')}
             showClientName
             canAdvance={isEditable}
-            canDelete={user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin'}
+            canDelete={true}
             paymentsByEntryId={ucxPayments}
             onRefresh={fetchUpsells}
           />

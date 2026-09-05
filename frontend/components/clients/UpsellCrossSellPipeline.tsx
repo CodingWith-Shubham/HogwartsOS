@@ -224,7 +224,7 @@ const getActions = (entry: UpsellCrossSellEntry, payment?: UpsellEntryPayment | 
       } else {
         // Only count shoots that belong specifically to this upsell entry
         const entryId = entry._id;
-        const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
+        const leadShoots = shoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId && s.bookingStatus !== 'cancelled' && s.bookingStatus !== 'conflict');
         const scheduledIndices = new Set(leadShoots.map(s => {
           let idx = Number(s.deliverableSetIndex || 0);
           return idx >= 100 ? idx % 100 : idx;
@@ -458,7 +458,7 @@ export function UpsellCrossSellPipeline({
     if (action.modal === 'schedule') {
       // Filter shoots to only those belonging to this upsell entry
       const entryId = entry._id;
-      const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId);
+      const leadShoots = latestShoots.filter((s) => s.leadId === entry.clientLeadId && String(s.isEditingOnly) !== 'true' && (s.upsellCrossSellId ?? '') === entryId && s.bookingStatus !== 'cancelled' && s.bookingStatus !== 'conflict');
       const scheduledIndices = new Set(leadShoots.map(s => {
         let idx = Number(s.deliverableSetIndex || 0);
         return idx >= 100 ? idx % 100 : idx;

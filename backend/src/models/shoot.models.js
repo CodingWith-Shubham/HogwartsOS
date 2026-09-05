@@ -162,6 +162,34 @@ const shootSchema = new Schema({
         type: String,
         default: "",
         index: true
+    },
+    // ── Tentative Booking System ──────────────────────────────────────────────
+    // bookingStatus tracks whether this shoot slot is a tentative hold or a
+    // confirmed booking. Default is 'confirmed' so all pre-existing shoots in
+    // the database are treated as confirmed without any migration.
+    //
+    //  tentative  – Slot held for client but NOT yet calendar-confirmed.
+    //               Multiple clients may hold the same room+time tentatively.
+    //               n8n does NOT send a calendar invite for tentative holds.
+    //
+    //  confirmed  – First-payment winner; n8n sends calendar invite.
+    //               This is also the default for any shoot booked via the
+    //               original "Schedule Shoot" (non-tentative) button.
+    //
+    //  conflict   – Auto-set on losing tentative holds when another client's
+    //               payment verified first for the same room+slot.
+    //
+    //  cancelled  – Manually cancelled by staff (soft-delete). The document
+    //               is kept for audit purposes but hidden from active views.
+    bookingStatus: {
+        type: String,
+        enum: ['tentative', 'confirmed', 'conflict', 'cancelled'],
+        default: 'confirmed',
+        index: true
+    },
+    bookingStatusNote: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 

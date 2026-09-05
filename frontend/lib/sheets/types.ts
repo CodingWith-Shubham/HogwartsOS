@@ -135,6 +135,15 @@ export interface Shoot {
   addonVerifiedAt?: string;
   /** When set, this shoot belongs to a UpsellCrossSell pipeline entry (not the original lead). */
   upsellCrossSellId?: string;
+  /**
+   * Tentative booking status:
+   *  - 'tentative'  Slot held, no calendar invite sent yet
+   *  - 'confirmed'  Payment verified — calendar invite sent by n8n (also the default for old shoots)
+   *  - 'conflict'   Another client's payment was verified first for the same slot
+   *  - 'cancelled'  Manually cancelled by staff
+   */
+  bookingStatus?: 'tentative' | 'confirmed' | 'conflict' | 'cancelled';
+  bookingStatusNote?: string;
 }
 
 export interface EditingProject {

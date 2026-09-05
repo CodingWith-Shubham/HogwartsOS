@@ -7,6 +7,8 @@ import { Payment } from "../models/payment.models.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { ClientProfile } from "../models/clientProfile.models.js";
+import { MarketingTask } from "../models/marketing.models.js";
+import { UpsellCrossSell } from "../models/upsellCrossSell.models.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 const getClients = asyncHandler(async (req, res) => {
@@ -261,6 +263,19 @@ const deleteClient = asyncHandler(async (req, res) => {
 
     if (!deleted) {
         throw new ApiError(404, "Client not found");
+    }
+
+    try {
+        await Promise.all([
+            EditProject.deleteMany({ leadId }),
+            EditingTask.deleteMany({ leadId }),
+            Shoot.deleteMany({ leadId }),
+            Payment.deleteMany({ leadId }),
+            MarketingTask.deleteMany({ leadId }),
+            UpsellCrossSell.deleteMany({ clientLeadId: leadId })
+        ]);
+    } catch (error) {
+        console.error("Error deleting related records for lead:", leadId, error);
     }
 
     return res.status(200).json(new ApiResponse(200, { lead: deleted }, "Client deleted successfully"));

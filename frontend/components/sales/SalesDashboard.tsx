@@ -30,7 +30,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle, Clock } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -167,6 +167,16 @@ function dateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatTime12Hour(time: string | undefined | null) {
+  if (!time || time === '-') return '-';
+  const [hours, minutes] = time.split(':');
+  if (!hours || !minutes) return time;
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${minutes} ${ampm}`;
+}
+
 function buildMonthDays(month: Date) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const start = new Date(first);
@@ -239,10 +249,15 @@ function SalesCalendar({ shoots }: { shoots: Shoot[] }) {
                         type="button"
                         key={shoot.id}
                         onClick={() => setSelected(shoot)}
-                        className="w-full rounded bg-blue-500/15 border border-blue-500/30 px-2 py-1 text-left text-[11px] text-blue-600 hover:bg-blue-500/20"
+                        className={cn(
+                          "w-full rounded border px-2 py-1 text-left text-[11px]",
+                          shoot.bookingStatus === 'tentative'
+                            ? "bg-amber-500/15 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                            : "bg-blue-500/15 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                        )}
                       >
                         <span className="block truncate font-medium">{shoot.clientName}</span>
-                        <span className="block truncate">{shoot.shootStartTime || '-'}</span>
+                        <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
                       </button>
                     ))}
                   </div>
@@ -338,6 +353,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   const [completingFinalPaymentId, setCompletingFinalPaymentId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleLead, setScheduleLead] = useState<Lead | null>(null);
+  const [tentativeScheduleOpen, setTentativeScheduleOpen] = useState(false);
+  const [tentativeScheduleLead, setTentativeScheduleLead] = useState<Lead | null>(null);
+  const [cancelShootModalOpen, setCancelShootModalOpen] = useState(false);
+  const [cancelShootLead, setCancelShootLead] = useState<Lead | null>(null);
+  const [cancellingShootId, setCancellingShootId] = useState<string | null>(null);
   const [sendingDraftId, setSendingDraftId] = useState<string | null>(null);
   const [approvingExtraId, setApprovingExtraId] = useState<string | null>(null);
   const [handoverId, setHandoverId] = useState<string | null>(null);
@@ -629,7 +649,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       toast.info('Editing-only project — no shoot scheduling needed. It reaches Assign Editor automatically after payment verification.');
       return;
     }
-    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== ''));
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== '') && s.bookingStatus !== 'cancelled' && s.bookingStatus !== 'conflict');
     const latestShoot = leadShoots[leadShoots.length - 1];
     
     const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
@@ -649,6 +669,57 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       studioTime: lead.studioTime || latestShoot?.studioTime || '',
     });
     setScheduleOpen(true);
+  };
+
+  const openTentativeScheduleModal = (lead: Lead) => {
+    if (isEditingOnlyLead(lead)) {
+      toast.info('Editing-only project — no shoot scheduling needed.');
+      return;
+    }
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s) && !(s.upsellCrossSellId && s.upsellCrossSellId.trim() !== '') && s.bookingStatus !== 'cancelled' && s.bookingStatus !== 'conflict');
+    const latestShoot = leadShoots[leadShoots.length - 1];
+
+    const scheduledIndices = new Set(leadShoots.map(s => Number(s.deliverableSetIndex || 0)));
+    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
+    const totalInstances = deliverableSets.length || 1;
+    let nextIndex = 0;
+    while (nextIndex < totalInstances && scheduledIndices.has(nextIndex)) {
+      nextIndex++;
+    }
+
+    setTentativeScheduleLead(lead);
+    setSchedulePrefill({
+      shootCount: 1,
+      deliverableSetIndex: Math.min(nextIndex, Math.max(0, totalInstances - 1)),
+      camera: lead.camera || latestShoot?.camera || '1',
+      recordTime: lead.recordTime || latestShoot?.recordTime || '',
+      studioTime: lead.studioTime || latestShoot?.studioTime || '',
+    });
+    setTentativeScheduleOpen(true);
+  };
+
+  const cancelShoot = async (shoot: Shoot) => {
+    if (!confirm(`Cancel ${shoot.bookingStatus === 'tentative' ? 'tentative hold' : 'shoot'} for ${shoot.clientName}? This cannot be undone.`)) return;
+    setCancellingShootId(shoot.shootId);
+    try {
+      const res = await authFetch(`/api/shoots/${shoot.shootId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to cancel shoot');
+      }
+      toast.success(
+        shoot.bookingStatus === 'tentative'
+          ? 'Tentative hold cancelled.'
+          : 'Shoot cancelled.'
+      );
+      await refreshShoots(true);
+    } catch (error) {
+      toast.error('Failed to cancel shoot', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setCancellingShootId(null);
+    }
   };
 
   const handleLeadOpenChange = (open: boolean) => {
@@ -1340,8 +1411,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const renderScheduleAction = (lead: Lead) => {
-    // Include upsell shoots in the count because the user expects all shoots for this client 
-    // to satisfy the main lead's shoot requirements.
     const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
     const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
     const shootSets = deliverableSets.filter((set: any) => {
@@ -1349,7 +1418,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
     });
     const totalInstances = shootSets.length || 1;
-    const scheduledCount = leadShoots.length;
+    // Only count active (non-cancelled, non-conflict) shoots toward the quota
+    const activeLeadShoots = leadShoots.filter(
+      (s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? '')
+    );
+    const scheduledCount = activeLeadShoots.length;
     const isAlreadyScheduled = scheduledCount >= totalInstances;
 
     // Editing-only leads bypass the shoot flow entirely
@@ -1370,18 +1443,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       );
     }
 
-    if (!isPaymentComplete(lead)) return null;
+    if (!lead.proposalAccepted && !isPaymentComplete(lead)) return null;
 
-    if (isAlreadyScheduled) {
-      return (
-        <Button variant="outline" size="sm" disabled className="text-muted-foreground">
-          {lead.status === 'Shoot Done' ? 'Shoot Done' : `All ${totalInstances} Scheduled`}
-        </Button>
-      );
-    }
-
-    return (
-      <div className="flex flex-col gap-1 items-start w-full">
+    const scheduleContent = !isAlreadyScheduled ? (
+      <>
+        {/* Confirmed Shoot button (existing n8n webhook flow) */}
         <Button
           size="sm"
           className="bg-blue-600 text-white hover:bg-blue-700 w-full"
@@ -1393,6 +1459,47 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           <Camera className="mr-1 h-3 w-3" />
           {scheduledCount === 0 ? 'Schedule Shoot' : 'Schedule Next'}
         </Button>
+        {/* Tentative Hold button (backend-only, no calendar invite) */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-amber-500/60 text-amber-600 hover:bg-amber-500/10 w-full text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            openTentativeScheduleModal(lead);
+          }}
+        >
+          <Clock className="mr-1 h-3 w-3" />
+          Book Tentatively
+        </Button>
+      </>
+    ) : (
+      <Button variant="outline" size="sm" disabled className="text-muted-foreground w-full text-xs">
+        {lead.status === 'Shoot Done' ? 'Shoot Done' : `All ${totalInstances} Scheduled`}
+      </Button>
+    );
+
+    return (
+      <div className="flex flex-col gap-1 items-start w-full">
+        {scheduleContent}
+        
+        {/* Cancel button opens a modal if there are active shoots */}
+        {activeLeadShoots.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-red-500/40 text-red-500 hover:bg-red-500/10 w-full text-xs mt-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCancelShootLead(lead);
+              setCancelShootModalOpen(true);
+            }}
+          >
+            <XCircle className="mr-1 h-3 w-3" />
+            Cancel Shoots / Holds
+          </Button>
+        )}
+
         {totalInstances > 1 && (
           <span className="text-[10px] text-muted-foreground text-center w-full mt-0.5">
             {scheduledCount} of {totalInstances} scheduled
@@ -1431,12 +1538,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     const isVerified = isPaymentVerified(lead);
     const validStatuses = ['New Lead', 'Proposal Sent', 'Proposal Revoked', 'Awaiting Payment'];
     const canEdit = validStatuses.includes(lead.status) || lead.proposalAccepted || isVerified;
-    const canDelete = (validStatuses.includes(lead.status) || lead.proposalAccepted) && !isVerified;
 
     return (
       <div className="flex flex-col gap-1.5 items-start min-w-0">
-        {canEdit && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+          {canEdit && (
             <Button
               variant="outline"
               size="sm"
@@ -1449,26 +1555,24 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             >
               <Edit className="h-4 w-4" />
             </Button>
-            {canDelete && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
-                disabled={deletingLeadId === lead.leadId}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteLead(lead);
-                }}
-              >
-                {deletingLeadId === lead.leadId ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
+            disabled={deletingLeadId === lead.leadId}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteLead(lead);
+            }}
+          >
+            {deletingLeadId === lead.leadId ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
             )}
-          </div>
-        )}
+          </Button>
+        </div>
         {renderProposalAction(lead)}
         {renderPaymentAction(lead)}
         {renderFinalPaymentAction(lead)}
@@ -1994,7 +2098,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         </TabsContent>
 
         <TabsContent value="calendar" className="mt-4">
-          <SalesCalendar shoots={shoots} />
+          <SalesCalendar shoots={shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''))} />
         </TabsContent>
 
         <TabsContent value="sales-target" className="mt-4">
@@ -2160,6 +2264,19 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         lead={scheduleLead}
         prefill={schedulePrefill}
         existingShoots={shoots}
+        mode="confirmed"
+        onSuccess={async () => {
+          await Promise.all([refreshLeads(true), refreshShoots(true)]);
+        }}
+      />
+
+      <ScheduleShootDialog
+        open={tentativeScheduleOpen}
+        onOpenChange={setTentativeScheduleOpen}
+        lead={tentativeScheduleLead}
+        prefill={schedulePrefill}
+        existingShoots={shoots}
+        mode="tentative"
         onSuccess={async () => {
           await Promise.all([refreshLeads(true), refreshShoots(true)]);
         }}
@@ -2510,6 +2627,78 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           refreshPaymentHistory(true);
         }}
       />
+
+      <Dialog open={cancelShootModalOpen} onOpenChange={setCancelShootModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Shoots / Holds</DialogTitle>
+            <DialogDescription>
+              Cancel scheduled shoots or tentative holds for {cancelShootLead?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {(() => {
+              if (!cancelShootLead) return null;
+              const activeShoots = shoots.filter(s => s.leadId === cancelShootLead.leadId && !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''));
+              if (activeShoots.length === 0) {
+                return <p className="text-sm text-muted-foreground">No active shoots or holds found for this lead.</p>;
+              }
+              return activeShoots.map(shoot => (
+                <div key={shoot.shootId} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">
+                      {shoot.bookingStatus === 'tentative' ? 'Tentative Hold' : 'Scheduled Shoot'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {shoot.shootDate} at {shoot.shootStartTime}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Set: {shoot.setName || 'Any'} | Camera: {shoot.camera || '1'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-500/40 text-red-500 hover:bg-red-500/10 text-xs"
+                    disabled={cancellingShootId === shoot.shootId}
+                    onClick={async () => {
+                      if (!confirm(`Cancel ${shoot.bookingStatus === 'tentative' ? 'tentative hold' : 'shoot'} on ${shoot.shootDate}? This cannot be undone.`)) return;
+                      setCancellingShootId(shoot.shootId);
+                      try {
+                        const { authFetch } = await import('@/lib/auth-fetch');
+                        const res = await authFetch(`/api/shoots/${shoot.shootId}`, { method: 'DELETE' });
+                        if (!res.ok) {
+                          const data = await res.json().catch(() => ({}));
+                          throw new Error(data.message || 'Failed to cancel shoot');
+                        }
+                        toast.success(shoot.bookingStatus === 'tentative' ? 'Tentative hold cancelled.' : 'Shoot cancelled.');
+                        await refreshShoots(true);
+                        if (activeShoots.length <= 1) {
+                          setCancelShootModalOpen(false);
+                        }
+                      } catch (error) {
+                        toast.error('Failed to cancel shoot', {
+                          description: error instanceof Error ? error.message : 'Unknown error',
+                        });
+                      } finally {
+                        setCancellingShootId(null);
+                      }
+                    }}
+                  >
+                    {cancellingShootId === shoot.shootId ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="mr-1.5 h-3 w-3" />}
+                    Cancel
+                  </Button>
+                </div>
+              ));
+            })()}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setCancelShootModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
     </TooltipProvider>
   );

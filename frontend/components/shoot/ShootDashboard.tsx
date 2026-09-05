@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Camera, CheckCircle, Clock, ExternalLink, Upload } from 'lucide-react';
+import { Calendar, Camera, CheckCircle, Clock, ExternalLink, Upload, XCircle } from 'lucide-react';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import type { Shoot } from '@/lib/sheets/types';
@@ -297,10 +297,15 @@ function ShootCalendar({
                       type="button"
                       key={shoot.id}
                       onClick={() => onSelect(shoot)}
-                      className="w-full rounded bg-blue-500/15 border border-blue-500/30 px-2 py-1 text-left text-[11px] text-blue-600 hover:bg-blue-500/20"
+                      className={cn(
+                        "w-full rounded border px-2 py-1 text-left text-[11px]",
+                        shoot.bookingStatus === 'tentative'
+                          ? "bg-amber-500/15 border-amber-500/30 text-amber-600 hover:bg-amber-500/20"
+                          : "bg-blue-500/15 border-blue-500/30 text-blue-600 hover:bg-blue-500/20"
+                      )}
                     >
                       <span className="block truncate font-medium">{shoot.clientName}</span>
-                      <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)}</span>
+                      <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
                     </button>
                   ))}
                 </div>
@@ -326,6 +331,8 @@ function ShootCard({
   onHandoverRecipientChange,
   handingOver,
   confirmedHandover,
+  onCancelShoot,
+  cancellingId,
 }: {
   shoot: Shoot;
   onEdit: (shoot: Shoot) => void;
@@ -339,6 +346,8 @@ function ShootCard({
   onHandoverRecipientChange: (shootId: string, recipientKey: string) => void;
   handingOver: boolean;
   confirmedHandover?: HandoverRecipient;
+  onCancelShoot?: (shoot: Shoot) => void;
+  cancellingId?: string | null;
 }) {
   const { user } = useAuth();
   const hideContactInfo = user?.role === 'shoot' || user?.role === 'editor';
@@ -353,6 +362,18 @@ function ShootCard({
               <p className="font-medium">{shoot.clientName || 'Untitled shoot'}</p>
               {isTrue(shoot.editedByShootTeam) && (
                 <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">Edited</Badge>
+              )}
+              {shoot.bookingStatus === 'tentative' && (
+                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">Tentative Hold</Badge>
+              )}
+              {shoot.bookingStatus === 'confirmed' && (
+                <Badge className="bg-green-500/15 text-green-600 border-green-500/30">Confirmed</Badge>
+              )}
+              {shoot.bookingStatus === 'conflict' && (
+                <Badge className="bg-red-500/15 text-red-600 border-red-500/30">Conflict: Slot Taken</Badge>
+              )}
+              {shoot.bookingStatus === 'cancelled' && (
+                <Badge className="bg-secondary text-muted-foreground line-through">Cancelled</Badge>
               )}
             </div>
             {!hideContactInfo && (
@@ -402,9 +423,23 @@ function ShootCard({
 
         {!uploaded ? (
           <div className="space-y-3 border-t border-border pt-3">
-            <Button variant="outline" size="sm" onClick={() => onEdit(shoot)}>
-              Edit Post-Shoot Details
-            </Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => onEdit(shoot)}>
+                Edit Post-Shoot Details
+              </Button>
+              {shoot.bookingStatus === 'tentative' && onCancelShoot && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onCancelShoot(shoot)}
+                  disabled={cancellingId === shoot.shootId}
+                  className="border-red-500/40 text-red-500 hover:bg-red-500/10"
+                >
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Cancel Tentative Hold
+                </Button>
+              )}
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 value={uploadValue}
@@ -488,6 +523,8 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
   const [selectedHandovers, setSelectedHandovers] = useState<Record<string, HandoverRecipient>>({});
   const [confirmedHandovers, setConfirmedHandovers] = useState<Record<string, HandoverRecipient>>({});
   const [handingOverId, setHandingOverId] = useState<string | null>(null);
+  const [cancellingShootId, setCancellingShootId] = useState<string | null>(null);
+  const [showAllShoots, setShowAllShoots] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
   const tabsRef = useRef<HTMLDivElement>(null);
   const [postShootForm, setPostShootForm] = useState<PostShootForm>({
@@ -556,25 +593,54 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
     fetchHandoverRecipients();
   }, []);
 
+  const activeShoots = useMemo(() => {
+    if (showAllShoots) return shoots;
+    return shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''));
+  }, [shoots, showAllShoots]);
+
   const today = todayKey();
-  const todaysShoots = shoots
+  const todaysShoots = activeShoots
     .filter((shoot) => shoot.shootDate === today)
     .sort((a, b) => (a.shootStartTime || '').localeCompare(b.shootStartTime || ''));
     
-  const upcoming = shoots
+  const upcoming = activeShoots
     .filter((shoot) => shoot.shootDate > today && !isTrue(shoot.driveLinkUploaded))
     .sort((a, b) => {
       const cmp = (a.shootDate || '').localeCompare(b.shootDate || '');
       return cmp !== 0 ? cmp : (a.shootStartTime || '').localeCompare(b.shootStartTime || '');
     });
     
-  const completed = shoots
+  const completed = activeShoots
     .filter((shoot) => isTrue(shoot.driveLinkUploaded))
     .sort((a, b) => {
       const cmp = (b.shootDate || '').localeCompare(a.shootDate || '');
       return cmp !== 0 ? cmp : (b.shootStartTime || '').localeCompare(a.shootStartTime || '');
     });
-  const pendingUploads = shoots.filter((shoot) => !isTrue(shoot.driveLinkUploaded)).length;
+  const pendingUploads = activeShoots.filter((shoot) => !isTrue(shoot.driveLinkUploaded)).length;
+
+  const cancelShoot = async (shoot: Shoot) => {
+    if (!confirm(`Cancel ${shoot.bookingStatus === 'tentative' ? 'tentative hold' : 'shoot'} for ${shoot.clientName}? This cannot be undone.`)) return;
+    setCancellingShootId(shoot.shootId);
+    try {
+      const res = await authFetch(`/api/shoots/${shoot.shootId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to cancel shoot');
+      }
+      toast.success(
+        shoot.bookingStatus === 'tentative'
+          ? 'Tentative hold cancelled.'
+          : 'Shoot cancelled.'
+      );
+      await refreshShoots(true);
+    } catch (error) {
+      toast.error('Failed to cancel shoot', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setCancellingShootId(null);
+    }
+  };
 
   const openEdit = (shoot: Shoot) => {
     setEditShoot(shoot);
@@ -738,6 +804,8 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
               onEdit={openEdit}
               onUpload={uploadDriveLink}
               onConfirmHandover={confirmHandover}
+              onCancelShoot={cancelShoot}
+              cancellingId={cancellingShootId}
               uploadValue={driveLinks[shoot.shootId] ?? ''}
               onUploadValueChange={(shootId, value) =>
                 setDriveLinks((prev) => ({ ...prev, [shootId]: value }))
@@ -790,6 +858,16 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
             <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30">
               {pendingUploads} pending uploads
             </Badge>
+            <div className="flex items-center gap-1.5 ml-2 border-l border-border pl-4">
+              <Label htmlFor="show-all-shoots" className="text-xs font-medium cursor-pointer">Show All</Label>
+              <input
+                type="checkbox"
+                id="show-all-shoots"
+                className="w-3.5 h-3.5 cursor-pointer accent-blue-600 rounded-sm"
+                checked={showAllShoots}
+                onChange={(e) => setShowAllShoots(e.target.checked)}
+              />
+            </div>
             <Button variant="outline" size="sm" onClick={() => refreshShoots(false, true)} disabled={refreshing}>
               Refresh
             </Button>
@@ -839,7 +917,7 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
           </TabsContent>
 
           <TabsContent value="calendar" className="mt-4">
-            <ShootCalendar shoots={shoots} onSelect={setDetail} />
+            <ShootCalendar shoots={activeShoots} onSelect={setDetail} />
           </TabsContent>
 
           <TabsContent value="upcoming" className="mt-4">
@@ -873,7 +951,9 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
                 <div><span className="text-muted-foreground">Hours:</span> {detail.totalHours || '-'}</div>
                 <div><span className="text-muted-foreground">Member:</span> {detail.shootMemberName || '-'}</div>
                 <div><span className="text-muted-foreground">Assigned:</span> {detail.assignedTo || '-'}</div>
+                <div><span className="text-muted-foreground">Status:</span> <span className="capitalize">{detail.bookingStatus || 'confirmed'}</span></div>
               </div>
+              {detail.bookingStatusNote && <p className="text-sm text-red-500/90 italic font-medium">{detail.bookingStatusNote}</p>}
               {detail.shootNotes && <p className="text-sm text-muted-foreground">{detail.shootNotes}</p>}
             </>
           )}

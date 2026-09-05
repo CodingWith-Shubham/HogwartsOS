@@ -973,7 +973,7 @@ export default function ManagerPage() {
         <UpsellCrossSellPipeline
           entries={upsellEntries.slice((upsellPage - 1) * 10, upsellPage * 10)}
         showClientName
-        canDelete={['manager', 'admin', 'super_admin'].includes(user?.role || '')}
+        canDelete={true}
         onRefresh={refreshUpsells}
       />
       {renderPagination(upsellPage, setUpsellPage, upsellEntries.length)}

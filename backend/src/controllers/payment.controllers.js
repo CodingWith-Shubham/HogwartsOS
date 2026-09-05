@@ -8,6 +8,7 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { sendPushNotification } from "../services/notification.service.js";
 import { User } from "../models/user.models.js";
+import { resolveShootConflicts } from "./shoot.controllers.js";
 
 // --- Editing-only bypass ---
 // Leads pitched "Only editing" skip the shoot flow entirely. Once their payment
@@ -349,6 +350,13 @@ const verifyPayment = asyncHandler(async (req, res) => {
                 
                 await ensureEditingOnlyShoot(upsellEntry, true);
                 await ensureMarketingTask(upsellEntry, true);
+
+                // ── Tentative Booking Resolution (upsell) ───────────────────────
+                // Confirm the winning tentative shoot for this upsell entry and
+                // mark competing tentative slots as conflict. Fire-and-forget.
+                if (clientStatus === "Payment Verified" || clientStatus === "Payment Completed") {
+                    resolveShootConflicts(payment.leadId, payment.upsellCrossSellId).catch(console.error);
+                }
             }
         } else {
             const client = await Client.findOneAndUpdate(
@@ -360,6 +368,12 @@ const verifyPayment = asyncHandler(async (req, res) => {
                 await ensureEditingOnlyShoot(client);
                 // Trigger marketing task creation if applicable
                 await ensureMarketingTask(client);
+
+                // ── Tentative Booking Resolution (main lead) ─────────────────
+                // Confirm the winning tentative shoot for this lead and mark
+                // competing tentative slots for the same room+time as conflict.
+                // Fire-and-forget — the payment response is not delayed.
+                resolveShootConflicts(payment.leadId, "").catch(console.error);
             }
         }
     }

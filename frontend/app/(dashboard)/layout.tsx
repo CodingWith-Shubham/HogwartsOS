@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const navItems = user ? getNavForRole(user.role) : [];
+  const navItems = useMemo(() => (user ? getNavForRole(user.role) : []), [user]);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!allowed && pathname !== '/') {
       router.replace(user.redirectTo);
     }
-  }, [user?.role, isLoading, pathname, navItems, router]);
+  }, [user, isLoading, pathname, navItems, router]);
 
   const isAllowed = !user || navItems.some(
     (item) => pathname === item.href || pathname.startsWith(item.href + '/')

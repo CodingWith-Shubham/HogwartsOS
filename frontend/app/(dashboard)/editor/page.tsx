@@ -114,8 +114,12 @@ export default function EditorPage() {
   const [segregatePage, setSegregatePage] = useState(1);
   const [deliveredPage, setDeliveredPage] = useState(1);
 
+  const userEmail = user?.email;
+  const userRole = user?.role;
+  const userName = user?.name;
+
   const refresh = useCallback(async (silent = false) => {
-    if (!user?.email) return;
+    if (!userEmail) return;
     if (!silent) setRefreshing(true);
     try {
       const response = await authFetch('/api/editing', { cache: 'no-store' });
@@ -139,11 +143,11 @@ export default function EditorPage() {
           .filter((r: any) => r.projectId === t.editId || r.projectId === t.taskId || r.taskId === t.taskId)
           .sort((a: any, b: any) => b.revisionRound - a.revisionRound)
       })).filter((t: any) => {
-        if (user?.role === 'manager' || user?.role === 'admin' || user?.role === 'super_admin') return true;
+        if (userRole === 'manager' || userRole === 'admin' || userRole === 'super_admin') return true;
         const tEmail = t.assigned_to_email?.trim().toLowerCase();
-        const uEmail = user?.email?.trim().toLowerCase();
+        const uEmail = userEmail?.trim().toLowerCase();
         const tName = t.assigned_to_name?.trim().toLowerCase();
-        const uName = user?.name?.trim().toLowerCase();
+        const uName = userName?.trim().toLowerCase();
         const emailMatch = tEmail && uEmail && tEmail === uEmail;
         const nameMatch = tName && uName && tName === uName;
         return emailMatch || nameMatch;
@@ -154,7 +158,7 @@ export default function EditorPage() {
     } finally {
       if (!silent) setRefreshing(false);
     }
-  }, [user?.email]);
+  }, [userEmail, userRole, userName]);
 
   useEffect(() => {
     refresh(true).finally(() => setLoading(false));

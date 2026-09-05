@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,7 +34,7 @@ export function CorrectionsPanel({
   const [newNote, setNewNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchCorrections = async () => {
+  const fetchCorrections = useCallback(async () => {
     try {
       const res = await fetch(`/api/corrections/task/${editingTaskId}`);
       const data = await res.json();
@@ -46,11 +46,11 @@ export function CorrectionsPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [editingTaskId]);
 
   useEffect(() => {
     fetchCorrections();
-  }, [editingTaskId]);
+  }, [fetchCorrections]);
 
   const handleAddCorrection = async (e: React.FormEvent) => {
     e.preventDefault();

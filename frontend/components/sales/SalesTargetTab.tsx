@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +48,7 @@ export function SalesTargetTab({ salesMembers }: { salesMembers: string[] }) {
   const [selectedRep, setSelectedRep] = useState(salesMembers[0] || '');
   const [targetAmount, setTargetAmount] = useState('');
 
-  const fetchTargets = async () => {
+  const fetchTargets = useCallback(async () => {
     setLoading(true);
     try {
       const res = await authFetch(`/api/sales-targets?period=${period}`);
@@ -63,11 +63,11 @@ export function SalesTargetTab({ salesMembers }: { salesMembers: string[] }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
   useEffect(() => {
     fetchTargets();
-  }, [period]);
+  }, [fetchTargets]);
 
   const handleSaveTarget = async (e: React.FormEvent) => {
     e.preventDefault();

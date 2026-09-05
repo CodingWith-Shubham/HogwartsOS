@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -207,6 +208,7 @@ export function ClientProfileModal({
     } else {
       resetForm();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed only on open/profileId/clientInfo; adding the fetch helpers (recreated every render) would retrigger this effect continuously.
   }, [open, profileId, clientInfo]);
 
   const resetForm = (keepNotFound = false) => {
@@ -785,7 +787,7 @@ export function ClientProfileModal({
                     <div className="flex flex-col items-center space-y-2">
                       <div className="relative h-24 w-24 rounded-full border-2 border-border overflow-hidden bg-muted flex items-center justify-center shrink-0">
                         {formData.profileImage ? (
-                          <img src={formData.profileImage} alt="Profile" className="h-full w-full object-cover" />
+                          <Image src={formData.profileImage} alt="Profile" fill sizes="96px" className="h-full w-full object-cover" />
                         ) : (
                           <User className="h-10 w-10 text-muted-foreground" />
                         )}

@@ -96,8 +96,11 @@ export function ScheduleShootDialog({
   }, [users]);
 
   // Derived unscheduled sets
+  const leadDeliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
+  const leadId = lead?.leadId;
+
   const unscheduledSets = useMemo(() => {
-    const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
+    const deliverableSets = leadDeliverableSets;
     if (!deliverableSets) return [];
     
     // Filter to only shoots belonging to this lead AND this upsell entry (if applicable).
@@ -105,7 +108,7 @@ export function ScheduleShootDialog({
     // as the original client's shoots and would falsely appear as already scheduled.
     const upsellId = lead?.upsellCrossSellId ?? '';
     const leadShoots = existingShoots.filter(s => {
-      if (s.leadId !== lead?.leadId) return false;
+      if (s.leadId !== leadId) return false;
       if (s.bookingStatus === 'cancelled' || s.bookingStatus === 'conflict') return false;
       if (upsellId) {
         // Upsell context: only consider shoots that belong to this upsell entry
@@ -126,7 +129,7 @@ export function ScheduleShootDialog({
         const sName = (set.serviceName || '').toLowerCase();
         return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
       });
-  }, [lead?.deliverableSets, (lead as any)?.deliverable_sets, lead?.leadId, lead?.upsellCrossSellId, existingShoots]);
+  }, [leadDeliverableSets, leadId, lead?.upsellCrossSellId, existingShoots]);
 
   const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);
   const [scheduleForm, setScheduleForm] = useState(DEFAULT_SCHEDULE_FORM);

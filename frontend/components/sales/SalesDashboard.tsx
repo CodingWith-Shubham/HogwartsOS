@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { LeadStatusBadge } from '@/components/shared/Badges';
@@ -1602,7 +1603,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {lead.profileImage ? (
-              <img src={lead.profileImage} alt={lead.name} className="h-full w-full object-cover" />
+              <Image src={lead.profileImage} alt={lead.name} fill sizes="32px" className="h-full w-full object-cover" />
             ) : (
               <AvatarFallback className="bg-secondary border border-border text-xs">
                 {lead.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}

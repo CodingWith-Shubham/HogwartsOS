@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
@@ -380,7 +381,7 @@ export default function ClientsPage() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {c.profileImage ? (
-              <img src={c.profileImage} alt={c.name} className="h-full w-full object-cover" />
+              <Image src={c.profileImage} alt={c.name} fill sizes="32px" className="h-full w-full object-cover" />
             ) : (
               <AvatarFallback className="bg-secondary border border-border text-xs">
                 {c.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}

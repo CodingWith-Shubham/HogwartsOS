@@ -308,6 +308,7 @@ export function UpsellCrossSellPipeline({
 
   useEffect(() => {
     fetchShoots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only fetch on purpose: fetchShoots reads the current `shoots` state, so depending on it would retrigger this effect after every successful fetch.
   }, []);
 
   const patchStatus = async (id: string, body: Record<string, unknown>) => {

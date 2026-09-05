@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,14 @@ export default function MarketingPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('assigned');
 
-  const fetchTasks = async () => {
+  const userRole = user?.role;
+  const userEmail = user?.email;
+
+  const fetchTasks = useCallback(async () => {
     try {
-      const endpoint = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'manager' 
+      const endpoint = userRole === 'super_admin' || userRole === 'admin' || userRole === 'manager'
         ? `/api/marketing`
-        : `/api/marketing?assignedToEmail=${user?.email}`;
+        : `/api/marketing?assignedToEmail=${userEmail}`;
       const res = await authFetch(endpoint);
       const data = await res.json();
       if (res.ok) {
@@ -27,13 +30,13 @@ export default function MarketingPage() {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [userRole, userEmail]);
 
   useEffect(() => {
     fetchTasks();
     const interval = setInterval(fetchTasks, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [fetchTasks]);
 
   const updateStatus = async (taskId: string, status: string) => {
     try {

@@ -16,7 +16,7 @@ export function LeadStatusBadge({ status, className }: LeadStatusBadgeProps) {
 
   return (
     <span
-      className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', className)}
+      className={cn('inline-flex items-center justify-center rounded-full border px-2.5 h-6 text-xs font-medium whitespace-nowrap', className)}
       style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}
     >
       {meta.label}
@@ -33,7 +33,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const meta = STATUS_META[status];
   return (
     <span
-      className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', className)}
+      className={cn('inline-flex items-center justify-center rounded-full border px-2.5 h-6 text-xs font-medium whitespace-nowrap', className)}
       style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}
     >
       {meta.label}
@@ -50,7 +50,7 @@ export function PaymentBadge({ status, className }: PaymentBadgeProps) {
   const meta = PAYMENT_META[status];
   return (
     <span
-      className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', className)}
+      className={cn('inline-flex items-center justify-center rounded-full border px-2.5 h-6 text-xs font-medium whitespace-nowrap', className)}
       style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}
     >
       {meta.label}
@@ -67,7 +67,7 @@ export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
   const meta = PRIORITY_META[priority];
   return (
     <span
-      className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', className)}
+      className={cn('inline-flex items-center justify-center rounded-full border px-2.5 h-6 text-xs font-medium whitespace-nowrap', className)}
       style={{ color: meta.color, backgroundColor: meta.bg, borderColor: meta.border }}
     >
       {meta.label}

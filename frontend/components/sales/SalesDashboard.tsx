@@ -21,6 +21,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -31,7 +37,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle, Clock, CalendarClock } from 'lucide-react';
+import { Plus, Users, FileText, Wallet, TrendingUp, Send, RefreshCw, Loader2, Camera, ExternalLink, Edit, Trash2, ArrowUpCircle, Upload, Download, CheckCircle, XCircle, FileSpreadsheet, AlertCircle, Clock, CalendarClock, MoreVertical } from 'lucide-react';
 import { formatINR } from '@/lib/formatter';
 import { useAuth } from '@/lib/auth-context';
 import { authFetch } from '@/lib/auth-fetch';
@@ -1571,51 +1577,136 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
     </div>
   );
 
+  const getRowActions = (lead: Lead) => {
+    const actions: { label: string; icon: React.ReactNode; onClick: (e: React.MouseEvent) => void; isPrimary?: boolean; className?: string }[] = [];
+
+    // PROPOSAL
+    if (lead.status === 'New Lead' || lead.status === 'Proposal Revoked') {
+      actions.push({ label: 'Send Proposal', icon: <Send className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); openProposalModal(lead); }, isPrimary: true });
+    } else if (lead.status === 'Proposal Sent' || String(lead.proposalSent).toLowerCase() === 'true') {
+      if (!lead.proposalAccepted) {
+        actions.push({ label: 'View Proposal', icon: <FileText className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); setViewProposalLead(lead); setViewProposalOpen(true); }, isPrimary: true });
+        actions.push({ label: 'Resend', icon: <Send className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); openProposalModal(lead); } });
+        actions.push({ label: 'Accept', icon: <CheckCircle className="mr-2 h-4 w-4" />, className: 'text-green-600 focus:text-green-600', onClick: (e) => { e.stopPropagation(); handleAcceptProposal(lead); } });
+        actions.push({ label: 'Reject', icon: <XCircle className="mr-2 h-4 w-4" />, className: 'text-red-600 focus:text-red-600', onClick: (e) => { e.stopPropagation(); handleRejectProposal(lead); } });
+      }
+    }
+
+    // PAYMENT
+    if (lead.proposalAccepted) {
+      const { payments, remaining } = paymentSummary(lead);
+      const pendingPayment = payments.find(p => ['link sent', 'payment link sent', 'pending verification', 'screenshot uploaded - pending verification', 'screenshot received', 'screenshot uploaded'].includes(p.payment_status.trim().toLowerCase()));
+
+      if (pendingPayment) {
+        actions.push({ label: 'Upload SS', icon: <Upload className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); setUploadSSPayment(pendingPayment); setUploadSSOpen(true); }, isPrimary: true });
+      } else if (remaining > 0) {
+        actions.push({ label: 'Send Payment Link', icon: <Wallet className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); setPaymentLead(lead); setPaymentLinkOpen(true); }, isPrimary: true });
+      }
+    }
+
+    // SCHEDULE
+    const leadShoots = shoots.filter((s) => s.leadId === lead.leadId && !isEditingOnlyShoot(s));
+    const deliverableSets = lead.deliverableSets || (lead as any).deliverable_sets || [];
+    const shootSets = deliverableSets.filter((set: any) => {
+      const sName = (set.serviceName || '').toLowerCase();
+      return !/only[\s-]*editing/i.test(sName) && !/only[\s-]*marketing/i.test(sName);
+    });
+    const totalInstances = shootSets.length || 1;
+    const activeLeadShoots = leadShoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''));
+    const scheduledCount = activeLeadShoots.length;
+    const isAlreadyScheduled = scheduledCount >= totalInstances;
+
+    if ((lead.proposalAccepted || isPaymentComplete(lead)) && !isEditingOnlyLead(lead) && !isMarketingOnlyLead(lead) && !isAlreadyScheduled) {
+      actions.push({ label: scheduledCount === 0 ? 'Schedule Shoot' : 'Schedule Next', icon: <Camera className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); openScheduleModal(lead); }, isPrimary: true });
+      actions.push({ label: 'Book Tentatively', icon: <Clock className="mr-2 h-4 w-4" />, onClick: (e) => { e.stopPropagation(); openTentativeScheduleModal(lead); } });
+    }
+
+    if (activeLeadShoots.length > 0) {
+      actions.push({ label: 'Cancel Shoots / Holds', icon: <XCircle className="mr-2 h-4 w-4" />, className: 'text-red-600 focus:text-red-600', onClick: (e) => { e.stopPropagation(); setCancelShootLead(lead); setCancelShootModalOpen(true); } });
+    }
+
+    let primary = actions.find(a => a.isPrimary);
+    if (!primary && actions.length > 0) primary = actions[0];
+    const secondary = actions.filter(a => a !== primary);
+
+    return { primary, secondary };
+  };
+
   const renderActions = (lead: Lead) => {
     const isVerified = isPaymentVerified(lead);
     const validStatuses = ['New Lead', 'Proposal Sent', 'Proposal Revoked', 'Awaiting Payment'];
     const canEdit = validStatuses.includes(lead.status) || lead.proposalAccepted || isVerified;
 
+    const { primary, secondary } = getRowActions(lead);
+
     return (
-      <div className="flex flex-col gap-1.5 items-start min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-          {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0 min-h-touch"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingLead(lead);
-                setEditLeadOpen(true);
-              }}
+      <div className="flex items-center gap-1">
+        {canEdit && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingLead(lead);
+              setEditLeadOpen(true);
+            }}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+        )}
+        {canDeleteLeads && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 shrink-0"
+            disabled={deletingLeadId === lead.leadId}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteLead(lead);
+            }}
+          >
+            {deletingLeadId === lead.leadId ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+
+        <div className="flex items-center gap-1.5 ml-1">
+          {primary ? (
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={primary.onClick} 
+              className="h-8 w-[140px] px-2 text-xs shrink-0"
+              title={primary.label}
             >
-              <Edit className="h-4 w-4" />
+              <span className="truncate w-full text-center">{primary.label}</span>
             </Button>
+          ) : (
+            <div className="w-[140px]" />
           )}
-          {canDeleteLeads && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10 min-h-touch"
-              disabled={deletingLeadId === lead.leadId}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteLead(lead);
-              }}
-            >
-              {deletingLeadId === lead.leadId ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-            </Button>
+
+          {secondary.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {secondary.map((action, i) => (
+                  <DropdownMenuItem key={i} onClick={action.onClick} className={cn("text-xs cursor-pointer", action.className)}>
+                    {action.icon}
+                    {action.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-        {renderProposalAction(lead)}
-        {renderPaymentAction(lead)}
-        {renderFinalPaymentAction(lead)}
-        {renderScheduleAction(lead)}
       </div>
     );
   };
@@ -1629,7 +1720,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       cell: (lead) => (
         <span className="text-muted-foreground tabular-nums">{lead.serialNo}</span>
       ),
-      className: 'w-16',
+      className: 'w-16 hidden sm:table-cell align-middle',
       hideOnMobile: true,
     },
     {
@@ -1639,11 +1730,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       sortValue: (lead) => lead.name,
       cell: (lead: any) => (
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
+          <Avatar className="h-9 w-9 overflow-hidden shrink-0">
             {lead.profileImage ? (
-              <Image src={lead.profileImage} alt={lead.name} fill sizes="32px" className="h-full w-full object-cover" />
+              <Image src={lead.profileImage} alt={lead.name} fill sizes="36px" className="h-full w-full object-cover" />
             ) : (
-              <AvatarFallback className="bg-secondary border border-border text-xs">
+              <AvatarFallback className="bg-secondary border border-border text-xs font-medium">
                 {lead.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
               </AvatarFallback>
             )}

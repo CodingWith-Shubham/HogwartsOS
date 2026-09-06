@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 backend/uploads/
+.agents/
+n8n-schedule-shoot-workflow.json
 
 # Next.js
 .next/

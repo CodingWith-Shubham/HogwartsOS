@@ -722,7 +722,7 @@ export default function ClientsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="whatsapp">WhatsApp Username</Label>
+              <Label htmlFor="whatsapp">Client Name</Label>
               <Input
                 id="whatsapp"
                 value={whatsapp}

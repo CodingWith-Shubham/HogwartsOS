@@ -795,6 +795,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
         'contact': 'contact',
         'phone': 'contact',
         'phone number': 'contact',
+        'client name': 'whatsapp',
         'whatsapp username': 'whatsapp',
         'whatsapp': 'whatsapp',
         'client email': 'clientEmail',
@@ -830,7 +831,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
   };
 
   const downloadTemplate = () => {
-    const headers = ['Company Name', 'Contact Number', 'WhatsApp Username', 'Client Email', 'Cost in ₹', 'Assigned To', 'Reachout Done'];
+    const headers = ['Company Name', 'Contact Number', 'Client Name', 'Client Email', 'Cost in ₹', 'Assigned To', 'Reachout Done'];
     const example = ['Acme Corp', '+919999999999', '@acmecorp', 'contact@acme.com', '15000', salesMembers[0] || 'Sales Member', 'No'];
     const csvContent = [headers.join(','), example.join(',')].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -1706,17 +1707,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const columns: Column<Lead>[] = [
     {
-      key: 'serialNo',
-      header: 'S.No',
-      sortable: true,
-      sortValue: (lead) => lead.serialNo,
-      cell: (lead) => (
-        <span className="text-muted-foreground tabular-nums">{lead.serialNo}</span>
-      ),
-      className: 'w-16 hidden sm:table-cell align-middle',
-      hideOnMobile: true,
-    },
-    {
       key: 'client',
       header: 'Client',
       sortable: true,
@@ -2473,7 +2463,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 <Input id="contact" name="contact" placeholder="+91 ..." />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="whatsapp">WhatsApp Username</Label>
+                <Label htmlFor="whatsapp">Client Name</Label>
                 <Input id="whatsapp" name="whatsapp" />
               </div>
               <div className="space-y-2">
@@ -2531,7 +2521,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 <p className="font-medium flex items-center gap-1.5"><AlertCircle className="h-4 w-4 shrink-0" />Supported columns</p>
                 <p className="text-xs leading-relaxed">
                   All fields are optional:<br />
-                  Company Name, Contact Number, Client Email, WhatsApp Username, Cost in ₹, Assigned To, Reachout Done
+                  Company Name, Contact Number, Client Email, Client Name, Cost in ₹, Assigned To, Reachout Done
                 </p>
               </div>
 
@@ -2708,7 +2698,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                 <Input id="edit-contact" name="contact" defaultValue={editingLead.phoneNumber} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-whatsapp">WhatsApp Username</Label>
+                <Label htmlFor="edit-whatsapp">Client Name</Label>
                 <Input id="edit-whatsapp" name="whatsapp" defaultValue={editingLead.whatsapp} />
               </div>
               <div className="space-y-2">

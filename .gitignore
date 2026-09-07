@@ -3,7 +3,7 @@ node_modules/
 backend/uploads/
 .agents/
 n8n-schedule-shoot-workflow.json
-
+graphify-out/
 # Next.js
 .next/
 out/

@@ -113,9 +113,6 @@ const getClients = asyncHandler(async (req, res) => {
 
 const createClient = asyncHandler(async (req, res) => {
     const body = req.body;
-    if (!body.name || !body.phoneNumber) {
-        throw new ApiError(400, "Client name and contact number are required");
-    }
 
     const phoneNumber = body.phoneNumber || body.contact || "";
     const clientEmail = body.clientEmail || body.email || "";
@@ -142,7 +139,7 @@ const createClient = asyncHandler(async (req, res) => {
         adRefCode: body.adRefCode || "manual",
         source: body.source || "Manual Entry",
         assignedTo: body.assignedTo || req.user?.name || "",
-        name: body.name,
+        name: body.name || "Unknown Client",
         reachoutDone: body.reachoutDone || "Yes",
         servicePitched: body.servicePitched || body.service || "Podcast",
         cost: Number(body.cost || 0),

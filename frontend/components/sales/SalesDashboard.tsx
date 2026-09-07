@@ -844,13 +844,6 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const handleBulkUpload = async () => {
     if (bulkRows.length === 0) return;
-    const invalid = bulkRows.filter(r => !r.company.trim() || !r.contact.trim() || !r.clientEmail?.trim());
-    if (invalid.length > 0) {
-      toast.error(`${invalid.length} row(s) missing required fields`, {
-        description: 'Company Name, Contact Number and Client Email are all mandatory.',
-      });
-      return;
-    }
     setBulkUploading(true);
     setBulkProgress(0);
     let successCount = 0;
@@ -2473,11 +2466,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <form onSubmit={handleCreateLead} className="space-y-4 mt-5">
               <div className="space-y-2">
                 <Label htmlFor="company">Company Name</Label>
-                <Input id="company" name="company" required />
+                <Input id="company" name="company" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="contact">Contact Number</Label>
-                <Input id="contact" name="contact" placeholder="+91 ..." required />
+                <Input id="contact" name="contact" placeholder="+91 ..." />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="whatsapp">WhatsApp Username</Label>
@@ -2493,7 +2486,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               </div>
               <div className="space-y-2">
                 <Label htmlFor="assignTo">Assign To</Label>
-                <Select value={assignedTo} onValueChange={setAssignedTo} name="assignTo" required>
+                <Select value={assignedTo} onValueChange={setAssignedTo} name="assignTo">
                   <SelectTrigger id="assignTo">
                     <SelectValue placeholder="Select sales member" />
                   </SelectTrigger>
@@ -2535,10 +2528,10 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <div className="mt-5 space-y-5">
               {/* Info banner */}
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <p className="font-medium flex items-center gap-1.5"><AlertCircle className="h-4 w-4 shrink-0" />Required columns</p>
+                <p className="font-medium flex items-center gap-1.5"><AlertCircle className="h-4 w-4 shrink-0" />Supported columns</p>
                 <p className="text-xs leading-relaxed">
-                  <span className="font-semibold">Company Name</span>, <span className="font-semibold">Contact Number</span>, <span className="font-semibold">Client Email</span> — mandatory<br />
-                  WhatsApp Username, Cost in ₹, Assigned To, Reachout Done — optional
+                  All fields are optional:<br />
+                  Company Name, Contact Number, Client Email, WhatsApp Username, Cost in ₹, Assigned To, Reachout Done
                 </p>
               </div>
 
@@ -2708,11 +2701,11 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
             <form onSubmit={handleEditLeadSubmit} className="space-y-4 mt-6">
               <div className="space-y-2">
                 <Label htmlFor="edit-company">Company Name</Label>
-                <Input id="edit-company" name="company" defaultValue={editingLead.name} required />
+                <Input id="edit-company" name="company" defaultValue={editingLead.name} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-contact">Contact Number</Label>
-                <Input id="edit-contact" name="contact" defaultValue={editingLead.phoneNumber} required />
+                <Input id="edit-contact" name="contact" defaultValue={editingLead.phoneNumber} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-whatsapp">WhatsApp Username</Label>
@@ -2728,7 +2721,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-assignTo">Assign To</Label>
-                <Select name="assignTo" defaultValue={editingLead.assignedTo || DEFAULT_ASSIGNED_TO} required>
+                <Select name="assignTo" defaultValue={editingLead.assignedTo || DEFAULT_ASSIGNED_TO}>
                   <SelectTrigger id="edit-assignTo">
                     <SelectValue />
                   </SelectTrigger>

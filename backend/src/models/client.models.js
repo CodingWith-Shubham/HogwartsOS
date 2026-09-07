@@ -35,7 +35,7 @@ const clientSchema = new Schema({
     },
     name: {
         type: String,
-        required: true
+        default: ""
     },
     reachoutDone: {
         type: String,

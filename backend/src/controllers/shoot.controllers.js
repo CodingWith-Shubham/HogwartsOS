@@ -283,6 +283,66 @@ const updateShoot = asyncHandler(async (req, res) => {
                 : `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
             href: '/manager'
         }).catch(console.error);
+
+        // Upsell/cross-sell pipeline rollup: the drive link completes the shoot
+        // stage of the linked upsell/cross-sell entry. Multi-set entries advance
+        // only once every shoot-based deliverable set has footage, keeping the
+        // "Schedule Next (n/m)" action available until then. Entries whose
+        // shoot-based sets are ALL "Only space" have no editing phase — they
+        // skip Assign Editor and land straight in the Delivered (Completed)
+        // section, mirroring the main pipeline's space-only bypass.
+        if (updated.upsellCrossSellId) {
+            try {
+                const upsell = await UpsellCrossSell.findById(updated.upsellCrossSellId);
+                if (upsell && !upsell.editingOnly && ["payment_done", "shoot_scheduled"].includes(upsell.status)) {
+                    const allSets = upsell.deliverableSets?.length ? upsell.deliverableSets : (upsell.deliverable_sets || []);
+                    const setName = (set) => String(set?.serviceName || set?.service || set?.service_name || "");
+                    // deliverableSetIndex points into the FULL sets array, so keep
+                    // original indices while filtering down to shoot-based sets
+                    // (skip only-editing / only-marketing sets).
+                    const shootSetIndices = allSets
+                        .map((set, i) => ({ set, i }))
+                        .filter(({ set }) => setName(set) && !/only[\s-]*(editing|marketing)/i.test(setName(set)))
+                        .map(({ i }) => i);
+
+                    const entryShoots = await Shoot.find({
+                        upsellCrossSellId: String(upsell._id),
+                        bookingStatus: { $nin: ["cancelled", "conflict"] }
+                    });
+                    const linkedSetIndices = new Set(
+                        entryShoots
+                            .filter((s) => s.driveLinkUploaded === true || s.driveLinkUploaded === "true")
+                            .map((s) => {
+                                let i = Number(s.deliverableSetIndex ?? s.deliverable_set_index ?? 0);
+                                if (!Number.isFinite(i) || i < 0) i = 0;
+                                if (i >= 100) i = i % 100;
+                                return i;
+                            })
+                    );
+
+                    // Legacy entries without deliverable sets behave as a single
+                    // implicit set — satisfied by this (or any) linked shoot.
+                    const allFootageIn = shootSetIndices.length === 0
+                        ? linkedSetIndices.size > 0
+                        : shootSetIndices.every((i) => linkedSetIndices.has(i));
+
+                    if (allFootageIn) {
+                        // Only skip the editor when EVERY shoot-based set is
+                        // space-only; mixed entries still need editing for the
+                        // non-space footage.
+                        const allSpaceOnly = shootSetIndices.length > 0
+                            ? shootSetIndices.every((i) => isSpaceOnlyServiceName(setName(allSets[i])))
+                            : spaceOnly;
+                        upsell.status = allSpaceOnly ? "delivered" : "shoot_done";
+                        await upsell.save();
+                    }
+                }
+            } catch (upsellErr) {
+                // The drive-link update itself already succeeded — never fail it
+                // because of the pipeline rollup.
+                console.error("Failed to advance upsell/cross-sell entry on drive link upload:", upsellErr);
+            }
+        }
     }
 
     if (updates.addonScreenshot && (!existingShoot || existingShoot.addonScreenshot !== updates.addonScreenshot)) {

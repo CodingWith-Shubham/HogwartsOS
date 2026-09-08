@@ -112,6 +112,13 @@ export interface Shoot {
   shootMemberName: string;
   shootMemberEmail: string;
   setName?: string;
+  /**
+   * Service name of the deliverable set this shoot was scheduled for
+   * (e.g. "Podcast", "Only space"). Stored for shoots saved directly via the
+   * backend (tentative holds + "Only space" bookings); older shoots created
+   * through the n8n webhook may not have it.
+   */
+  serviceName?: string;
   dataLink: string;
   driveLinkUploaded: string | boolean;
   isEditingOnly?: string | boolean;

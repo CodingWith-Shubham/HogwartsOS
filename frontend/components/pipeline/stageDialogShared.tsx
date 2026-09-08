@@ -97,6 +97,46 @@ export const SERVICE_CONFIGS: Record<string, ServiceConfig> = {
   }
 };
 
+/**
+ * "Only space" (studio-space rental) detection.
+ *
+ * Space-only bookings have no shoot crew, camera or time window: the schedule /
+ * reschedule dialog hides the shoot start time, end time, camera and hours
+ * fields, and the booking is saved directly to the backend WITHOUT calling the
+ * n8n schedule-shoot webhook (empty values would crash the workflow). After the
+ * footage drive link is uploaded, the shoot skips the manager's "Assign Editor"
+ * queue and lands directly in the Completed tab.
+ */
+export const SPACE_ONLY_SERVICE_REGEX = /only[\s-]*space/i;
+
+export function isSpaceOnlyService(serviceName?: string | null) {
+  return SPACE_ONLY_SERVICE_REGEX.test((serviceName ?? '').trim());
+}
+
+/**
+ * Detects a space-only shoot. Fast path: the serviceName stored on the record.
+ * Fallback: space-only bookings are the ONLY shoots stored with a date but no
+ * time window — every other shoot always carries start/end times (the backend
+ * defaults them even when the client sends none). Editing-only placeholder
+ * records also have empty times, but they are flagged isEditingOnly and have
+ * no shootDate, so they never match.
+ */
+export function isSpaceOnlyShoot(
+  shoot: {
+    serviceName?: string | null;
+    shootDate?: string | null;
+    shootStartTime?: string | null;
+    shootEndTime?: string | null;
+    isEditingOnly?: string | boolean;
+  } | null | undefined
+) {
+  if (!shoot) return false;
+  if (isSpaceOnlyService(shoot.serviceName)) return true;
+  const editingOnly = String(shoot.isEditingOnly ?? '').trim().toLowerCase() === 'true';
+  if (editingOnly) return false;
+  return Boolean(shoot.shootDate) && !shoot.shootStartTime && !shoot.shootEndTime;
+}
+
 const TIME_HOURS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const TIME_MINUTES = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
 const TIME_PERIODS = ['AM', 'PM'] as const;

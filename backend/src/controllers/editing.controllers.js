@@ -966,8 +966,39 @@ const getReminderCandidates = asyncHandler(async (req, res) => {
         // We look for shoots with driveLinkUploaded=true that have NO corresponding EditingTask.
         const { Shoot } = await import("../models/shoot.models.js");
         const shoots = await Shoot.find({ driveLinkUploaded: true });
-        
+        const SPACE_ONLY_SERVICE_REGEX = /only[\s-]*space/i;
+
         for (const shoot of shoots) {
+            // "Only space" (studio rental) bookings never need an editor — the
+            // uploaded footage goes straight to the manager's Completed tab, so
+            // skip allocation reminders for them entirely.
+            let spaceOnly = SPACE_ONLY_SERVICE_REGEX.test(String(shoot.serviceName || "").trim());
+            if (!spaceOnly && !String(shoot.serviceName || "").trim()) {
+                // Legacy fallback for shoots created before serviceName was stored:
+                // resolve the service from the deliverable sets via deliverableSetIndex.
+                try {
+                    let idx = Number(shoot.deliverableSetIndex ?? 0);
+                    if (!Number.isFinite(idx) || idx < 0) idx = 0;
+                    if (idx >= 100) idx = idx % 100;
+                    let sets = [];
+                    if (shoot.upsellCrossSellId) {
+                        const { UpsellCrossSell } = await import("../models/upsellCrossSell.models.js");
+                        const upsell = await UpsellCrossSell.findById(shoot.upsellCrossSellId).catch(() => null);
+                        sets = upsell?.deliverableSets?.length ? upsell.deliverableSets : (upsell?.deliverable_sets || []);
+                    } else {
+                        const spaceClient = await Client.findOne({ leadId: shoot.leadId });
+                        sets = spaceClient?.deliverableSets?.length ? spaceClient.deliverableSets : (spaceClient?.deliverable_sets || []);
+                    }
+                    spaceOnly = SPACE_ONLY_SERVICE_REGEX.test(String(sets?.[idx]?.serviceName || sets?.[idx]?.service_name || ""));
+                } catch { /* non-fatal — treat as a regular shoot */ }
+            }
+            // Final fallback: space-only bookings are the only shoots stored
+            // with a date but no start/end times.
+            if (!spaceOnly && shoot.shootDate && !shoot.shootStartTime && !shoot.shootEndTime && shoot.isEditingOnly !== true) {
+                spaceOnly = true;
+            }
+            if (spaceOnly) continue;
+
             // Check if any editing tasks exist for this shoot
             const taskCount = await EditingTask.countDocuments({ shootId: shoot.shootId });
             if (taskCount > 0) continue; // Editor already allocated

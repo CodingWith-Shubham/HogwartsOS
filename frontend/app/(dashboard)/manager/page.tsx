@@ -2,7 +2,7 @@
 
 import { authFetch } from '@/lib/auth-fetch';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +39,11 @@ import {
 import { UpsellCrossSellAnalyticsWidget } from '@/components/dashboard/UpsellCrossSellAnalyticsWidget';
 
 const EDITOR_WORKLOAD_URL = '/api/editing/workload';
+
+// "Only space" (studio rental) bookings have no editing work: once the footage
+// drive link is uploaded they skip the Assign Editor queue and land directly in
+// the Completed tab.
+const SPACE_ONLY_SERVICE_REGEX = /only[\s-]*space/i;
 const DELIVERABLE_FIELDS = [
   { key: 'podcastDraft', payloadKey: 'podcast_draft', label: 'Podcast Draft' },
   { key: 'podcastEdit', payloadKey: 'podcast_edit', label: 'Podcast Edit' },
@@ -755,16 +760,47 @@ export default function ManagerPage() {
   const pendingApprovals = editing.filter((edit) => edit.status === 'Draft Sent').length;
   const availableEditors = editorWorkload.filter((workload) => workloadLevel(workload.totalDeliverables) === 'Free').length;
   const scheduledShoots = shoots.filter((shoot) => !isTrue(shoot.isEditingOnly)).length;
+  // Detects "Only space" (studio rental) shoots. Fast path: the serviceName
+  // stored on the shoot; fallback for legacy shoots resolves the service from
+  // the lead's / upsell entry's deliverable sets via deliverableSetIndex;
+  // final fallback is the empty-time-window signature (space-only bookings are
+  // the only shoots stored with a date but no start/end times).
+  const isSpaceOnlyShoot = useCallback((shoot: Shoot) => {
+    const stored = String(shoot.serviceName || '').trim();
+    if (stored) return SPACE_ONLY_SERVICE_REGEX.test(stored);
+    let idx = Number(shoot.deliverableSetIndex ?? 0);
+    if (!Number.isFinite(idx) || idx < 0) idx = 0;
+    if (idx >= 100) idx = idx % 100;
+    const upsell = shoot.upsellCrossSellId
+      ? upsellEntries.find((e) => e._id === shoot.upsellCrossSellId)
+      : undefined;
+    const lead = leads.find((l) => l.leadId === shoot.leadId);
+    const sets =
+      upsell?.deliverableSets || (upsell as any)?.deliverable_sets ||
+      lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
+    if (SPACE_ONLY_SERVICE_REGEX.test(String(sets[idx]?.serviceName || ''))) return true;
+    // Empty-time-window signature (editing-only placeholders also have empty
+    // times but are flagged isEditingOnly and have no shootDate).
+    return !isTrue(shoot.isEditingOnly) && Boolean(shoot.shootDate) && !shoot.shootStartTime && !shoot.shootEndTime;
+  }, [leads, upsellEntries]);
   const footageReady = useMemo(
     () => {
       const assignedShootIds = new Set(editing.map((edit) => edit.shootId).filter(Boolean));
       return shoots.filter(
         (shoot) =>
           isTrue(shoot.driveLinkUploaded) &&
-          !assignedShootIds.has(shoot.shootId)
+          !assignedShootIds.has(shoot.shootId) &&
+          // "Only space" bookings need no editing — they go straight to Completed.
+          !isSpaceOnlyShoot(shoot)
       );
     },
-    [editing, shoots]
+    [editing, shoots, isSpaceOnlyShoot]
+  );
+  // Space-only shoots whose footage drive link has been uploaded — these are
+  // fully done (no editing) and are listed in the Completed tab.
+  const spaceOnlyCompleted = useMemo(
+    () => shoots.filter((shoot) => isSpaceOnlyShoot(shoot) && isTrue(shoot.driveLinkUploaded)),
+    [shoots, isSpaceOnlyShoot]
   );
   const inEditing = editing.filter((edit) => ['Editing', 'Assigned', 'In Progress', 'Correction Requested'].includes(edit.status));
   const draftReady = editing.filter((edit) => edit.status === 'Draft Ready');
@@ -857,9 +893,9 @@ export default function ManagerPage() {
             </TabsTrigger>
             <TabsTrigger value="completed" className="data-[state=active]:bg-muted relative shrink-0">
               Completed
-              {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 && (
+              {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length + spaceOnlyCompleted.length > 0 && (
                 <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-blue-500 rounded-full shadow-sm shadow-blue-500/20">
-                  {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length}
+                  {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length + spaceOnlyCompleted.length}
                 </span>
               )}
             </TabsTrigger>
@@ -1174,10 +1210,38 @@ export default function ManagerPage() {
           <CardTitle className="text-base">Final Delivery & Completed</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length === 0 ? (
+          {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length === 0 && spaceOnlyCompleted.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No completed tasks pending final delivery.</p>
           ) : (
             <div className="space-y-4">
+              {/* "Only space" (studio rental) bookings land here directly after
+                  the footage drive link is uploaded — no editing is involved. */}
+              {spaceOnlyCompleted.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Only space bookings · No editing required</p>
+                  {spaceOnlyCompleted.map((shoot) => (
+                    <div key={shoot.id} className="flex flex-col gap-3 rounded-md border p-3 bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium">{shoot.clientName || 'Untitled shoot'}</p>
+                          <Badge className="bg-sky-500/15 text-sky-600 border-sky-500/30">🏢 Only space</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(shoot.shootDate)} · {shoot.shootMemberName || 'No shoot member'} · No editing required
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" asChild disabled={!shoot.dataLink}>
+                          <a href={shoot.dataLink} target="_blank" rel="noreferrer">
+                            View Footage <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 && (
               <div className="space-y-2">
                 {editing
                   .filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status))
@@ -1222,7 +1286,9 @@ export default function ManagerPage() {
                 </div>
               ))}
               </div>
-              {renderPagination(completedPage, setCompletedPage, editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length)}
+              )}
+              {editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length > 0 &&
+                renderPagination(completedPage, setCompletedPage, editing.filter(edit => ['Client Satisfied', 'Completed'].includes(edit.status)).length)}
             </div>
           )}
         </CardContent>

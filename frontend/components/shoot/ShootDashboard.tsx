@@ -27,6 +27,7 @@ import { Calendar, CalendarClock, Camera, CheckCircle, Clock, ExternalLink, Uplo
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { ScheduleShootDialog, type ScheduleDialogLead } from '@/components/pipeline/ScheduleShootDialog';
+import { isSpaceOnlyShoot } from '@/components/pipeline/stageDialogShared';
 import type { Shoot } from '@/lib/sheets/types';
 import type { User } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -306,7 +307,11 @@ function ShootCalendar({
                       )}
                     >
                       <span className="block truncate font-medium">{shoot.clientName}</span>
-                      <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
+                      {isSpaceOnlyShoot(shoot) ? (
+                        <span className="block truncate font-semibold">🏢 Only space</span>
+                      ) : (
+                        <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -361,6 +366,9 @@ function ShootCard({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-medium">{shoot.clientName || 'Untitled shoot'}</p>
+              {isSpaceOnlyShoot(shoot) && (
+                <Badge className="bg-sky-500/15 text-sky-600 border-sky-500/30">🏢 Only space</Badge>
+              )}
               {isTrue(shoot.editedByShootTeam) && (
                 <Badge className="bg-orange-500/15 text-orange-600 border-orange-500/30">Edited</Badge>
               )}
@@ -392,7 +400,9 @@ function ShootCard({
           <div>
             <p className="text-xs text-muted-foreground">Shoot Time</p>
             <p>
-              {formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}
+              {isSpaceOnlyShoot(shoot)
+                ? '—'
+                : `${formatTime12Hour(shoot.shootStartTime)} - ${formatTime12Hour(shoot.shootEndTime)}`}
             </p>
           </div>
           <div>
@@ -409,7 +419,7 @@ function ShootCard({
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Camera</p>
-            <p>{shoot.camera || '1'}</p>
+            <p>{isSpaceOnlyShoot(shoot) ? '—' : (shoot.camera || '1')}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Shoot Member</p>
@@ -952,7 +962,12 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
           {detail && (
             <>
               <DialogHeader>
-                <DialogTitle>{detail.clientName}</DialogTitle>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  {detail.clientName}
+                  {isSpaceOnlyShoot(detail) && (
+                    <Badge className="bg-sky-500/15 text-sky-600 border-sky-500/30">🏢 Only space</Badge>
+                  )}
+                </DialogTitle>
                 <DialogDescription>Full shoot details</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -963,9 +978,15 @@ export function ShootDashboard({ initialShoots }: ShootDashboardProps) {
                   </>
                 )}
                 <div><span className="text-muted-foreground">Date:</span> {formatDate(detail.shootDate)}</div>
-                <div><span className="text-muted-foreground">Time:</span> {detail.shootStartTime} - {detail.shootEndTime}</div>
-                <div><span className="text-muted-foreground">Camera:</span> {detail.camera || '1'}</div>
-                <div><span className="text-muted-foreground">Hours:</span> {detail.totalHours || '-'}</div>
+                {isSpaceOnlyShoot(detail) ? (
+                  <div><span className="text-muted-foreground">Service:</span> Only space</div>
+                ) : (
+                  <>
+                    <div><span className="text-muted-foreground">Time:</span> {detail.shootStartTime} - {detail.shootEndTime}</div>
+                    <div><span className="text-muted-foreground">Camera:</span> {detail.camera || '1'}</div>
+                    <div><span className="text-muted-foreground">Hours:</span> {detail.totalHours || '-'}</div>
+                  </>
+                )}
                 <div><span className="text-muted-foreground">Member:</span> {detail.shootMemberName || '-'}</div>
                 <div><span className="text-muted-foreground">Assigned:</span> {detail.assignedTo || '-'}</div>
                 <div><span className="text-muted-foreground">Status:</span> <span className="capitalize">{detail.bookingStatus || 'confirmed'}</span></div>

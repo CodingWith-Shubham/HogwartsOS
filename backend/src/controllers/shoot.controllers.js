@@ -25,6 +25,47 @@ const parseBoolean = (value, defaultValue = false) => {
     return defaultValue;
 };
 
+// --- "Only space" (studio rental) bookings -----------------------------------
+// Space-only bookings have no shoot crew, camera or time window. They skip the
+// n8n schedule-shoot webhook entirely (empty time/camera values would crash the
+// workflow) and are saved directly to the backend. After the footage drive link
+// is uploaded they also bypass the manager's editor-assignment queue and land
+// straight in the Completed tab.
+const SPACE_ONLY_SERVICE_REGEX = /only[\s-]*space/i;
+
+const isSpaceOnlyServiceName = (name) => SPACE_ONLY_SERVICE_REGEX.test(String(name || "").trim());
+
+// Detects "Only space" shoots. Fast path: the serviceName stored on the shoot.
+// Fallback for legacy shoots created before serviceName existed: resolve the
+// service from the client's (or upsell entry's) deliverable sets via
+// deliverableSetIndex. Final fallback: the empty-time-window signature —
+// space-only bookings are the only shoots stored with a date but no start/end
+// times (the backend defaults times for every other service).
+const isSpaceOnlyShoot = async (shoot, clientHint = null) => {
+    if (!shoot) return false;
+    const stored = String(shoot.serviceName || "").trim();
+    if (stored) return isSpaceOnlyServiceName(stored);
+    try {
+        let idx = Number(shoot.deliverableSetIndex ?? shoot.deliverable_set_index ?? 0);
+        if (!Number.isFinite(idx) || idx < 0) idx = 0;
+        if (idx >= 100) idx = idx % 100;
+        let sets = [];
+        if (shoot.upsellCrossSellId) {
+            const upsell = await UpsellCrossSell.findById(shoot.upsellCrossSellId).catch(() => null);
+            sets = upsell?.deliverableSets?.length ? upsell.deliverableSets : (upsell?.deliverable_sets || []);
+        } else {
+            const client = clientHint || await Client.findOne({ leadId: shoot.leadId });
+            sets = client?.deliverableSets?.length ? client.deliverableSets : (client?.deliverable_sets || []);
+        }
+        if (isSpaceOnlyServiceName(sets?.[idx]?.serviceName || sets?.[idx]?.service_name)) return true;
+    } catch {
+        // fall through to the empty-time-window heuristic below
+    }
+    // Editing-only placeholder records also have empty times but are flagged
+    // isEditingOnly and have no shootDate, so they never match.
+    return Boolean(shoot.shootDate) && !shoot.shootStartTime && !shoot.shootEndTime && shoot.isEditingOnly !== true;
+};
+
 const getShootById = asyncHandler(async (req, res) => {
   const { shootId } = req.params;
   const shoot = await Shoot.findOne({ shootId });
@@ -102,6 +143,11 @@ const createShoot = asyncHandler(async (req, res) => {
         setName = parts[0].trim();
         upsellCrossSellId = parts[1].trim();
     }
+    // "Only space" (studio rental) bookings carry no time window, camera count
+    // or hour duration — store them empty instead of the usual defaults so the
+    // calendars show the "Only space" label and conflict math skips them.
+    const serviceName = String(body.serviceName || body.service_name || "").trim();
+    const spaceOnly = isSpaceOnlyServiceName(serviceName);
     const shoot = await Shoot.create({
         shootId,
         leadId: body.leadId,
@@ -109,11 +155,11 @@ const createShoot = asyncHandler(async (req, res) => {
         contactNum: body.contactNum || "",
         clientEmailId: body.clientEmailId || body.emailId || body.email_id || "",
         shootDate: body.shootDate,
-        shootStartTime: body.shootStartTime || "10:00",
-        shootEndTime: body.shootEndTime || "12:00",
-        camera: body.camera || "1",
+        shootStartTime: spaceOnly ? "" : (body.shootStartTime || "10:00"),
+        shootEndTime: spaceOnly ? "" : (body.shootEndTime || "12:00"),
+        camera: spaceOnly ? "" : (body.camera || "1"),
         teleprompter: body.teleprompter || "No",
-        totalHours: body.totalHours || "2",
+        totalHours: spaceOnly ? "" : (body.totalHours || "2"),
         assignedTo: body.assignedTo || "",
         bts: body.bts || "No",
         shootMemberName: body.shootMemberName || "",
@@ -121,6 +167,7 @@ const createShoot = asyncHandler(async (req, res) => {
         dataLink: body.dataLink || "",
         driveLinkUploaded: parseBoolean(body.driveLinkUploaded),
         setName,
+        serviceName,
         recordTime: body.recordTime || body.record_time || "",
         studioTime: body.studioTime || body.studio_time || "",
         deliverableSetIndex: body.deliverableSetIndex ?? body.deliverable_set_index ?? 0,
@@ -226,9 +273,14 @@ const updateShoot = asyncHandler(async (req, res) => {
             if (salesUser) notifyUserIds.push(salesUser._id);
         }
 
+        // "Only space" bookings have no editing — the footage goes straight to
+        // the manager's Completed tab, so don't ask anyone to assign an editor.
+        const spaceOnly = await isSpaceOnlyShoot(updated, clientForFootage);
         sendPushNotification({ userIds: notifyUserIds, roles: ['manager', 'admin', 'super_admin'] }, {
             title: 'Shoot footage uploaded',
-            message: `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
+            message: spaceOnly
+                ? `Footage for ${updated.clientName} (Only space) has been uploaded. No editing required — moved to Completed.`
+                : `Footage for ${updated.clientName} has been uploaded. Please assign an editor.`,
             href: '/manager'
         }).catch(console.error);
     }

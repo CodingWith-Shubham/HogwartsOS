@@ -123,6 +123,16 @@ const shootSchema = new Schema({
         type: String,
         default: ""
     },
+    // Service name of the deliverable set this shoot was scheduled for
+    // (e.g. "Podcast", "Only space"). Stored for shoots saved directly via
+    // the backend (tentative holds and "Only space" bookings); shoots created
+    // through the n8n schedule-shoot webhook may not carry it.
+    // "Only space" (studio rental) bookings skip n8n, have no time/camera
+    // fields and bypass the editor-assignment flow entirely.
+    serviceName: {
+        type: String,
+        default: ""
+    },
     handoverTo: {
         type: String,
         default: ""

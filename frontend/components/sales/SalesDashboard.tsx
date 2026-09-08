@@ -67,7 +67,7 @@ import { SetAddonPriceDialog } from '@/components/sales/SetAddonPriceDialog';
 import { SetRevisionPriceDialog } from '@/components/sales/SetRevisionPriceDialog';
 import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialog';
 import { SalesTargetTab } from '@/components/sales/SalesTargetTab';
-import { SERVICE_NOTE_OPTIONS, parseCost, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
+import { SERVICE_NOTE_OPTIONS, parseCost, isSpaceOnlyService, isSpaceOnlyShoot, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill, ScheduleDialogLead } from '@/components/pipeline/ScheduleShootDialog';
 
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
@@ -195,7 +195,7 @@ function buildMonthDays(month: Date) {
   });
 }
 
-function SalesCalendar({ shoots, onReschedule }: { shoots: Shoot[]; onReschedule?: (shoot: Shoot) => void }) {
+function SalesCalendar({ shoots, onReschedule, spaceOnlyIds }: { shoots: Shoot[]; onReschedule?: (shoot: Shoot) => void; spaceOnlyIds?: ReadonlySet<string> }) {
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<Shoot | null>(null);
   const days = useMemo(() => buildMonthDays(month), [month]);
@@ -264,7 +264,11 @@ function SalesCalendar({ shoots, onReschedule }: { shoots: Shoot[]; onReschedule
                         )}
                       >
                         <span className="block truncate font-medium">{shoot.clientName}</span>
-                        <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
+                        {spaceOnlyIds?.has(shoot.shootId) ? (
+                          <span className="block truncate font-semibold">🏢 Only space</span>
+                        ) : (
+                          <span className="block truncate">{formatTime12Hour(shoot.shootStartTime)} - {formatTime12Hour(shoot.shootEndTime)}</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -280,15 +284,26 @@ function SalesCalendar({ shoots, onReschedule }: { shoots: Shoot[]; onReschedule
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle>{selected.clientName}</DialogTitle>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  {selected.clientName}
+                  {spaceOnlyIds?.has(selected.shootId) && (
+                    <Badge className="bg-sky-500/15 text-sky-600 border-sky-500/30">🏢 Only space</Badge>
+                  )}
+                </DialogTitle>
                 <DialogDescription>Scheduled shoot details</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-muted-foreground">Contact:</span> {selected.contactNum || '-'}</div>
                 <div><span className="text-muted-foreground">Email:</span> {selected.emailId || '-'}</div>
                 <div><span className="text-muted-foreground">Date:</span> {selected.shootDate || '-'}</div>
-                <div><span className="text-muted-foreground">Time:</span> {selected.shootStartTime} - {selected.shootEndTime}</div>
-                <div><span className="text-muted-foreground">Camera:</span> {selected.camera || '1'}</div>
+                {spaceOnlyIds?.has(selected.shootId) ? (
+                  <div><span className="text-muted-foreground">Service:</span> Only space</div>
+                ) : (
+                  <>
+                    <div><span className="text-muted-foreground">Time:</span> {selected.shootStartTime} - {selected.shootEndTime}</div>
+                    <div><span className="text-muted-foreground">Camera:</span> {selected.camera || '1'}</div>
+                  </>
+                )}
                 <div><span className="text-muted-foreground">Teleprompter:</span> {selected.teleprompter || 'No'}</div>
                 <div><span className="text-muted-foreground">BTS:</span> {selected.bts || 'No'}</div>
                 <div><span className="text-muted-foreground">Member:</span> {selected.shootMemberName || '-'}</div>
@@ -740,6 +755,29 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
       upsellCrossSellId: rescheduleShoot.upsellCrossSellId,
     };
   }, [rescheduleShoot, leads]);
+
+  // "Only space" (studio rental) shoot IDs — labelled in the calendar and kept
+  // out of the manager's editor-assignment queue. Detection uses the stored
+  // serviceName (or the empty-time-window signature shared helper), falling
+  // back to the lead's deliverable sets for legacy shoots created before
+  // serviceName was stored.
+  const spaceOnlyShootIds = useMemo(() => {
+    const ids = new Set<string>();
+    shoots.forEach((shoot) => {
+      if (isSpaceOnlyShoot(shoot)) {
+        ids.add(shoot.shootId);
+        return;
+      }
+      // Legacy fallback: resolve the service from the lead's deliverable sets.
+      let idx = Number(shoot.deliverableSetIndex ?? 0);
+      if (!Number.isFinite(idx) || idx < 0) idx = 0;
+      if (idx >= 100) idx = idx % 100;
+      const lead = leads.find((l) => l.leadId === shoot.leadId);
+      const sets = lead?.deliverableSets || (lead as any)?.deliverable_sets || [];
+      if (isSpaceOnlyService(sets[idx]?.serviceName)) ids.add(shoot.shootId);
+    });
+    return ids;
+  }, [shoots, leads]);
 
   const cancelShoot = async (shoot: Shoot) => {
     if (!confirm(`Cancel ${shoot.bookingStatus === 'tentative' ? 'tentative hold' : 'shoot'} for ${shoot.clientName}? This cannot be undone.`)) return;
@@ -2214,6 +2252,7 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           <SalesCalendar
             shoots={shoots.filter((s) => !['cancelled', 'conflict'].includes(s.bookingStatus ?? ''))}
             onReschedule={(shoot) => setRescheduleShoot(shoot)}
+            spaceOnlyIds={spaceOnlyShootIds}
           />
         </TabsContent>
 

@@ -23,6 +23,8 @@ import {
   TimeOfDaySelect,
   calculateEndTime,
   getAssignedSalespersonName,
+  isSpaceOnlyService,
+  isSpaceOnlyShoot,
 } from './stageDialogShared';
 
 /** Minimal lead shape the schedule modal needs. */
@@ -64,6 +66,7 @@ export interface ScheduleShootDialogProps {
    * On submit the old shoot is released (soft-cancelled via the reschedule API)
    * and the unchanged n8n schedule-shoot webhook is fired again with the new
    * date/time so the existing workflow creates the updated shoot + invite.
+   * ("Only space" bookings skip n8n and are saved directly to the backend.)
    */
   rescheduleShoot?: Shoot | null;
   /** Called after all shoots were scheduled — e.g. advance pipeline status. */
@@ -161,6 +164,33 @@ export function ScheduleShootDialog({
   const [conflictError, setConflictError] = useState('');
   const [bookingMode, setBookingMode] = useState<'confirmed' | 'tentative'>(mode);
 
+  // ── "Only space" (studio rental) detection ─────────────────────────────────
+  // Resolved from the deliverable set being scheduled (or the shoot being
+  // rescheduled). Space-only bookings hide the time/camera/hours fields and are
+  // saved directly to the backend — the n8n schedule-shoot webhook is NOT
+  // called (empty values would crash the workflow).
+  const activeServiceName = useMemo(() => {
+    if (rescheduleShoot) {
+      const stored = (rescheduleShoot.serviceName || '').trim();
+      if (stored) return stored;
+      // Legacy shoots without a stored serviceName: resolve via the lead's sets.
+      const sets = leadDeliverableSets || [];
+      let idx = Number(rescheduleShoot.deliverableSetIndex ?? 0);
+      if (!Number.isFinite(idx) || idx < 0) idx = 0;
+      if (idx >= 100) idx = idx % 100;
+      return (sets[idx] as any)?.serviceName || '';
+    }
+    if (selectedSetIndex === null) return '';
+    return (leadDeliverableSets?.[selectedSetIndex] as any)?.serviceName || '';
+  }, [rescheduleShoot, selectedSetIndex, leadDeliverableSets]);
+
+  // In reschedule mode also honour the record itself: a stored space-only
+  // serviceName, or the empty-time-window signature (space-only bookings are
+  // the only shoots with a date but no start/end times).
+  const spaceOnly =
+    isSpaceOnlyService(activeServiceName) ||
+    (rescheduleShoot ? isSpaceOnlyShoot(rescheduleShoot) : false);
+
   useEffect(() => {
     if (!open) return;
     setConflictError('');
@@ -170,7 +200,8 @@ export function ScheduleShootDialog({
       // Skip the services list and prefill EVERYTHING from the existing shoot
       // except the date, start time and end time (those are chosen fresh).
       // Tentative holds stay tentative (direct backend save, no n8n); confirmed
-      // shoots go through the unchanged n8n schedule-shoot webhook again.
+      // shoots go through the unchanged n8n schedule-shoot webhook again —
+      // except "Only space" bookings, which always save directly (no n8n).
       setBookingMode(rescheduleShoot.bookingStatus === 'tentative' ? 'tentative' : 'confirmed');
       const storedIndex = Number(rescheduleShoot.deliverableSetIndex ?? 0);
       const memberName = rescheduleShoot.shootMemberName || shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name;
@@ -247,7 +278,8 @@ export function ScheduleShootDialog({
     // SAME room (set). Sharing a shoot member across overlapping shoots is
     // allowed, and same-room shoots at non-overlapping times never conflict.
     // Tentative bookings are excluded — no conflict checks run for them.
-    if (bookingMode === 'confirmed' && scheduleForm.setName && scheduleForm.setName !== 'Outdoor Shoot') {
+    // "Only space" bookings carry no time window, so no overlap can be computed.
+    if (bookingMode === 'confirmed' && !spaceOnly && scheduleForm.setName && scheduleForm.setName !== 'Outdoor Shoot') {
       const conflict = existingShoots.find((existingShoot) => {
         // The shoot being rescheduled must not conflict with itself, and slots
         // freed by cancelled/conflict shoots should never block a booking.
@@ -328,8 +360,12 @@ export function ScheduleShootDialog({
         }
       }
 
-      if (bookingMode === 'tentative') {
-        // ── Tentative path: save directly to the backend (no n8n webhook) ────────
+      if (bookingMode === 'tentative' || spaceOnly) {
+        // ── Direct-backend path (no n8n webhook) ─────────────────────────────
+        // Used by tentative holds AND by "Only space" bookings. Space-only
+        // bookings never call the n8n schedule-shoot webhook: they have no
+        // start/end time, camera or hours, and sending empty values would
+        // crash the workflow's calendar step.
         const { authFetch } = await import('@/lib/auth-fetch');
         const payload = {
           leadId: lead.leadId,
@@ -356,7 +392,8 @@ export function ScheduleShootDialog({
             : effectiveUpsellId
               ? ((existingShoots.length + 1) * 100 + (scheduleForm.deliverableSetIndex || 0))
               : scheduleForm.deliverableSetIndex,
-          bookingStatus: 'tentative',
+          bookingStatus: bookingMode,
+          serviceName: activeServiceName,
           ...(effectiveUpsellId ? { upsell_crosssell_id: effectiveUpsellId } : {}),
           ...(extraPayload ?? {}),
         };
@@ -369,13 +406,15 @@ export function ScheduleShootDialog({
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.message || err.error || 'Failed to book tentative shoot');
+          throw new Error(err.message || err.error || `Failed to ${bookingMode === 'tentative' ? 'book tentative shoot' : 'schedule shoot'}`);
         }
 
         toast.success(
-          isReschedule
-            ? 'Tentative hold rescheduled! Slot will be confirmed when payment is received first.'
-            : 'Tentative hold placed! Slot will be confirmed when payment is received first.'
+          bookingMode === 'tentative'
+            ? (isReschedule
+                ? 'Tentative hold rescheduled! Slot will be confirmed when payment is received first.'
+                : 'Tentative hold placed! Slot will be confirmed when payment is received first.')
+            : (isReschedule ? 'Shoot rescheduled successfully!' : 'Shoot scheduled successfully!')
         );
         if (isReschedule) {
           onOpenChange(false);
@@ -544,6 +583,11 @@ export function ScheduleShootDialog({
                   <h4 className="font-semibold text-sm border-b pb-2 text-primary">
                     {rescheduleShoot ? 'Rescheduling' : 'Scheduling'}: {(lead?.deliverableSets || (lead as any)?.deliverable_sets)?.[selectedSetIndex]?.serviceName || (rescheduleShoot ? 'Shoot' : 'Service')}
                   </h4>
+                  {spaceOnly && (
+                    <div className="rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
+                      🏢 Only space booking — no shoot crew, camera or time window is needed. Just pick the date, studio and member.
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="shootDate">Shoot Date</Label>
@@ -555,65 +599,71 @@ export function ScheduleShootDialog({
                         onChange={(e) => setScheduleForm(prev => ({ ...prev, shootDate: e.target.value }))}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="camera">Camera Count</Label>
-                      <Input
-                        id="camera"
-                        type="number"
-                        min="1"
-                        required
-                        value={scheduleForm.camera}
-                        onChange={(e) => setScheduleForm(prev => ({ ...prev, camera: e.target.value }))}
-                      />
-                    </div>
+                    {/* "Only space" bookings have no crew/camera/time window —
+                        these fields are hidden and are NOT sent to n8n. */}
+                    {!spaceOnly && (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="camera">Camera Count</Label>
+                          <Input
+                            id="camera"
+                            type="number"
+                            min="1"
+                            required
+                            value={scheduleForm.camera}
+                            onChange={(e) => setScheduleForm(prev => ({ ...prev, camera: e.target.value }))}
+                          />
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="shootStartTime">Shoot Start Time</Label>
-                      <TimeOfDaySelect
-                        id="shootStartTime"
-                        value={scheduleForm.shootStartTime}
-                        onChange={(value) => {
-                          setScheduleForm(prev => ({
-                            ...prev,
-                            shootStartTime: value,
-                            shootEndTime: calculateEndTime(value, prev.totalHours),
-                          }));
-                          setConflictError('');
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="totalHours">Total Hours</Label>
-                      <Input
-                        id="totalHours"
-                        type="number"
-                        min="0.25"
-                        step="0.25"
-                        required
-                        disabled={!scheduleForm.shootStartTime}
-                        value={scheduleForm.totalHours}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setScheduleForm(prev => ({
-                            ...prev,
-                            totalHours: value,
-                            shootEndTime: calculateEndTime(prev.shootStartTime, value),
-                          }));
-                          setConflictError('');
-                        }}
-                        placeholder={scheduleForm.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
-                      />
-                      <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="shootEndTime">Shoot End Time</Label>
-                      <TimeOfDaySelect
-                        id="shootEndTime"
-                        value={scheduleForm.shootEndTime}
-                        onChange={() => undefined}
-                        disabled
-                      />
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="shootStartTime">Shoot Start Time</Label>
+                          <TimeOfDaySelect
+                            id="shootStartTime"
+                            value={scheduleForm.shootStartTime}
+                            onChange={(value) => {
+                              setScheduleForm(prev => ({
+                                ...prev,
+                                shootStartTime: value,
+                                shootEndTime: calculateEndTime(value, prev.totalHours),
+                              }));
+                              setConflictError('');
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="totalHours">Total Hours</Label>
+                          <Input
+                            id="totalHours"
+                            type="number"
+                            min="0.25"
+                            step="0.25"
+                            required
+                            disabled={!scheduleForm.shootStartTime}
+                            value={scheduleForm.totalHours}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setScheduleForm(prev => ({
+                                ...prev,
+                                totalHours: value,
+                                shootEndTime: calculateEndTime(prev.shootStartTime, value),
+                              }));
+                              setConflictError('');
+                            }}
+                            placeholder={scheduleForm.shootStartTime ? 'e.g. 1.5' : 'Select a start time first'}
+                          />
+                          <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="shootEndTime">Shoot End Time</Label>
+                          <TimeOfDaySelect
+                            id="shootEndTime"
+                            value={scheduleForm.shootEndTime}
+                            onChange={() => undefined}
+                            disabled
+                          />
+                        </div>
+                      </>
+                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="teleprompter">Teleprompter</Label>
@@ -724,7 +774,7 @@ export function ScheduleShootDialog({
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={schedulingShoot || !scheduleForm.totalHours}>
+                  <Button type="submit" disabled={schedulingShoot || (!spaceOnly && !scheduleForm.totalHours)}>
                     <Camera className="mr-1.5 h-4 w-4" />
                     {rescheduleShoot ? (schedulingShoot ? 'Rescheduling…' : 'Reschedule Shoot') : 'Send to Shoot Team'}
                   </Button>

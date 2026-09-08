@@ -63,6 +63,7 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 const CLIENT_STATUSES = [
+  'Existing Client',
   'New Lead',
   'Proposal Sent',
   'Proposal Accepted',
@@ -75,6 +76,33 @@ const CLIENT_STATUSES = [
   'Closed',
   'On Hold',
 ];
+
+// Statuses a lead can ONLY reach after its first installment payment has been
+// verified by the sales rep. A lead with any of these statuses is a client.
+const POST_PAYMENT_VERIFIED_STATUSES = [
+  'Payment Verified',
+  'Payment Completed',
+  'Payment Confirmed',
+  'Shoot Scheduled',
+  'Footage Received',
+  'Editing',
+  'Draft Sent',
+  'Revision Requested',
+  'Delivered',
+  'Closed',
+];
+
+/**
+ * The Clients tab lists CLIENTS ONLY:
+ *  - records added directly from here / imported legacy DB (isExistingClient)
+ *  - sales leads whose first installment payment was verified by the sales rep
+ * New leads (no verified payment yet) stay exclusively in the Sales dashboard.
+ */
+const isClientRecord = (lead: any): boolean => {
+  if (lead?.isExistingClient) return true;
+  if (lead?.hasVerifiedPayment) return true;
+  return POST_PAYMENT_VERIFIED_STATUSES.includes((lead?.status || '').trim());
+};
 
 export default function ClientsPage() {
   const { user } = useAuth();
@@ -95,7 +123,7 @@ export default function ClientsPage() {
   const [clientEmail, setClientEmail] = useState('');
   const [cost, setCost] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
-  const [status, setStatus] = useState('New Lead');
+  const [status, setStatus] = useState('Existing Client');
   const [submitting, setSubmitting] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedProfileClient, setSelectedProfileClient] = useState<any>(null);
@@ -208,7 +236,7 @@ export default function ClientsPage() {
     } else {
       setAssignedTo('');
     }
-    setStatus('New Lead');
+    setStatus('Existing Client');
     setSheetOpen(true);
   };
 
@@ -227,7 +255,7 @@ export default function ClientsPage() {
     setClientEmail(lead.clientEmail || '');
     setCost(lead.cost || '');
     setAssignedTo(lead.assignedTo || '');
-    setStatus(lead.status || 'New Lead');
+    setStatus(lead.status || (lead.isExistingClient ? 'Existing Client' : 'New Lead'));
     setSheetOpen(true);
   };
 
@@ -275,6 +303,11 @@ export default function ClientsPage() {
       if (editingClient) {
         payload.leadId = editingClient.leadId;
         payload.status = status;
+      } else {
+        // Clients added directly from the Clients tab are EXISTING clients —
+        // they must not appear in the Sales dashboard as new leads.
+        payload.isExistingClient = true;
+        payload.status = 'Existing Client';
       }
 
       const response = await fetch(url, {
@@ -314,17 +347,23 @@ export default function ClientsPage() {
     return <ClientsShimmer />;
   }
 
+  // Clients tab shows CLIENTS ONLY — direct/existing clients plus sales leads
+  // whose first installment payment has been verified by the sales rep.
+  // Pipeline leads without a verified payment stay in the Sales dashboard only.
+  const clientLeads = leads.filter(isClientRecord);
+  const pipelineLeadsCount = leads.length - clientLeads.length;
+
   // 1. Stats calculation
-  const totalClients = leads.filter((l) => l.proposalAccepted).length;
-  const activeClients = leads.filter((l) => l.proposalAccepted && !['closed', 'delivered'].includes((l.status || '').toLowerCase())).length;
+  const totalClients = clientLeads.length;
+  const activeClients = clientLeads.filter((l) => !['closed', 'delivered'].includes((l.status || '').toLowerCase())).length;
   const totalRevenue = invoices.filter((i) => i.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0);
-  const leadsCount = leads.filter((l) => !l.proposalAccepted).length;
+  const leadsCount = pipelineLeadsCount;
   const upsellCount = ucxClients.reduce((sum, c) => sum + (c.upsellCount || 0), 0);
   const crosssellCount = ucxClients.reduce((sum, c) => sum + (c.crosssellCount || 0), 0);
   const newsaleCount = ucxClients.reduce((sum, c) => sum + (c.newsaleCount || 0), 0);
 
   // 2. Clients list mapping
-  const clientsData = leads.map((lead) => {
+  const clientsData = clientLeads.map((lead) => {
     const clientInvoices = invoices.filter((i) => i.projectId === lead.leadId && i.status === 'paid');
     const clientRevenue = clientInvoices.reduce((sum, inv) => sum + inv.amount, 0);
 
@@ -340,7 +379,10 @@ export default function ClientsPage() {
       service: lead.servicePitched || '—',
       totalProjects,
       totalRevenue: clientRevenue,
-      status: lead.status || 'New Lead',
+      status:
+        lead.isExistingClient && (!lead.status || lead.status === 'New Lead')
+          ? 'Existing Client'
+          : lead.status || 'New Lead',
       whatsapp: lead.whatsapp || '',
       profileImage: lead.profileImage || '',
       ucxBadges: ucxClients

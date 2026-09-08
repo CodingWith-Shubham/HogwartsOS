@@ -1,0 +1,24 @@
+[
+  {
+    "_id": "6a99e2224e2b9316c1ab7c41",
+    "amount": 100,
+    "category": "Travel",
+    "description": "Travel to shoot location",
+    "date": "2026-09-09T00:00:00.000Z",
+    "recordedBy": "Developer",
+    "createdAt": "2026-09-03T21:09:54.664Z",
+    "updatedAt": "2026-09-03T21:09:54.664Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a9a9fe5d160ecfee39e5abf",
+    "amount": 10000,
+    "category": "Marketing",
+    "description": "Meta Marketing ",
+    "date": "2026-09-04T00:00:00.000Z",
+    "recordedBy": "Krishan Kunal Bagoria",
+    "createdAt": "2026-09-04T10:39:33.317Z",
+    "updatedAt": "2026-09-04T10:39:33.317Z",
+    "__v": 0
+  }
+]

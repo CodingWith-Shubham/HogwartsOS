@@ -90,6 +90,16 @@ export interface Lead {
   payment_status?: string;
   deliverableSets?: any[];
   profileImage?: string;
+  /**
+   * true for clients added directly from the Clients tab or imported from the
+   * legacy client database — they NEVER appear in the Sales dashboard pipeline.
+   */
+  isExistingClient?: boolean;
+  /**
+   * Set by the backend: true once the lead's first installment payment has been
+   * verified by the sales rep — this is when a lead becomes a client (Clients tab).
+   */
+  hasVerifiedPayment?: boolean;
 }
 
 export type LeadFilterTab = 'all' | 'new_leads' | 'proposal_sent' | 'revoked' | 'accepted' | 'upsells' | 'addons_payments';
@@ -203,6 +213,12 @@ export const LEAD_STATUS_META: Record<
     color: '#6B7280',
     bg: '#F3F4F6',
     border: '#E5E7EB',
+  },
+  'Existing Client': {
+    label: 'Existing Client',
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+    border: '#DDD6FE',
   },
   'Proposal Sent': {
     label: 'Proposal Sent',

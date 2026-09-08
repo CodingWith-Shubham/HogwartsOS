@@ -17,6 +17,13 @@ const clientSchema = new Schema({
         default: 'lead',
         index: true
     },
+    // Existing (legacy/direct) clients live ONLY in the Clients tab —
+    // they never appear in the Sales dashboard lead pipeline.
+    isExistingClient: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
     date: {
         type: String,
         default: ""

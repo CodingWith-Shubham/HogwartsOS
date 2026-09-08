@@ -80,11 +80,14 @@ export function filterSalesLeads<T extends Lead>(
 ): T[] {
   return leads.filter(
     (lead) =>
-      lead.assignedTo === userName ||
-      userRole === 'manager' ||
-      userRole === 'super_admin' ||
-      userRole === 'sales' ||
-      userRole === 'admin'
+      // Existing (legacy / directly-added) clients live only in the Clients
+      // tab — they are NOT sales leads and must never appear in the pipeline.
+      !lead.isExistingClient &&
+      (lead.assignedTo === userName ||
+        userRole === 'manager' ||
+        userRole === 'super_admin' ||
+        userRole === 'sales' ||
+        userRole === 'admin')
   );
 }
 

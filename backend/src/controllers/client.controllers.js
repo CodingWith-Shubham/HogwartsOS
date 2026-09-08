@@ -69,10 +69,17 @@ const getClients = asyncHandler(async (req, res) => {
     const leadIds = filteredLeads.map(l => l.leadId);
     const payments = await Payment.find({ leadId: { $in: leadIds } }).sort({ createdAt: -1 });
     const paymentMap = new Map();
+    // A lead becomes a CLIENT only after its first installment payment is
+    // verified by the sales rep. Track which leads have a verified payment.
+    const VERIFIED_PAYMENT_STATUSES = ["Payment Verified", "Payment Confirmed", "Confirmed", "Cash Received", "Payment Completed"];
+    const verifiedPaymentLeadIds = new Set();
     payments.forEach(p => {
         // Upsell/cross-sell payments belong to the parallel pipeline — never
         // surface them as the original lead's payment status.
         if (p.upsellCrossSellId) return;
+        if (VERIFIED_PAYMENT_STATUSES.includes((p.paymentStatus || "").trim())) {
+            verifiedPaymentLeadIds.add(p.leadId);
+        }
         // Only set if not already set — keeps the most recent payment per lead
         if (!paymentMap.has(p.leadId)) {
             paymentMap.set(p.leadId, p);
@@ -93,6 +100,7 @@ const getClients = asyncHandler(async (req, res) => {
         const obj = typeof l.toObject === 'function' ? l.toObject() : { ...l };
         obj.id = l._id.toString();
         obj.payment = paymentMap.get(l.leadId) || null;
+        obj.hasVerifiedPayment = verifiedPaymentLeadIds.has(l.leadId);
         if (obj.deliverable_sets && (!obj.deliverableSets || obj.deliverableSets.length === 0)) {
             obj.deliverableSets = obj.deliverable_sets;
         }
@@ -132,21 +140,27 @@ const createClient = asyncHandler(async (req, res) => {
     const count = await Client.countDocuments();
     const leadId = body.leadId || `HL-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
+    // Clients added directly from the Clients tab (or imported from the legacy
+    // database) are EXISTING clients — they must not appear in the Sales
+    // dashboard as new leads, and their status badge reads "Existing Client".
+    const isExistingClient = body.isExistingClient === true || body.isExistingClient === "true";
+
     const client = await Client.create({
         leadId,
         phoneNumber: body.phoneNumber || body.contact || "",
         date: body.date || new Date().toLocaleDateString('en-GB'),
         adRefCode: body.adRefCode || "manual",
-        source: body.source || "Manual Entry",
+        source: body.source || (isExistingClient ? "Existing Client" : "Manual Entry"),
         assignedTo: body.assignedTo || req.user?.name || "",
         name: body.name || "Unknown Client",
         reachoutDone: body.reachoutDone || "Yes",
         servicePitched: body.servicePitched || body.service || "Podcast",
         cost: Number(body.cost || 0),
-        status: body.status || "New Lead",
+        status: body.status || (isExistingClient ? "Existing Client" : "New Lead"),
         clientEmail: body.clientEmail || body.email || "",
-        proposalSent: Boolean(body.proposalSent),
-        proposalAccepted: Boolean(body.proposalAccepted),
+        isExistingClient,
+        proposalSent: isExistingClient ? true : Boolean(body.proposalSent),
+        proposalAccepted: isExistingClient ? true : Boolean(body.proposalAccepted),
         proposalSentAt: body.proposalSentAt || new Date().toISOString()
     });
 

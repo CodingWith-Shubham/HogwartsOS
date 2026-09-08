@@ -323,7 +323,7 @@ export async function GET(request: Request) {
     };
     for (const lead of leads) {
       const s = (lead.status || '').trim().toLowerCase();
-      if (['proposal accepted', 'shoot scheduled', 'editing', 'draft sent'].includes(s)) {
+      if (['proposal accepted', 'shoot scheduled', 'editing', 'draft sent', 'existing client', 'payment verified', 'payment completed'].includes(s)) {
         statusCounts['Active']++;
       } else if (['new lead', 'proposal sent', 'awaiting payment'].includes(s)) {
         statusCounts['In Progress']++;

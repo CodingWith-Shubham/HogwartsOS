@@ -82,6 +82,19 @@ const formatCoords = (loc?: LocationCoords | null) => {
   return `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
 };
 
+// Elapsed working hours between punch-in and punch-out ISO timestamps ('8h 05m').
+// Falls back to '--:--' when the employee hasn't punched both yet (matches formatTime).
+const formatElapsedHours = (checkIn?: string, checkOut?: string) => {
+  if (!checkIn || !checkOut) return '--:--';
+  const start = new Date(checkIn).getTime();
+  const end = new Date(checkOut).getTime();
+  if (isNaN(start) || isNaN(end) || end < start) return '--:--';
+  const totalMinutes = Math.floor((end - start) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+};
+
 // 'YYYY-MM' -> 'August 2026' (parsed as local midnight to avoid TZ drift)
 const monthLabel = (ym: string) =>
   new Date(`${ym}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -1059,6 +1072,9 @@ export default function AttendancePage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Check-In</TableHead>
                     <TableHead>Check-Out</TableHead>
+                    <TableHead className="text-emerald-400">
+                      <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Elapsed Hours</span>
+                    </TableHead>
                     <TableHead>Work Location</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Leave Balance</TableHead>
@@ -1074,7 +1090,7 @@ export default function AttendancePage() {
                 <TableBody>
                   {teamLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-6 text-muted-foreground text-sm">
+                      <TableCell colSpan={11} className="text-center py-6 text-muted-foreground text-sm">
                         No team attendance logged for {selectedDate}.
                       </TableCell>
                     </TableRow>
@@ -1085,6 +1101,7 @@ export default function AttendancePage() {
                         <TableCell className="text-sm text-muted-foreground">{log.employeeEmail}</TableCell>
                         <TableCell className="text-sm font-mono">{formatTime(log.checkIn)}</TableCell>
                         <TableCell className="text-sm font-mono">{formatTime(log.checkOut)}</TableCell>
+                        <TableCell className="text-sm font-mono whitespace-nowrap">{formatElapsedHours(log.checkIn, log.checkOut)}</TableCell>
                         <TableCell className="text-sm">{log.workLocation}</TableCell>
                         <TableCell>
                           <Badge className={statusBadgeClass(log.status)}>

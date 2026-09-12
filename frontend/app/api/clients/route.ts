@@ -138,9 +138,9 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only manager (master), admin, and super_admin can delete leads
-    if (!['manager', 'admin', 'super_admin'].includes(user.role)) {
-      return NextResponse.json({ error: 'Only Managers and Admins can delete leads' }, { status: 403 });
+    // Any role that has access to the Clients tab can delete leads
+    if (!['manager', 'sales', 'admin', 'super_admin'].includes(user.role)) {
+      return NextResponse.json({ error: 'You do not have permission to delete clients' }, { status: 403 });
     }
 
     const BACKEND_URL = await getBackendUrl();

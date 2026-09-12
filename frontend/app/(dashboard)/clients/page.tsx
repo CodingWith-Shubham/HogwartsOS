@@ -7,7 +7,17 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download, ShoppingCart } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download, ShoppingCart, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
@@ -127,6 +137,11 @@ export default function ClientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedProfileClient, setSelectedProfileClient] = useState<any>(null);
+
+  // Delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Upsell & Cross-Sell pipeline state (isolated from the Lead model)
   const [ucxModalOpen, setUcxModalOpen] = useState(false);
@@ -282,6 +297,42 @@ export default function ClientsPage() {
     setSelectedUcxClient(lead);
     setUcxType('newsale');
     setUcxModalOpen(true);
+  };
+
+  const handleDeleteClient = (c: any) => {
+    const lead = leads.find((l) => l.leadId === c.id);
+    if (!lead) return;
+    setClientToDelete(lead);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!clientToDelete) return;
+    setDeleting(true);
+    try {
+      const response = await fetch('/api/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: clientToDelete.leadId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to delete client');
+      }
+      toast.success('Client Deleted', {
+        description: `${clientToDelete.name} has been removed.`,
+      });
+      setDeleteDialogOpen(false);
+      setClientToDelete(null);
+      setLoading(true);
+      await triggerFetch();
+    } catch (err) {
+      toast.error('Error deleting client', {
+        description: err instanceof Error ? err.message : 'Unknown error occurred',
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -544,6 +595,17 @@ export default function ClientsPage() {
               >
                 <Edit className="h-4 w-4 text-muted-foreground hover:text-foreground" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Delete Client"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteClient(c);
+                }}
+              >
+                <Trash2 className="h-4 w-4 text-destructive hover:text-red-600" />
+              </Button>
             </>
           )}
         </div>
@@ -734,6 +796,31 @@ export default function ClientsPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">{clientToDelete?.name}</span>?
+              This action cannot be undone and will permanently remove this client and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {deleting ? 'Deleting...' : 'Delete Client'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">

@@ -24,6 +24,23 @@ export const FALLBACK_SHOOT_MEMBERS = [
   { name: 'Mayank Saxena', email: 'mayank@hogwartsstudios.com' },
 ];
 
+/**
+ * Studio names available for "Only space" bookings — kept in sync with the
+ * Set / Location dropdown in the Schedule Shoot dialog so the sales team picks
+ * from the same list and the scheduler sees it pre-filled.
+ */
+export const STUDIO_NAME_OPTIONS = [
+  'Black Money',
+  'Dark Realm',
+  'Dark Multiverse',
+  'Green Amazon',
+  'Moroccan',
+  'Cyclorama Chroma Screen',
+  'Entire Studio',
+  'Product Shoot',
+  'Outdoor Shoot',
+] as const;
+
 export const SERVICE_NOTE_OPTIONS = [
   'Podcast',
   'Solo content shoot',
@@ -89,7 +106,10 @@ export const SERVICE_CONFIGS: Record<string, ServiceConfig> = {
   'Only space': {
     hasQuantity: true,
     quantityLabel: 'Number of Sessions',
-    fields: ['studioTime'],
+    // shootStartTime, shootEndTime, totalHours, studioName are rendered with
+    // custom UI in SendProposalDialog (time pickers + dropdown) and are listed
+    // here so the dialog knows they belong to this service.
+    fields: ['studioTime', 'shootStartTime', 'shootEndTime', 'totalHours', 'studioName'],
   },
   'Others': {
     hasQuantity: false,
@@ -174,6 +194,11 @@ export type ProposalFormValues = {
   posts: string;
   socialMediaHandles: string;
   marketingNotes: string;
+  // Only space fields
+  shootStartTime: string;
+  shootEndTime: string;
+  totalHours: string;
+  studioName: string;
 } & Record<DeliverableKey, string>;
 
 export const DEFAULT_DELIVERABLES: Record<DeliverableKey, string> = {

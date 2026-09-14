@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/auth-fetch';
@@ -21,6 +22,9 @@ import {
   SERVICE_NOTE_OPTIONS,
   DELIVERABLE_FIELDS,
   SERVICE_CONFIGS,
+  STUDIO_NAME_OPTIONS,
+  TimeOfDaySelect,
+  calculateEndTime,
   normalizeQuantity,
   totalDeliverables,
   type ProposalFormValues,
@@ -62,6 +66,11 @@ type DeliverableSet = {
   posts?: string;
   socialMediaHandles?: string;
   marketingNotes?: string;
+  // Only space fields
+  shootStartTime?: string;
+  shootEndTime?: string;
+  totalHours?: string;
+  studioName?: string;
   // reference
   serviceName?: string;
 };
@@ -88,6 +97,11 @@ const createEmptySet = (serviceName: string, defaults?: any): DeliverableSet => 
     posts: fb.posts || '',
     socialMediaHandles: fb.socialMediaHandles || '',
     marketingNotes: fb.marketingNotes || '',
+    // Only space
+    shootStartTime: fb.shootStartTime || '',
+    shootEndTime: fb.shootEndTime || '',
+    totalHours: fb.totalHours || '',
+    studioName: fb.studioName || '',
     serviceName,
   };
 };
@@ -171,6 +185,11 @@ export function SendProposalDialog({
               posts: set.posts || fb?.posts || '',
               socialMediaHandles: set.socialMediaHandles || set.social_media_handles || fb?.socialMediaHandles || '',
               marketingNotes: set.marketingNotes || set.marketing_notes || fb?.marketingNotes || '',
+              // Only space fields
+              shootStartTime: set.shootStartTime || set.shoot_start_time || fb?.shootStartTime || '',
+              shootEndTime: set.shootEndTime || set.shoot_end_time || fb?.shootEndTime || '',
+              totalHours: set.totalHours || set.total_hours || fb?.totalHours || '',
+              studioName: set.studioName || set.studio_name || fb?.studioName || '',
               serviceName: service,
             };
           });
@@ -236,6 +255,16 @@ export function SendProposalDialog({
       if (!existing) return prev;
       const newSets = [...existing.sets];
       newSets[index] = { ...newSets[index], [field]: value };
+      return { ...prev, [service]: { ...existing, sets: newSets } };
+    });
+  };
+
+  const updateServiceSetMulti = (service: string, index: number, fields: Record<string, string>) => {
+    setServiceDeliverables(prev => {
+      const existing = prev[service];
+      if (!existing) return prev;
+      const newSets = [...existing.sets];
+      newSets[index] = { ...newSets[index], ...fields };
       return { ...prev, [service]: { ...existing, sets: newSets } };
     });
   };
@@ -593,6 +622,75 @@ export function SendProposalDialog({
                               </div>
                             )}
                           </div>
+
+                          {/* ── Only space: time window + studio name ─────── */}
+                          {service === 'Only space' && (
+                            <div className="space-y-4 pt-3 border-t mt-2">
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label htmlFor={`space-start-${service}-${index}`}>Shoot Start Time</Label>
+                                  <TimeOfDaySelect
+                                    id={`space-start-${service}-${index}`}
+                                    value={set.shootStartTime || ''}
+                                    onChange={(value) => {
+                                      const newEndTime = calculateEndTime(value, set.totalHours || '');
+                                      updateServiceSetMulti(service, index, {
+                                        shootStartTime: value,
+                                        ...(newEndTime ? { shootEndTime: newEndTime } : {}),
+                                      });
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`space-hours-${service}-${index}`}>Total Hours</Label>
+                                  <Input
+                                    id={`space-hours-${service}-${index}`}
+                                    type="number"
+                                    min="0.25"
+                                    step="0.25"
+                                    disabled={!set.shootStartTime}
+                                    value={set.totalHours || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const newEndTime = calculateEndTime(set.shootStartTime || '', val);
+                                      updateServiceSetMulti(service, index, {
+                                        totalHours: val,
+                                        ...(newEndTime ? { shootEndTime: newEndTime } : {}),
+                                      });
+                                    }}
+                                    placeholder={set.shootStartTime ? 'e.g. 3' : 'Select start time first'}
+                                  />
+                                  <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`space-end-${service}-${index}`}>Shoot End Time</Label>
+                                  <TimeOfDaySelect
+                                    id={`space-end-${service}-${index}`}
+                                    value={set.shootEndTime || ''}
+                                    onChange={() => undefined}
+                                    disabled
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`space-studio-${service}-${index}`}>Studio Name</Label>
+                                  <Select
+                                    value={set.studioName || ''}
+                                    onValueChange={(value) => updateServiceSet(service, index, 'studioName', value)}
+                                  >
+                                    <SelectTrigger id={`space-studio-${service}-${index}`}>
+                                      <SelectValue placeholder="Select studio" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {STUDIO_NAME_OPTIONS.map((name) => (
+                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                         </div>
                       </div>
                     ))}

@@ -234,11 +234,22 @@ export function ScheduleShootDialog({
   const handleSelectSet = (index: number) => {
     const deliverableSets = lead?.deliverableSets || (lead as any)?.deliverable_sets;
     const ds = deliverableSets ? deliverableSets[index] : null;
+    const svcName = (ds?.serviceName || '').trim();
+    const isSpaceOnlySet = /only[\s-]*space/i.test(svcName);
+
     setScheduleForm({
       ...DEFAULT_SCHEDULE_FORM,
       camera: ds?.camera || prefill?.camera || '1',
       recordTime: ds?.recordTime || prefill?.recordTime || '',
       studioTime: ds?.studioTime || prefill?.studioTime || '',
+      // Auto-fetch shoot time window + studio from proposal (Only space only)
+      ...(isSpaceOnlySet ? {
+        shootStartTime: ds?.shootStartTime || ds?.shoot_start_time || '',
+        shootEndTime: ds?.shootEndTime || ds?.shoot_end_time || '',
+        totalHours: ds?.totalHours || ds?.total_hours || '',
+        // studioName from proposal maps directly to setName in schedule form
+        setName: ds?.studioName || ds?.studio_name || '',
+      } : {}),
       deliverableSetIndex: index,
       shootMemberName: shootMembers[0]?.name || FALLBACK_SHOOT_MEMBERS[0].name,
       shootMemberEmail: shootMembers[0]?.email || FALLBACK_SHOOT_MEMBERS[0].email,
@@ -246,6 +257,7 @@ export function ScheduleShootDialog({
     setSelectedSetIndex(index);
     setConflictError('');
   };
+
 
   const handleScheduleMemberChange = (name: string) => {
     const member = shootMembers.find((item) => item.name === name) ?? shootMembers[0] ?? FALLBACK_SHOOT_MEMBERS[0];

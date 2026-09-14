@@ -19,6 +19,16 @@ export interface ViewSentProposalDialogProps {
   lead: Lead | null;
 }
 
+/** Converts a 24-hour "HH:MM" string to "h:MM AM/PM" (e.g. "14:00" → "2:00 PM"). */
+function format24hTo12h(time: string): string {
+  if (!time || !time.includes(':')) return time;
+  const [rawHour, rawMinute] = time.split(':').map(Number);
+  if (Number.isNaN(rawHour) || Number.isNaN(rawMinute)) return time;
+  const period = rawHour >= 12 ? 'PM' : 'AM';
+  const hour12 = rawHour % 12 || 12;
+  return `${hour12}:${String(rawMinute).padStart(2, '0')} ${period}`;
+}
+
 export function ViewSentProposalDialog({
   open,
   onOpenChange,
@@ -112,10 +122,16 @@ export function ViewSentProposalDialog({
                           .replace(/([A-Z])/g, ' $1')
                           .replace(/^./, str => str.toUpperCase())
                           .replace(/_/g, ' ');
+                        // Display time fields (HH:MM 24h) in 12-hour AM/PM format
+                        const isTimeField = key === 'shootStartTime' || key === 'shootEndTime' ||
+                          key === 'shoot_start_time' || key === 'shoot_end_time';
+                        const displayValue = isTimeField
+                          ? format24hTo12h(String(value))
+                          : String(value);
                         return (
                           <div key={key} className="flex justify-between border-b pb-1">
                             <span className="text-muted-foreground">{formattedKey}:</span>
-                            <span className="font-medium">{String(value)}</span>
+                            <span className="font-medium">{displayValue}</span>
                           </div>
                         );
                       })}

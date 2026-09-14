@@ -625,22 +625,25 @@ export function SendProposalDialog({
 
                           {/* ── Only space: time window + studio name ─────── */}
                           {service === 'Only space' && (
-                            <div className="space-y-4 pt-3 border-t mt-2">
+                            <div className="space-y-3 pt-3 border-t mt-2">
+                              {/* Row 1: Start Time — full width so the 3-part picker has room */}
+                              <div className="space-y-2">
+                                <Label htmlFor={`space-start-${service}-${index}`}>Shoot Start Time</Label>
+                                <TimeOfDaySelect
+                                  id={`space-start-${service}-${index}`}
+                                  value={set.shootStartTime || ''}
+                                  onChange={(value) => {
+                                    const newEndTime = calculateEndTime(value, set.totalHours || '');
+                                    updateServiceSetMulti(service, index, {
+                                      shootStartTime: value,
+                                      ...(newEndTime ? { shootEndTime: newEndTime } : {}),
+                                    });
+                                  }}
+                                />
+                              </div>
+
+                              {/* Row 2: Total Hours + Studio Name side by side */}
                               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                  <Label htmlFor={`space-start-${service}-${index}`}>Shoot Start Time</Label>
-                                  <TimeOfDaySelect
-                                    id={`space-start-${service}-${index}`}
-                                    value={set.shootStartTime || ''}
-                                    onChange={(value) => {
-                                      const newEndTime = calculateEndTime(value, set.totalHours || '');
-                                      updateServiceSetMulti(service, index, {
-                                        shootStartTime: value,
-                                        ...(newEndTime ? { shootEndTime: newEndTime } : {}),
-                                      });
-                                    }}
-                                  />
-                                </div>
                                 <div className="space-y-2">
                                   <Label htmlFor={`space-hours-${service}-${index}`}>Total Hours</Label>
                                   <Input
@@ -663,15 +666,6 @@ export function SendProposalDialog({
                                   <p className="text-xs text-muted-foreground">End time is calculated automatically.</p>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label htmlFor={`space-end-${service}-${index}`}>Shoot End Time</Label>
-                                  <TimeOfDaySelect
-                                    id={`space-end-${service}-${index}`}
-                                    value={set.shootEndTime || ''}
-                                    onChange={() => undefined}
-                                    disabled
-                                  />
-                                </div>
-                                <div className="space-y-2">
                                   <Label htmlFor={`space-studio-${service}-${index}`}>Studio Name</Label>
                                   <Select
                                     value={set.studioName || ''}
@@ -688,8 +682,20 @@ export function SendProposalDialog({
                                   </Select>
                                 </div>
                               </div>
+
+                              {/* Row 3: End Time — full width, read-only, auto-calculated */}
+                              <div className="space-y-2">
+                                <Label htmlFor={`space-end-${service}-${index}`}>Shoot End Time <span className="text-xs text-muted-foreground">(auto-calculated)</span></Label>
+                                <TimeOfDaySelect
+                                  id={`space-end-${service}-${index}`}
+                                  value={set.shootEndTime || ''}
+                                  onChange={() => undefined}
+                                  disabled
+                                />
+                              </div>
                             </div>
                           )}
+
 
                         </div>
                       </div>

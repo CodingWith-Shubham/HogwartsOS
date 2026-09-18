@@ -69,6 +69,7 @@ import { UploadScreenshotDialog } from '@/components/sales/UploadScreenshotDialo
 import { SalesTargetTab } from '@/components/sales/SalesTargetTab';
 import { SERVICE_NOTE_OPTIONS, parseCost, isSpaceOnlyService, isSpaceOnlyShoot, type ProposalFormValues } from '@/components/pipeline/stageDialogShared';
 import type { ScheduleDialogPrefill, ScheduleDialogLead } from '@/components/pipeline/ScheduleShootDialog';
+import { UpsellTypeBadge } from '@/components/clients/UpsellCrossSellPipeline';
 
 const FINAL_PAYMENT_COMPLETED_WEBHOOK_URL =
   'https://n8n.hogwartsstudios.com/webhook/final-payment-completed';
@@ -496,15 +497,28 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
 
   const refreshPaymentHistory = useCallback(async (silent = false) => {
     try {
-      // We now fetch ALL payments so they show in the 'Total collected' history,
-      // but the paymentSummary calculation explicitly ignores upsell payments for the 'Remaining' balance.
-      const response = await authFetch('/api/payments', { cache: 'no-store' });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
+      // Fetch payments + upsell entries together so we can resolve the upsell type
+      // (upsell / crosssell / newsale) for each payment that has an upsellCrossSellId.
+      const [paymentsRes, upsellRes] = await Promise.all([
+        authFetch('/api/payments', { cache: 'no-store' }),
+        authFetch('/api/upsell-crosssell', { cache: 'no-store' }),
+      ]);
+      const data = await paymentsRes.json();
+      if (!paymentsRes.ok) throw new Error(data.error ?? 'Failed to refresh payment history');
+
+      // Build id → type map from upsell entries (best-effort; ignore errors)
+      const upsellTypeMap = new Map<string, 'upsell' | 'crosssell' | 'newsale'>();
+      if (upsellRes.ok) {
+        const upsellData = await upsellRes.json().catch(() => ({}));
+        (upsellData.data?.entries ?? []).forEach((entry: any) => {
+          if (entry._id && entry.type) upsellTypeMap.set(String(entry._id), entry.type);
+        });
+      }
 
       const grouped = (data.payments ?? []).reduce((history: Record<string, PaymentInstallment[]>, payment: any) => {
         // Normalize to snake_case for the PaymentInstallment interface
         // MongoDB returns camelCase; n8n / legacy data may use snake_case
+        const upsellId = String(payment.upsellCrossSellId ?? payment.upsell_crosssell_id ?? '').trim();
         const normalized: PaymentInstallment = {
           payment_id: payment.paymentId ?? payment.payment_id ?? '',
           lead_id: payment.leadId ?? payment.lead_id ?? '',
@@ -521,7 +535,9 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
           payment_completed: Boolean(payment.paymentCompleted ?? payment.payment_completed),
           screenshot_url: payment.screenshotUrl ?? payment.screenshot_url,
           utr_number: payment.utrNumber ?? payment.utr_number,
-          upsell_crosssell_id: payment.upsellCrossSellId ?? payment.upsell_crosssell_id,
+          upsell_crosssell_id: upsellId || undefined,
+          // Resolved from the upsell entries list
+          upsell_type: upsellId ? upsellTypeMap.get(upsellId) : undefined,
         };
         const key = normalized.lead_id;
         (history[key] ??= []).push(normalized);
@@ -2332,7 +2348,12 @@ export function SalesDashboard({ initialLeads, initialShoots, initialEditing }: 
                           <span className="absolute -left-[1.85rem] top-4 h-3 w-3 rounded-full border-2 border-background bg-primary" />
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="font-medium">{payment.installment_label}</p>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="font-medium">{payment.installment_label}</p>
+                                {payment.upsell_type && (
+                                  <UpsellTypeBadge type={payment.upsell_type} />
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">{date ? new Date(date).toLocaleDateString('en-IN') : 'Date unavailable'}</p>
                             </div>
                             <p className="font-medium tabular-nums">{formatINR(payment.amount)}</p>

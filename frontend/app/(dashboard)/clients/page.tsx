@@ -7,7 +7,7 @@ import { StatCard } from '@/components/shared/StatCard';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download, ShoppingCart, Trash2 } from 'lucide-react';
+import { Users, Building2, Wallet, TrendingUp, Loader2, Plus, Edit, ArrowUpCircle, UserCheck, Shuffle, Download, ShoppingCart, Trash2, ExternalLink } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { LeadStatusBadge } from '@/components/shared/Badges';
 import { formatINR } from '@/lib/formatter';
 import { ClientsShimmer } from '@/components/shared/ShimmerLoader';
@@ -32,6 +40,7 @@ import {
 import {
   UpsellCrossSellPipeline,
   UpsellStatusBadge,
+  UpsellTypeBadge,
   type UpsellCrossSellEntry,
 } from '@/components/clients/UpsellCrossSellPipeline';
 import {
@@ -151,6 +160,11 @@ export default function ClientsPage() {
   const [ucxClients, setUcxClients] = useState<any[]>([]);
   const [ucxPayments, setUcxPayments] = useState<Record<string, any[]>>({});
 
+  // Payment history dialog state
+  const [paymentHistoryClient, setPaymentHistoryClient] = useState<any | null>(null);
+  const [clientPayments, setClientPayments] = useState<any[]>([]);
+  const [loadingClientPayments, setLoadingClientPayments] = useState(false);
+
   const fetchUpsells = useCallback(async () => {
     try {
       const [listRes, summaryRes, paymentsRes] = await Promise.all([
@@ -176,6 +190,24 @@ export default function ClientsPage() {
       }
     } catch (error) {
       console.error('Error fetching upsell/cross-sell data:', error);
+    }
+  }, []);
+
+  // Fetch all payments for a specific client's leadId (including upsell-tagged ones)
+  const fetchClientPayments = useCallback(async (leadId: string) => {
+    setLoadingClientPayments(true);
+    try {
+      const res = await authFetch(`/api/payments?leadId=${encodeURIComponent(leadId)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (res.ok) {
+        setClientPayments(data.payments ?? []);
+      } else {
+        setClientPayments([]);
+      }
+    } catch {
+      setClientPayments([]);
+    } finally {
+      setLoadingClientPayments(false);
     }
   }, []);
 
@@ -673,8 +705,9 @@ export default function ClientsPage() {
             searchKeys={['name', 'email', 'contact']}
             searchPlaceholder="Search clients..."
             onRowClick={(c) => {
-              const clientProjects = editing.filter((p) => p.leadId === c.id);
-              console.log('Client projects:', clientProjects);
+              const lead = leads.find((l) => l.leadId === c.id);
+              setPaymentHistoryClient(lead ?? c);
+              fetchClientPayments(c.id);
             }}
           />
         </TabsContent>
@@ -960,6 +993,138 @@ export default function ClientsPage() {
         clientInfo={selectedProfileClient}
         onSuccess={() => triggerFetch()}
       />
+
+      {/* Payment History Dialog — shown when a client row is clicked */}
+      <Dialog
+        open={Boolean(paymentHistoryClient)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPaymentHistoryClient(null);
+            setClientPayments([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payment History</DialogTitle>
+            <DialogDescription>
+              {paymentHistoryClient
+                ? `${paymentHistoryClient.name || paymentHistoryClient.clientName} • All payments`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {paymentHistoryClient && (() => {
+            // Build upsell id → type map from already-fetched ucxEntries
+            const upsellTypeMap = new Map<string, 'upsell' | 'crosssell' | 'newsale'>();
+            ucxEntries.forEach((e) => {
+              if (e._id && e.type) upsellTypeMap.set(String(e._id), e.type);
+            });
+
+            const payments = clientPayments;
+
+            // Totals: only count verified payments
+            const VERIFIED = ['payment verified', 'verified', 'payment completed', 'screenshot verified'];
+            let totalCollected = 0;
+            let baseCollected = 0;
+            payments.forEach((p: any) => {
+              const status = (p.paymentStatus || p.payment_status || '').toLowerCase();
+              if (VERIFIED.includes(status)) {
+                const amount = Number(p.amount || 0);
+                totalCollected += amount;
+                const label = (p.installmentLabel || p.installment_label || '').toLowerCase();
+                const upsellId = String(p.upsellCrossSellId ?? '').trim();
+                const isAddon = label === 'addon payment' || label === 'addon' || label === 'revision addon';
+                if (!isAddon && !upsellId) {
+                  baseCollected += amount;
+                }
+              }
+            });
+            const totalCost = Number(paymentHistoryClient.cost || 0);
+            const remaining = totalCost > 0 ? Math.max(0, totalCost - baseCollected) : 0;
+
+            return (
+              <div className="space-y-4">
+                {loadingClientPayments ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : payments.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No payment installments recorded yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4 border-l-2 border-border ml-2 pl-5">
+                    {payments.map((payment: any, index: number) => {
+                      const date = payment.verifiedAt || payment.verified_at || payment.paymentLinkSentAt || payment.payment_link_sent_at;
+                      const upsellId = String(payment.upsellCrossSellId ?? '').trim();
+                      const upsellType = upsellId ? upsellTypeMap.get(upsellId) : undefined;
+                      return (
+                        <div
+                          key={payment.paymentId || payment.payment_id || index}
+                          className="relative rounded-md border border-border p-3"
+                        >
+                          <span className="absolute -left-[1.85rem] top-4 h-3 w-3 rounded-full border-2 border-background bg-primary" />
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="font-medium">{payment.installmentLabel || payment.installment_label || 'Custom'}</p>
+                                {upsellType && <UpsellTypeBadge type={upsellType} />}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {date ? new Date(date).toLocaleDateString('en-IN') : 'Date unavailable'}
+                              </p>
+                            </div>
+                            <p className="font-medium tabular-nums">{formatINR(Number(payment.amount || 0))}</p>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Badge variant={payment.paymentMode === 'Cash' || payment.payment_mode === 'Cash' ? 'secondary' : 'outline'}>
+                              {payment.paymentMode || payment.payment_mode || 'Online'}
+                            </Badge>
+                            <Badge variant="outline">{payment.paymentStatus || payment.payment_status || 'Pending'}</Badge>
+                          </div>
+                          {(payment.cashCollectedBy || payment.cash_collected_by) && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Collected by: {payment.cashCollectedBy || payment.cash_collected_by}
+                            </p>
+                          )}
+                          {(payment.utrNumber || payment.utr_number) &&
+                            (payment.utrNumber || payment.utr_number) !== 'Not provided' && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                UTR / Ref: {payment.utrNumber || payment.utr_number}
+                              </p>
+                            )}
+                          {(payment.screenshotUrl || payment.screenshot_url) && (
+                            <a
+                              href={payment.screenshotUrl || payment.screenshot_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 inline-flex items-center gap-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/20 transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View Payment Screenshot
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3 rounded-md bg-muted p-3 text-sm tabular-nums">
+                  <div>
+                    <p className="text-muted-foreground">Total collected</p>
+                    <p className="font-medium">{formatINR(totalCollected)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Remaining</p>
+                    <p className="font-medium">{formatINR(remaining)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

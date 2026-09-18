@@ -39,6 +39,9 @@ export interface PaymentInstallment {
   /** Set when this payment belongs to an upsell/cross-sell/new-sale pipeline entry.
    *  These payments appear in total collected but do NOT reduce the original lead's remaining amount. */
   upsell_crosssell_id?: string;
+  /** The type of the upsell/cross-sell/new-sale pipeline entry this payment belongs to.
+   *  Populated on the frontend by cross-referencing the upsell entries list. */
+  upsell_type?: 'upsell' | 'crosssell' | 'newsale';
 }
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 export type ServiceType =
